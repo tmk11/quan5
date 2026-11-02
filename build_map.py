@@ -132,19 +132,37 @@ def street_midpoint(name):
     return [round(sum(p[0] for p in pts) / len(pts), 2),
             round(sum(p[1] for p in pts) / len(pts), 2)]
 
-# ---------- Buildings ----------
-# Cartographic displacement: game road widths are exaggerated (width_m * 0.3,
-# vs true scale 0.0697 units/m), while building positions are at true scale.
-# Without displacement, a shophouse facade 4 m from a road centreline sits only
-# 0.28 game units away, so any playable character radius blocks the road.
-# So each building is pushed away from its nearest road segment until its
-# footprint clears the exaggerated road corridor plus a 0.5-unit margin
-# (capped at 3 units, so buildings stay inside their block). This moves
-# buildings slightly off their exact OSM position on narrow streets, but it
-# is what makes alleys walkable at all.
+# ---------- Buildings (2026-11-02 evening, Boss: only on yellow plots, never on roads) ----------
+# Rules for the rebuilt version:
+# - Drawn footprint = TRUE OSM footprint (no minimum 2x2 exaggeration any
+#   more — that old exaggeration was what made houses spill onto roads).
+# - Cartographic displacement: game road widths are exaggerated (width_m * 0.3,
+#   vs true scale 0.0697 units/m), while building positions are at true scale.
+#   Each building is pushed away from its nearest road segment until its
+#   footprint clears the exaggerated road corridor plus a 0.5-unit margin
+#   (capped at 3 units, so buildings stay inside their block).
+# - After displacement, a building is DROPPED (not drawn) if:
+#   * its centroid is inside a park polygon (green, not yellow land), or
+#   * it is small/medium (area < 2000 m2) and still overlaps ANY road
+#     corridor (checked against all nearby segments, not just the nearest).
+#   Large buildings (>= 2000 m2, e.g. markets) are kept even if they still
+#   touch an exaggerated road edge — they ARE the block, roads go around
+#   them, and the client keeps the on-road exemption for those edges.
+# So by construction, every small house drawn sits on yellow land only.
+# Game road width (MUST match client roadWidthFromMeters exactly, otherwise
+# the build-time filter and the drawn road disagree about what is "on a road"):
+# width_m * 0.15, floor 1.0 (character is ~0.7 wide, so alleys stay walkable),
+# cap 3.5. Still proportional (16 m road is twice an 8 m road), but narrow
+# enough that houses in normal Cholon blocks actually fit between roads.
+# The old 0.3 / floor 1.8 made roads so wide in game that most houses in
+# narrow blocks could never fit between two road corridors — that is why
+# the first yellow-plot pass dropped 2552 -> 315 buildings.
+def game_road_width(width_m):
+    return max(1.0, min(3.5, (width_m or 6) * 0.15))
+
 road_segs = []
 for r in roads:
-    w_game = r['width_m'] * 0.3
+    w_game = game_road_width(r['width_m'])
     for i in range(len(r['pts']) - 1):
         road_segs.append((r['pts'][i][0], r['pts'][i][1],
                           r['pts'][i + 1][0], r['pts'][i + 1][1], w_game / 2.0))
@@ -195,8 +213,56 @@ def displace_building(cx, cz, hw_t_, hd_t_, rot_):
     shift = min(required - d, 3.0)
     return cx + nx * shift, cz + nz * shift
 
+def building_overlaps_road(cx, cz, bhw, bhd, rot_):
+    # True if the oriented footprint (with a 0.15 margin) overlaps ANY nearby
+    # road corridor (road half width). Used to drop buildings that would
+    # still sit on a road after displacement.
+    # NOTE: keep building half-widths (bhw/bhd) and road half-width (rhw)
+    # in DIFFERENT variables — an earlier version reused hw_ for both and
+    # let 232 buildings slip through the filter.
+    lx_axis = (math.cos(rot_), -math.sin(rot_))
+    lz_axis = (math.sin(rot_), math.cos(rot_))
+    cell = (int(cx // 10), int(cz // 10))
+    cand = set()
+    for dx in (-1, 0, 1):
+        for dz in (-1, 0, 1):
+            cand.update(seg_grid.get((cell[0] + dx, cell[1] + dz), []))
+    for si in cand:
+        x1, z1, x2, z2, rhw = road_segs[si]
+        vx, vz = x2 - x1, z2 - z1
+        len2 = vx * vx + vz * vz
+        t = 0.0 if len2 == 0 else max(0.0, min(1.0, ((cx - x1) * vx + (cz - z1) * vz) / len2))
+        px, pz = x1 + vx * t, z1 + vz * t
+        d = math.hypot(cx - px, cz - pz)
+        if d < 0.001:
+            vl = math.hypot(vx, vz) or 1.0
+            nx, nz = -vz / vl, vx / vl
+        else:
+            nx, nz = (cx - px) / d, (cz - pz) / d
+        cos_phi = nx * lx_axis[0] + nz * lx_axis[1]
+        sin_phi = nx * lz_axis[0] + nz * lz_axis[1]
+        extent = abs(bhw * cos_phi) + abs(bhd * sin_phi)
+        # 0.25 margin here (vs 0.15 in the verifier) so rounding cx/cz to
+        # 2 decimals cannot push a kept building back onto a road.
+        if d < rhw + extent + 0.25:
+            return True
+    return False
+
+# Park polygons (lon/lat) for the yellow-plot filter: a building whose
+# centroid falls inside a park is on green land, not yellow land, so drop it.
+_wp = json.load(open(BASE / 'water_parks.json'))['elements']
+park_lonlat = []
+for _e in _wp:
+    _tags = _e.get('tags', {})
+    _geom = _e.get('geometry', [])
+    if _tags.get('leisure') == 'park' and len(_geom) >= 3:
+        park_lonlat.append([[p['lon'], p['lat']] for p in _geom])
+print('park polygons for plot filter:', len(park_lonlat))
+
 blds = json.load(open(BASE / 'buildings.json'))['elements']
 buildings = []
+dropped_park = 0
+dropped_road = 0
 for e in blds:
     tags = e.get('tags', {})
     geom = e.get('geometry', [])
@@ -238,13 +304,13 @@ for e in blds:
         if best is None or w * d < best[0]:
             best = (w * d, ang, w, d)
     _, ang, w_m, d_m = best
-    # hw/hd: kích thước VẼ (phóng đại, tối thiểu 2x2 để nhìn thấy trên điện thoại).
-    # hw_t/hd_t: kích thước VA CHẠM thật (footprint OSM, không phóng đại, không sàn 1.0),
-    # để nhân vật đi được trên đường nhỏ/hẻm mà nhà hai bên không chặn tim đường.
-    hw = max(1.0, (w_m * SCALE) / 2.0)
-    hd = max(1.0, (d_m * SCALE) / 2.0)
-    hw_t = max(0.2, (w_m * SCALE) / 2.0)
-    hd_t = max(0.2, (d_m * SCALE) / 2.0)
+    # hw/hd = hw_t/hd_t = TRUE footprint (no exaggeration any more).
+    # Old code drew hw/hd with a 1.0 minimum while displacing only by hw_t/hd_t,
+    # so the drawn box was wider than the cleared corridor — that mismatch is
+    # what made houses visually spill onto roads. Now drawn = displaced = true.
+    hw = max(0.3, (w_m * SCALE) / 2.0)
+    hd = max(0.3, (d_m * SCALE) / 2.0)
+    hw_t = hd_t = None  # set below, after displacement, to the same values
     # game coords: note game z = -meters_y, so rotation sign flips
     cx, cz = to_game(clon, clat)
     levels = tags.get('building:levels')
@@ -254,13 +320,22 @@ for e in blds:
         h_m = None
     if h_m is None:
         h_m = 18.0 if area > 2000 else (12.0 if area > 800 else 8.0)
-    height = round(max(2.5, min(9.0, h_m * 0.35)), 2)
-    cx, cz = displace_building(cx, cz, hw_t, hd_t, -ang)
+    height = round(max(2.5, min(7.0, h_m * 0.30)), 2)
+    cx, cz = displace_building(cx, cz, hw, hd, -ang)
+    hw_t, hd_t = hw, hd
+    # Yellow-plot filter: drop park buildings and small buildings still on a road.
+    if any(point_in_poly(clon, clat, pp) for pp in park_lonlat):
+        dropped_park += 1
+        continue
+    if area < 2000 and building_overlaps_road(cx, cz, hw, hd, -ang):
+        dropped_road += 1
+        continue
     buildings.append({'x': round(cx, 2), 'z': round(cz, 2), 'hw': round(hw, 2), 'hd': round(hd, 2),
                       'hw_t': round(hw_t, 2), 'hd_t': round(hd_t, 2),
                       'rot': round(-ang, 3), 'h': height,
                       'type': btype, 'name': name})
-print('buildings inside Q5 (area>=80 or named/special):', len(buildings))
+print('buildings inside Q5 after yellow-plot filter (was 2552 before filtering):', len(buildings),
+      'dropped: park', dropped_park, 'still-on-road', dropped_road)
 for b in buildings:
     if b['name'] in ('Chợ An Đông', 'Chợ Kim Biên', 'Bệnh Viện Nguyễn Tri Phương'):
         print(' named building:', b)
@@ -310,7 +385,7 @@ for name, desc in [('Phố lồng đèn Lương Nhữ Học', 'Phố lồng đè
         print(' WARNING street not found:', street)
 
 out = {
-    'source': 'OpenStreetMap (ODbL), boundary OSM relation 3820432 (Quan 5), all highways incl. unnamed alleys/footways, fetched 2026-11-02 (merged small Overpass chunks; eastmost unnamed residential strip may be incomplete due to Overpass 502 capacity, named roads there are complete)',
+    'source': 'OpenStreetMap (ODbL), boundary OSM relation 3820432 (Quan 5), all highways incl. unnamed alleys/footways, fetched 2026-11-02 (merged small Overpass chunks; eastmost unnamed residential strip may be incomplete due to Overpass 502 capacity, named roads there are complete); buildings filtered to yellow land plots only (park buildings and small buildings still overlapping a road after displacement are dropped, drawn footprint = true OSM footprint)',
     'origin': {'lon': LON0, 'lat': LAT0, 'scale_units_per_meter': SCALE},
     'bounds': {'x': [-140, 140], 'z': [-75, 75]},
     'boundary': poly_game,

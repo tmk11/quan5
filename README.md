@@ -1,10 +1,18 @@
-# Thành phố Quận 5 Online — Chợ Lớn (bản đồ thật, chỉ đường)
+# Thành phố Quận 5 Online — Chợ Lớn (bản đồ thật, nhà trên nền vàng)
 
 Game 3D nhiều người chơi cùng lúc, phong cách nhân vật chibi cute như ảnh tham khảo.
-Bản này dùng **bản đồ thật từ OpenStreetMap**, không còn lưới đường thẳng vẽ tay,
-và theo yêu cầu của Boss ngày 2026-11-02: **chỉ còn đường, không còn nhà 3D**
-(nhà, khối landmark, quán, cây 3D và đèn lồng đều đã xoá khỏi game; dữ liệu nhà
-vẫn còn trong `quan5-map.json` nhưng không được vẽ và không còn va chạm).
+Bản này dùng **bản đồ thật từ OpenStreetMap**, không còn lưới đường thẳng vẽ tay.
+Theo yêu cầu của Boss tối 2026-11-02, nhà 3D đã được dựng lại nhưng **chỉ trên
+nền đất vàng, không dựng ra đường**: nhà vẽ bằng đúng footprint thật của OSM
+(bản cũ phóng đại tối thiểu 2x2 nên hộp vẽ rộng hơn hành lang đã dọn — đó là lý
+do nhìn như nhà tràn ra đường), đã đẩy khỏi hành lang đường, nhà trong công viên
+và nhà nhỏ vẫn chồng đường sau khi đẩy đã bị bỏ hẳn, màu nhà trầm đồng tông
+nền vàng (không còn cầu vồng pastel). Đường vẽ theo tỉ lệ ×0,15 (sàn 1,0,
+trần 3,5) — đủ hẹp để nhà có chỗ đứng giữa hai đường, vẫn tỉ lệ và vẫn đi
+vừa hẻm; công thức này phải khớp đúng ở build_map.py và client, nếu không
+bản lọc và đường vẽ sẽ không đồng ý với nhau về "cái gì là trên đường".
+Va chạm: nhà chặn khi đi ngoài đường; khi đang ở trên đường/cầu thì nhà/kênh
+không chặn (lưới an toàn cho các khối lớn như chợ chạm mép đường phóng đại).
 
 ## Nguồn bản đồ (OpenStreetMap, ODbL)
 

@@ -63,7 +63,7 @@ button:disabled{opacity:.55;cursor:default}
 <div class="card">
 <h1>🏮 Thành phố Quận 5 Online</h1>
 <p id="loadStatus">Đang tải bản đồ thật từ OpenStreetMap…</p>
-<p>Đi dạo Chợ Lớn cùng nhau, trên đúng lưới đường thật của Quận 5 cũ (ranh OSM relation 3820432): chỉ có đường thôi, không còn nhà 3D — đường cong, chéo và giao nhau đúng như ngoài đời, kể cả hẻm và lối đi không tên. Không có chat tự do — chỉ chào hỏi, ăn uống, mua sắm và check-in có sẵn.</p>
+<p>Đi dạo Chợ Lớn cùng nhau, trên đúng lưới đường thật của Quận 5 cũ (ranh OSM relation 3820432): nhà 3D dựng lại nhưng chỉ trên nền đất vàng, không dựng ra đường — đường cong, chéo và giao nhau đúng như ngoài đời, kể cả hẻm và lối đi không tên. Không có chat tự do — chỉ chào hỏi, ăn uống, mua sắm và check-in có sẵn.</p>
 <input id="roomInput" placeholder="Mã phòng (để trống = thành phố chung QUAN5)" maxlength="12" style="text-transform:uppercase">
 <div class="row"><input id="nameInput" placeholder="Tên của bạn (để trống sẽ đặt tên Chợ Lớn)" maxlength="24"><button type="button" class="secondary" id="randomNameBtn">🎲 Tên hay</button></div>
 <div style="text-align:left;font-size:13px;margin:8px 0 2px;font-weight:700">Màu áo</div>
@@ -77,7 +77,7 @@ button:disabled{opacity:.55;cursor:default}
 </div>
 <button type="button" id="joinBtn" disabled>Vào thành phố</button>
 <p id="joinError" style="color:#b91c1c;font-size:13px;min-height:18px;margin:8px 0 0"></p>
-<p class="note">Lưu ý thật: chỉ còn đường. Vị trí, hình dạng và thứ tự các đường là từ OpenStreetMap, gồm cả đường không tên, hẻm và lối đi bộ. Bề rộng đường tỉ lệ với bề rộng thật (lấy từ OSM: tag width, không có thì số làn × 3,5m, không có nữa thì mặc định theo loại đường; trong game = bề rộng thật × 0,3, tối thiểu 1,8 để nhân vật đi được — nên đường 16m rộng gấp đôi đường 8m đúng như ngoài đời). Nhân vật đi tự do trên đất, chỉ bị chặn ở ranh Quận 5 và ở kênh (trừ khi đang ở trên cầu/đường). Dữ liệu © OpenStreetMap contributors, ODbL.</p>
+<p class="note">Lưu ý thật: nhà 3D chỉ dựng trên nền đất vàng, không dựng ra đường. Vị trí, hình dạng và thứ tự các đường là từ OpenStreetMap, gồm cả đường không tên, hẻm và lối đi bộ; nhà cũng từ footprint thật của OpenStreetMap, nhưng đã đẩy khỏi hành lang đường, nhà trong công viên và nhà nhỏ vẫn chồng đường đã bị bỏ hẳn — và nhà vẽ bằng đúng footprint thật (bản cũ phóng đại tối thiểu 2x2 nên hộp vẽ rộng hơn hành lang đã dọn, nhìn như nhà tràn ra đường). Màu nhà trầm, đồng tông nền vàng, không còn cầu vồng pastel. Bề rộng đường tỉ lệ với bề rộng thật (lấy từ OSM: tag width, không có thì số làn × 3,5m, không có nữa thì mặc định theo loại đường; trong game = bề rộng thật × 0,15, tối thiểu 1,0 để nhân vật đi được, tối đa 3,5 — nên đường 16m rộng gấp đôi đường 8m đúng như ngoài đời, và đường đủ hẹp để nhà có chỗ đứng trên nền vàng). Nhân vật đi trên đường không bị nhà chặn; ra khỏi đường thì nhà vẫn chặn như thường, và chỉ bị chặn ở ranh Quận 5 và ở kênh (trừ khi đang ở trên cầu/đường). Dữ liệu © OpenStreetMap contributors, ODbL.</p>
 </div>
 </div>
 <div id="hud">
@@ -169,7 +169,10 @@ function addBoxToGrid(b){
     var k=cx+','+cz; if(!GRID[k]) GRID[k]=[]; GRID[k].push(b);
   }
 }
-// Va chạm dùng footprint thật (hw_t/hd_t), không dùng hộp vẽ phóng đại.
+// Va chạm dùng đúng footprint vẽ (từ bản nhà-trên-nền-vàng, vẽ = thật,
+// không còn hộp phóng đại) — nhà đã được lọc khỏi đường từ lúc build map,
+// nên va chạm nhà không chặn đường; quy tắc onRoad vẫn giữ làm lưới an toàn
+// cho các khối lớn (chợ) chạm mép đường phóng đại.
 // Bán kính nhân vật 0.35: đủ nhỏ để lọt hẻm 5m (rộng game 1.8), đủ lớn để không đi xuyên tường nhà.
 function boxCollides(x,z,b){
   var dx=x-b.x, dz=z-b.z, c=Math.cos(b.rot||0), s=Math.sin(b.rot||0);
@@ -210,23 +213,29 @@ function mergedQuads(segments,color,y){
   m.receiveShadow=true; scene.add(m); return m;
 }
 // Bề rộng game tỉ lệ thuần với bề rộng thật (mét, từ OSM: width > lanes*3.5 > mặc định theo loại đường).
-// Công thức: width_m * 0.3, sàn 1.8 để nhân vật (rộng ~1) đi được, trần 6.5.
-// Ví dụ: đường 16m -> 4.8, đường 8m -> 2.4, hẻm 5m -> 1.8 (sàn), lối đi 3m -> 1.8 (sàn).
-// Đường lớn vì vậy rộng gấp đôi đường nhỏ đúng như ngoài đời, chứ không còn gần bằng nhau.
+// Công thức: width_m * 0.15, sàn 1.0 để nhân vật (rộng ~0.7) đi được, trần 3.5.
+// Ví dụ: đường 16m -> 2.4, đường 8m -> 1.2, hẻm 5m -> 1.0 (sàn), lối đi 3m -> 1.0 (sàn).
+// Đường lớn vì vậy vẫn rộng gấp đôi đường nhỏ đúng như ngoài đời, chứ không còn gần bằng nhau.
+// LÝ DO đổi từ 0.3/sàn 1.8 sang 0.15/sàn 1.0 (2026-11-02 tối): đường vẽ quá rộng
+// làm lô đất giữa hai đường không còn chỗ cho nhà — nhà nào cũng chồng đường,
+// nên bản lọc nền-vàng đầu tiên rớt 2552 -> 315 nhà. Thu hẹp đường lại thì
+// nhà mới có chỗ đứng trên nền vàng được, mà vẫn tỉ lệ và vẫn đi vừa hẻm.
+// PHẢI khớp đúng với game_road_width trong build_map.py, nếu không bản lọc
+// và đường vẽ sẽ không đồng ý với nhau về "cái gì là trên đường".
 function roadWidthFromMeters(m){
-  var v=(Number(m)||6)*0.3;
-  return Math.max(1.8,Math.min(6.5,v));
+  var v=(Number(m)||6)*0.15;
+  return Math.max(1.0,Math.min(3.5,v));
 }
 function buildingColor(b){
+  // Bảng màu trầm, đồng tông với nền vàng — không còn cầu vồng pastel
+  // (đó là một phần lý do bản cũ trông "loạn"). Chỉ 4 tông ấm/xám nhạt,
+  // biến thiên nhẹ theo vị trí để nhà không bị một màu phẳng.
   var t=b.type||'';
-  if(t==='hospital') return 0xf5f5f5;
-  if(t==='school'||t==='university') return 0xffe082;
-  if(t==='temple') return 0xc62828;
-  if(t==='church') return 0xbdbdbd;
-  if(t==='commercial'||t==='retail') return 0xffcc80;
-  if(t==='civic') return 0x90caf9;
-  if(t==='apartments') return 0xbbdefb;
-  var pal=[0xffe0b2,0xffccbc,0xfff9c4,0xc8e6c9,0xbbdefb,0xf8bbd0,0xd1c4e9,0xffe082];
+  if(t==='temple') return 0xc9a68a;
+  if(t==='church') return 0xd8d2c4;
+  if(t==='hospital'||t==='school'||t==='university'||t==='civic') return 0xf0ece0;
+  if(t==='commercial'||t==='retail') return 0xe3cfa0;
+  var pal=[0xf5efe0,0xe8e0cc,0xd9d2c4,0xcbb894];
   return pal[hashStr(Math.round(b.x)+':'+Math.round(b.z))%pal.length];
 }
 var LANDMARK_BOX_NAMES=['Chợ An Đông','Chợ Kim Biên','Chợ Hòa Bình'];
@@ -242,9 +251,10 @@ var LANDMARK_BOXES={
 function buildMap(){
   BOUNDARY=MAP.boundary; LANDMARKS=MAP.landmarks;
   (MAP.roads||[]).forEach(function(r){ if(r.major&&r.name) MAJOR_NAMES[r.name]=true; });
-  // Nền đúng hình Quận 5
+  // Nền đúng hình Quận 5 — vàng rõ để phân biệt nền đất với đường xám,
+  // công viên xanh và kênh xanh. Nhà chỉ được vẽ trên nền vàng này.
   var groundGeo=new THREE.ShapeGeometry(shapeFromGamePts(BOUNDARY));
-  var ground=new THREE.Mesh(groundGeo, mat(0xd8d0b8)); ground.rotation.x=-Math.PI/2; ground.position.y=0; ground.receiveShadow=true; scene.add(ground);
+  var ground=new THREE.Mesh(groundGeo, mat(0xe8d49a)); ground.rotation.x=-Math.PI/2; ground.position.y=0; ground.receiveShadow=true; scene.add(ground);
   // Công viên xanh
   (MAP.parks||[]).forEach(function(p){
     if(p.pts.length<3) return;
@@ -280,11 +290,24 @@ function buildMap(){
   mergedQuads(roadSegs,0x3a3f44,0.06);
   if(dashSegs.length) mergedQuads(dashSegs,0xf5f0dc,0.09);
   roadSegs.forEach(addRoadToGrid);
-  // CHỈ ĐƯỜNG (theo yêu cầu Boss 2026-11-02): không vẽ nhà 3D nữa.
-  // Dữ liệu nhà vẫn còn trong quan5-map.json nhưng không được vẽ và không
-  // còn va chạm — nhân vật đi tự do trên đất, chỉ bị chặn ở ranh Quận 5
-  // và ở kênh (trừ khi đang ở trên cầu/đường).
-  // Landmark: chỉ còn bảng tên nổi (để check-in), không còn khối nhà.
+  // NHÀ TRÊN NỀN VÀNG (theo yêu cầu Boss 2026-11-02 tối): vẽ lại nhà 3D,
+  // nhưng chỉ những nhà đã qua lọc ở build_map — footprint thật, đã đẩy
+  // khỏi hành lang đường, nhà trong công viên và nhà nhỏ vẫn chồng đường
+  // đã bị bỏ hẳn. Vì vậy không còn nhà nào nằm trên đường.
+  // Va chạm: đúng footprint vẽ (hw/hd, nay bằng footprint thật).
+  var list=MAP.buildings||[];
+  var inst=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1), new THREE.MeshStandardMaterial({roughness:0.9}), list.length);
+  var dummy=new THREE.Object3D(), col=new THREE.Color();
+  list.forEach(function(b,i){
+    dummy.position.set(b.x,b.h/2,b.z); dummy.rotation.set(0,b.rot||0,0); dummy.scale.set(b.hw*2,b.h,b.hd*2); dummy.updateMatrix();
+    inst.setMatrixAt(i,dummy.matrix); inst.setColorAt(i,col.setHex(buildingColor(b)));
+    var bb={x:b.x,z:b.z,hw:(b.hw_t!==undefined?b.hw_t:b.hw),hd:(b.hd_t!==undefined?b.hd_t:b.hd),rot:b.rot||0}; BOXES.push(bb); addBoxToGrid(bb);
+  });
+  if(inst.instanceColor) inst.instanceColor.needsUpdate=true;
+  inst.castShadow=true; inst.receiveShadow=true; scene.add(inst);
+  // Landmark: chỉ bảng tên nổi (để check-in). Bản thân chợ đã có trong
+  // danh sách nhà trên (footprint thật của chợ), không vẽ thêm khối riêng
+  // để khỏi chồng lên đường như bản cũ.
   LANDMARKS.forEach(function(L){
     var sp=textSprite(L.name,12); sp.position.set(L.x,8,L.z); scene.add(sp);
   });
@@ -468,7 +491,7 @@ function buildMinimapStatic(){
   function mx(x){ return (x+140)/280*W; } function mz(z){ return (z+75)/150*H; }
   ctx.fillStyle='#e8e0cc'; ctx.fillRect(0,0,W,H);
   if(BOUNDARY.length){
-    ctx.fillStyle='#d8d0b8'; ctx.beginPath();
+    ctx.fillStyle='#e8d49a'; ctx.beginPath();
     BOUNDARY.forEach(function(p,i){ if(i===0) ctx.moveTo(mx(p[0]),mz(p[1])); else ctx.lineTo(mx(p[0]),mz(p[1])); });
     ctx.closePath(); ctx.fill(); ctx.strokeStyle='#8a7a5a'; ctx.stroke();
   }
@@ -554,7 +577,7 @@ setInterval(function(){
 // Tải bản đồ thật rồi mới cho vào
 fetch('quan5-map.json').then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }).then(function(j){
   MAP=j; buildMap(); buildMinimapStatic();
-  document.getElementById('loadStatus').textContent='Đã tải xong bản đồ thật: '+j.roads.length+' đoạn đường trong ranh Quận 5 (chỉ đường, không nhà), '+j.landmarks.length+' landmark.';
+  document.getElementById('loadStatus').textContent='Đã tải xong bản đồ thật: '+j.roads.length+' đoạn đường, '+j.buildings.length+' nhà trên nền vàng (không nhà trên đường), '+j.landmarks.length+' landmark trong ranh Quận 5.';
   document.getElementById('joinBtn').disabled=false;
   camera.position.set(myPos.x,6.5,myPos.z+10); camera.lookAt(myPos.x,1.6,myPos.z);
 }).catch(function(e){
