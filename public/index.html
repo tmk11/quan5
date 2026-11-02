@@ -127,6 +127,7 @@ function textSprite(text,scale,bg){
 // ---------- Bản đồ thật ----------
 var MAP=null, LANDMARKS=[], ROAD_SEGMENTS=[], WATER_SEGMENTS=[], BOUNDARY=[];
 var BOXES=[], GRID={}, ROAD_GRID={}, LANTERN_MATS=[];
+var MAJOR_NAMES={}; // PHẢI ở phạm vi toàn cục: buildMap (ngoài khối game) và updateStreetLabel (trong khối game) cùng dùng.
 function addRoadToGrid(s){
   var minCx=Math.floor((Math.min(s.x1,s.x2)-3)/10), maxCx=Math.floor((Math.max(s.x1,s.x2)+3)/10);
   var minCz=Math.floor((Math.min(s.z1,s.z2)-3)/10), maxCz=Math.floor((Math.max(s.z1,s.z2)+3)/10);
@@ -409,7 +410,7 @@ function nearestLandmark(){
   LANDMARKS.forEach(function(L){ var d=Math.hypot(myPos.x-L.x,myPos.z-L.z); if(d<bd){ bd=d; best=L; } });
   return {L:best,d:bd};
 }
-var MAJOR_NAMES={}; var dynStreetSprite=null, dynStreetName='';
+var dynStreetSprite=null, dynStreetName='';
 function nearestStreet(){
   var best=null, bd=1e9, bx=0, bz=0;
   ROAD_SEGMENTS.forEach(function(s){
