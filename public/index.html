@@ -46,7 +46,8 @@ button:disabled{opacity:.55;cursor:default}
 @media (max-width:640px){
 #shareBox{top:8px;left:8px;right:8px;padding:8px 10px;font-size:13px}
 #stats{top:78px;left:8px;padding:8px 10px;font-size:13px;line-height:1.4}
-#minimapWrap{display:none}
+#minimapWrap{display:block;top:78px;right:8px;padding:8px 10px}
+#minimapWrap canvas{width:150px;height:auto}
 #feed{display:none}
 #nearBox{bottom:190px;left:8px;right:8px;max-width:none}
 #actions{left:8px;right:8px;bottom:8px;transform:none;max-width:none;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:8px;max-height:26vh;overflow-y:auto;touch-action:pan-y}
@@ -76,7 +77,7 @@ button:disabled{opacity:.55;cursor:default}
 </div>
 <button type="button" id="joinBtn" disabled>Vào thành phố</button>
 <p id="joinError" style="color:#b91c1c;font-size:13px;min-height:18px;margin:8px 0 0"></p>
-<p class="note">Lưu ý thật: vị trí, hình dạng và thứ tự các đường là từ OpenStreetMap. Bề rộng đường, chiều cao nhà và kích thước nhân vật được phóng đại để chơi được trên điện thoại, chứ không đúng tỉ lệ mét ngoài đời. Dữ liệu © OpenStreetMap contributors, ODbL.</p>
+<p class="note">Lưu ý thật: vị trí, hình dạng và thứ tự các đường là từ OpenStreetMap. Bề rộng đường tỉ lệ với bề rộng thật (lấy từ OSM: tag width, không có thì số làn × 3,5m, không có nữa thì mặc định theo loại đường; trong game = bề rộng thật × 0,3, tối thiểu 1,8 để nhân vật đi được — nên đường 16m rộng gấp đôi đường 8m đúng như ngoài đời). Nhân vật đi được vào cả đường nhỏ/hẻm: khi đang ở trên đường thì nhà/kênh không chặn nữa, vì nhà trên OSM có khi sát tim hẻm chỉ 1–2m; ra khỏi đường thì nhà vẫn chặn như thường. Chiều cao nhà và kích thước nhân vật vẫn phóng đại. Dữ liệu © OpenStreetMap contributors, ODbL.</p>
 </div>
 </div>
 <div id="hud">
@@ -125,7 +126,28 @@ function textSprite(text,scale,bg){
 }
 // ---------- Bản đồ thật ----------
 var MAP=null, LANDMARKS=[], ROAD_SEGMENTS=[], WATER_SEGMENTS=[], BOUNDARY=[];
-var BOXES=[], GRID={}, LANTERN_MATS=[];
+var BOXES=[], GRID={}, ROAD_GRID={}, LANTERN_MATS=[];
+function addRoadToGrid(s){
+  var minCx=Math.floor((Math.min(s.x1,s.x2)-3)/10), maxCx=Math.floor((Math.max(s.x1,s.x2)+3)/10);
+  var minCz=Math.floor((Math.min(s.z1,s.z2)-3)/10), maxCz=Math.floor((Math.max(s.z1,s.z2)+3)/10);
+  for(var cx=minCx;cx<=maxCx;cx++) for(var cz=minCz;cz<=maxCz;cz++){
+    var k=cx+','+cz; if(!ROAD_GRID[k]) ROAD_GRID[k]=[]; ROAD_GRID[k].push(s);
+  }
+}
+// Đang ở trên đường không? Nếu có, nhà/kênh không chặn — đây là điều kiện
+// để nhân vật đi được vào mọi đường nhỏ/hẻm, kể cả khi footprint nhà trên OSM
+// sát tim hẻm (1-2m ngoài đời) và hộp vẽ phóng đại chồng lên đường.
+function onRoad(x,z){
+  var cx=Math.floor(x/10), cz=Math.floor(z/10);
+  for(var dx=-1;dx<=1;dx++) for(var dz=-1;dz<=1;dz++){
+    var list=ROAD_GRID[(cx+dx)+','+(cz+dz)]||[];
+    for(var i=0;i<list.length;i++){
+      var s=list[i];
+      if(distToSeg(x,z,s.x1,s.z1,s.x2,s.z2).d < s.w/2+0.2) return true;
+    }
+  }
+  return false;
+}
 function hashStr(s){ var h=0; for(var i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))>>>0; return h; }
 function pointInPoly(x,z,poly){
   var inside=false;
@@ -146,12 +168,15 @@ function addBoxToGrid(b){
     var k=cx+','+cz; if(!GRID[k]) GRID[k]=[]; GRID[k].push(b);
   }
 }
+// Va chạm dùng footprint thật (hw_t/hd_t), không dùng hộp vẽ phóng đại.
+// Bán kính nhân vật 0.35: đủ nhỏ để lọt hẻm 5m (rộng game 1.8), đủ lớn để không đi xuyên tường nhà.
 function boxCollides(x,z,b){
   var dx=x-b.x, dz=z-b.z, c=Math.cos(b.rot||0), s=Math.sin(b.rot||0);
   var lx=dx*c-dz*s, lz=dx*s+dz*c;
-  return Math.abs(lx)<b.hw+0.7 && Math.abs(lz)<b.hd+0.7;
+  return Math.abs(lx)<b.hw+0.35 && Math.abs(lz)<b.hd+0.35;
 }
 function collides(x,z){
+  if(onRoad(x,z)) return false;
   var cx=Math.floor(x/12), cz=Math.floor(z/12);
   for(var dx=-1;dx<=1;dx++) for(var dz=-1;dz<=1;dz++){
     var list=GRID[(cx+dx)+','+(cz+dz)]||[];
@@ -183,12 +208,13 @@ function mergedQuads(segments,color,y){
   var m=new THREE.Mesh(geo, new THREE.MeshStandardMaterial({color:color,roughness:0.9,side:THREE.DoubleSide}));
   m.receiveShadow=true; scene.add(m); return m;
 }
-function roadWidth(type){
-  if(type==='motorway'||type==='trunk'||type==='primary') return 5;
-  if(type==='secondary') return 4.5;
-  if(type==='tertiary') return 4;
-  if(type==='residential'||type==='unclassified') return 3.5;
-  return 2.5;
+// Bề rộng game tỉ lệ thuần với bề rộng thật (mét, từ OSM: width > lanes*3.5 > mặc định theo loại đường).
+// Công thức: width_m * 0.3, sàn 1.8 để nhân vật (rộng ~1) đi được, trần 6.5.
+// Ví dụ: đường 16m -> 4.8, đường 8m -> 2.4, hẻm 5m -> 1.8 (sàn), lối đi 3m -> 1.8 (sàn).
+// Đường lớn vì vậy rộng gấp đôi đường nhỏ đúng như ngoài đời, chứ không còn gần bằng nhau.
+function roadWidthFromMeters(m){
+  var v=(Number(m)||6)*0.3;
+  return Math.max(1.8,Math.min(6.5,v));
 }
 function buildingColor(b){
   var t=b.type||'';
@@ -214,6 +240,7 @@ var LANDMARK_BOXES={
 };
 function buildMap(){
   BOUNDARY=MAP.boundary; LANDMARKS=MAP.landmarks;
+  (MAP.roads||[]).forEach(function(r){ if(r.major&&r.name) MAJOR_NAMES[r.name]=true; });
   // Nền đúng hình Quận 5
   var groundGeo=new THREE.ShapeGeometry(shapeFromGamePts(BOUNDARY));
   var ground=new THREE.Mesh(groundGeo, mat(0xd8d0b8)); ground.rotation.x=-Math.PI/2; ground.position.y=0; ground.receiveShadow=true; scene.add(ground);
@@ -233,7 +260,7 @@ function buildMap(){
   // Đường: gộp tất cả đoạn thành 1 mesh, đường lớn vẽ thêm vạch trắng
   var roadSegs=[], dashSegs=[];
   (MAP.roads||[]).forEach(function(r){
-    var w=roadWidth(r.type);
+    var w=roadWidthFromMeters(r.width_m);
     for(var i=0;i+1<r.pts.length;i++){
       var s={x1:r.pts[i][0],z1:r.pts[i][1],x2:r.pts[i+1][0],z2:r.pts[i+1][1],w:w,name:r.name};
       roadSegs.push(s); ROAD_SEGMENTS.push(s);
@@ -251,6 +278,7 @@ function buildMap(){
   });
   mergedQuads(roadSegs,0x3a3f44,0.06);
   if(dashSegs.length) mergedQuads(dashSegs,0xf5f0dc,0.09);
+  roadSegs.forEach(addRoadToGrid);
   // Nhà: 1 InstancedMesh cho toàn bộ nhà OSM (trừ 3 chợ đã vẽ riêng)
   var list=MAP.buildings.filter(function(b){ return LANDMARK_BOX_NAMES.indexOf(b.name)<0; });
   var inst=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1), new THREE.MeshStandardMaterial({roughness:0.85}), list.length);
@@ -258,7 +286,8 @@ function buildMap(){
   list.forEach(function(b,i){
     dummy.position.set(b.x,b.h/2,b.z); dummy.rotation.set(0,b.rot||0,0); dummy.scale.set(b.hw*2,b.h,b.hd*2); dummy.updateMatrix();
     inst.setMatrixAt(i,dummy.matrix); inst.setColorAt(i,col.setHex(buildingColor(b)));
-    var bb={x:b.x,z:b.z,hw:b.hw,hd:b.hd,rot:b.rot||0}; BOXES.push(bb); addBoxToGrid(bb);
+    // Va chạm: footprint thật, không phải hộp vẽ phóng đại.
+    var bb={x:b.x,z:b.z,hw:(b.hw_t!==undefined?b.hw_t:b.hw),hd:(b.hd_t!==undefined?b.hd_t:b.hd),rot:b.rot||0}; BOXES.push(bb); addBoxToGrid(bb);
   });
   if(inst.instanceColor) inst.instanceColor.needsUpdate=true;
   inst.castShadow=true; inst.receiveShadow=true; scene.add(inst);
@@ -269,7 +298,10 @@ function buildMap(){
       box(spec.w,spec.h,spec.d,spec.c,L.x,spec.h/2,L.z);
       box(spec.w+1,0.6,spec.d+1,0x8a1f14,L.x,spec.h+0.3,L.z);
       box(1.6,2.6,0.3,0x2b1a12,L.x,1.3,L.z+spec.d/2+0.05);
-      var bb={x:L.x,z:L.z,hw:spec.w/2,hd:spec.d/2,rot:0}; BOXES.push(bb); addBoxToGrid(bb);
+      // Va chạm landmark: một nửa hộp vẽ, tâm đúng hộp vẽ (nhà OSM của chợ đã bị
+      // đẩy lùi khỏi đường trong build_map, nên không dùng vị trí đó ở đây).
+      var bb={x:L.x,z:L.z,hw:spec.w/4,hd:spec.d/4,rot:0};
+      BOXES.push(bb); addBoxToGrid(bb);
     }
     var sp=textSprite(L.name,12); sp.position.set(L.x,8,L.z); scene.add(sp);
   });
@@ -377,20 +409,36 @@ function nearestLandmark(){
   LANDMARKS.forEach(function(L){ var d=Math.hypot(myPos.x-L.x,myPos.z-L.z); if(d<bd){ bd=d; best=L; } });
   return {L:best,d:bd};
 }
+var MAJOR_NAMES={}; var dynStreetSprite=null, dynStreetName='';
 function nearestStreet(){
-  var best='Quận 5', bd=1e9;
+  var best=null, bd=1e9, bx=0, bz=0;
   ROAD_SEGMENTS.forEach(function(s){
     if(!s.name) return;
-    var d=distToSeg(myPos.x,myPos.z,s.x1,s.z1,s.x2,s.z2).d;
-    if(d<bd){ bd=d; best=s.name; }
+    var r=distToSeg(myPos.x,myPos.z,s.x1,s.z1,s.x2,s.z2);
+    if(r.d<bd){ bd=r.d; best=s.name; bx=r.x; bz=r.z; }
   });
-  return bd<12 ? best : 'Quận 5';
+  return bd<12 ? {name:best,d:bd,x:bx,z:bz} : null;
+}
+function updateStreetLabel(ns){
+  // Bảng tên động: chỉ hiện cho đường nhỏ (đường lớn đã có bảng tĩnh).
+  // Nhờ vậy mọi đường có tên trên OSM — kể cả Ký Hòa — đều hiện tên khi tới gần.
+  if(!ns || MAJOR_NAMES[ns.name]){
+    if(dynStreetSprite){ dynStreetSprite.visible=false; }
+    return;
+  }
+  if(ns.name!==dynStreetName){
+    if(dynStreetSprite){ scene.remove(dynStreetSprite); if(dynStreetSprite.material.map) dynStreetSprite.material.map.dispose(); }
+    dynStreetSprite=textSprite(ns.name,7); scene.add(dynStreetSprite); dynStreetName=ns.name;
+  }
+  dynStreetSprite.visible=true; dynStreetSprite.position.set(ns.x,2.8,ns.z);
 }
 function updateNear(){
   var nl=nearestLandmark(); var boxEl=document.getElementById('nearBox');
   if(nl.L && nl.d<=22){ boxEl.style.display='block'; boxEl.innerHTML='<b>📍 '+nl.L.name+'</b><br>'+(nl.L.desc||'')+'<br><i>Bấm 📸 Check-in để +10 điểm.</i>'; }
   else { boxEl.style.display='none'; }
-  document.getElementById('streetLabel').textContent=nearestStreet();
+  var ns=nearestStreet();
+  document.getElementById('streetLabel').textContent=ns?ns.name:'Quận 5';
+  updateStreetLabel(ns);
   document.getElementById('checkinBtn').textContent = (nl.L && nl.d<=22) ? ('📸 Check-in: '+nl.L.name) : '📸 Check-in';
 }
 document.querySelectorAll('#actions button[data-action]').forEach(function(btn){

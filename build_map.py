@@ -42,6 +42,35 @@ print('boundary points:', len(poly_lonlat),
       'lat', min(p[1] for p in poly_lonlat), max(p[1] for p in poly_lonlat))
 
 # ---------- Roads ----------
+# Real width in metres, for proportional game widths (see client roadWidth):
+# explicit OSM width tag first, else lanes * 3.5 m, else a default by highway type.
+TYPE_WIDTH_M = {
+    'motorway': 22, 'motorway_link': 12, 'trunk': 20, 'trunk_link': 12,
+    'primary': 16, 'primary_link': 10, 'secondary': 14, 'secondary_link': 10,
+    'tertiary': 12, 'tertiary_link': 8, 'unclassified': 8, 'residential': 8,
+    'living_street': 6, 'service': 5, 'pedestrian': 6, 'footway': 3,
+    'path': 3, 'cycleway': 3, 'steps': 2,
+}
+
+def real_width_m(tags):
+    w = tags.get('width')
+    if w:
+        try:
+            v = float(str(w).split()[0])
+            if 1 <= v <= 40:
+                return round(v, 1)
+        except ValueError:
+            pass
+    lanes = tags.get('lanes')
+    if lanes:
+        try:
+            n = int(str(lanes).split('|')[0].split(';')[0])
+            if 1 <= n <= 8:
+                return round(n * 3.5, 1)
+        except ValueError:
+            pass
+    return TYPE_WIDTH_M.get(tags.get('highway'), 6)
+
 highways = json.load(open(BASE / 'highways.json'))['elements']
 roads = []
 major_names = {'Trần Hưng Đạo','Nguyễn Trãi','An Dương Vương','Hải Thượng Lãn Ông',
@@ -54,6 +83,7 @@ for e in highways:
     if len(geom) < 2:
         continue
     # split into sub-polylines of consecutive inside points
+    wm = real_width_m(tags)
     cur = []
     for pt in geom:
         if point_in_poly(pt['lon'], pt['lat'], poly_lonlat):
@@ -61,11 +91,11 @@ for e in highways:
         else:
             if len(cur) >= 2:
                 roads.append({'name': tags.get('name'), 'type': tags.get('highway'),
-                              'major': tags.get('name') in major_names, 'pts': cur})
+                              'major': tags.get('name') in major_names, 'width_m': wm, 'pts': cur})
             cur = []
     if len(cur) >= 2:
         roads.append({'name': tags.get('name'), 'type': tags.get('highway'),
-                      'major': tags.get('name') in major_names, 'pts': cur})
+                      'major': tags.get('name') in major_names, 'width_m': wm, 'pts': cur})
 print('road polylines inside Q5:', len(roads),
       'points:', sum(len(r['pts']) for r in roads))
 names = {}
@@ -87,6 +117,68 @@ def street_midpoint(name):
             round(sum(p[1] for p in pts) / len(pts), 2)]
 
 # ---------- Buildings ----------
+# Cartographic displacement: game road widths are exaggerated (width_m * 0.3,
+# vs true scale 0.0697 units/m), while building positions are at true scale.
+# Without displacement, a shophouse facade 4 m from a road centreline sits only
+# 0.28 game units away, so any playable character radius blocks the road.
+# So each building is pushed away from its nearest road segment until its
+# footprint clears the exaggerated road corridor plus a 0.5-unit margin
+# (capped at 3 units, so buildings stay inside their block). This moves
+# buildings slightly off their exact OSM position on narrow streets, but it
+# is what makes alleys walkable at all.
+road_segs = []
+for r in roads:
+    w_game = r['width_m'] * 0.3
+    for i in range(len(r['pts']) - 1):
+        road_segs.append((r['pts'][i][0], r['pts'][i][1],
+                          r['pts'][i + 1][0], r['pts'][i + 1][1], w_game / 2.0))
+# Spatial grid over road segments (cell 10 units) for fast nearest search.
+from collections import defaultdict
+seg_grid = defaultdict(list)
+for si, (x1, z1, x2, z2, hw_) in enumerate(road_segs):
+    for cx in range(int(min(x1, x2) // 10), int(max(x1, x2) // 10) + 1):
+        for cz in range(int(min(z1, z2) // 10), int(max(z1, z2) // 10) + 1):
+            seg_grid[(cx, cz)].append(si)
+
+def displace_building(cx, cz, hw_t_, hd_t_, rot_):
+    # local axes in (x, z): local x = (cos rot, -sin rot), local z = (sin rot, cos rot)
+    lx_axis = (math.cos(rot_), -math.sin(rot_))
+    lz_axis = (math.sin(rot_), math.cos(rot_))
+    best = None  # (dist2, closest_x, closest_z, seg_half_width)
+    cell = (int(cx // 10), int(cz // 10))
+    cand = set()
+    for dx in (-1, 0, 1):
+        for dz in (-1, 0, 1):
+            cand.update(seg_grid.get((cell[0] + dx, cell[1] + dz), []))
+    for si in cand:
+        x1, z1, x2, z2, hw_ = road_segs[si]
+        vx, vz = x2 - x1, z2 - z1
+        len2 = vx * vx + vz * vz
+        t = 0.0 if len2 == 0 else max(0.0, min(1.0, ((cx - x1) * vx + (cz - z1) * vz) / len2))
+        px, pz = x1 + vx * t, z1 + vz * t
+        d2 = (cx - px) ** 2 + (cz - pz) ** 2
+        if best is None or d2 < best[0]:
+            best = (d2, px, pz, hw_, vx, vz)
+    if best is None:
+        return cx, cz
+    d2, px, pz, hw_, vx, vz = best
+    d = math.sqrt(d2)
+    if d < 0.001:
+        # centroid on the road: push along the segment normal
+        vl = math.hypot(vx, vz) or 1.0
+        nx, nz = -vz / vl, vx / vl
+    else:
+        nx, nz = (cx - px) / d, (cz - pz) / d
+    # building extent along the normal direction
+    cos_phi = nx * lx_axis[0] + nz * lx_axis[1]
+    sin_phi = nx * lz_axis[0] + nz * lz_axis[1]
+    extent = abs(hw_t_ * cos_phi) + abs(hd_t_ * sin_phi)
+    required = hw_ + extent + 0.5
+    if d >= required:
+        return cx, cz
+    shift = min(required - d, 3.0)
+    return cx + nx * shift, cz + nz * shift
+
 blds = json.load(open(BASE / 'buildings.json'))['elements']
 buildings = []
 for e in blds:
@@ -130,8 +222,13 @@ for e in blds:
         if best is None or w * d < best[0]:
             best = (w * d, ang, w, d)
     _, ang, w_m, d_m = best
+    # hw/hd: kích thước VẼ (phóng đại, tối thiểu 2x2 để nhìn thấy trên điện thoại).
+    # hw_t/hd_t: kích thước VA CHẠM thật (footprint OSM, không phóng đại, không sàn 1.0),
+    # để nhân vật đi được trên đường nhỏ/hẻm mà nhà hai bên không chặn tim đường.
     hw = max(1.0, (w_m * SCALE) / 2.0)
     hd = max(1.0, (d_m * SCALE) / 2.0)
+    hw_t = max(0.2, (w_m * SCALE) / 2.0)
+    hd_t = max(0.2, (d_m * SCALE) / 2.0)
     # game coords: note game z = -meters_y, so rotation sign flips
     cx, cz = to_game(clon, clat)
     levels = tags.get('building:levels')
@@ -142,7 +239,9 @@ for e in blds:
     if h_m is None:
         h_m = 18.0 if area > 2000 else (12.0 if area > 800 else 8.0)
     height = round(max(2.5, min(9.0, h_m * 0.35)), 2)
-    buildings.append({'x': cx, 'z': cz, 'hw': round(hw, 2), 'hd': round(hd, 2),
+    cx, cz = displace_building(cx, cz, hw_t, hd_t, -ang)
+    buildings.append({'x': round(cx, 2), 'z': round(cz, 2), 'hw': round(hw, 2), 'hd': round(hd, 2),
+                      'hw_t': round(hw_t, 2), 'hd_t': round(hd_t, 2),
                       'rot': round(-ang, 3), 'h': height,
                       'type': btype, 'name': name})
 print('buildings inside Q5 (area>=80 or named/special):', len(buildings))

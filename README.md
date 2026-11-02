@@ -23,10 +23,20 @@ Bản v3 này dùng **bản đồ thật từ OpenStreetMap**, không còn lư�
 
 ## Thỏa hiệp tỉ lệ — nói thẳng
 
-Vị trí, hình dạng và thứ tự các đường, nhà, kênh là thật. Nhưng để chơi được
-trên điện thoại, bề rộng đường, chiều cao nhà và kích thước nhân vật được
-phóng đại, không đúng tỉ lệ mét ngoài đời. Người chơi cũng không đi ra ngoài
-ranh Quận 5 được, và không đi xuyên qua nhà hay đi xuống kênh được.
+Vị trí, hình dạng và thứ tự các đường, nhà, kênh là thật. Bề rộng đường tỉ lệ
+với bề rộng thật: mỗi đoạn đường mang `width_m` từ OSM (tag width, không có
+thì số làn × 3,5m, không có nữa thì mặc định theo loại đường), và trong game
+bề rộng = `width_m × 0,3` (sàn 1,8 để nhân vật đi được, trần 6,5) — nên đường
+16m rộng gấp đôi đường 8m đúng như ngoài đời. Chiều cao nhà và kích thước
+nhân vật vẫn phóng đại để chơi được. Người chơi cũng không đi ra ngoài
+ranh Quận 5 được, và không đi xuyên qua nhà hay đi xuống kênh được —
+trừ một ngoại lệ có chủ đích để đường nhỏ đi được: khi đang ở trên đường
+(trong hành lang đường, tính theo bề rộng game), nhà/kênh không chặn nữa,
+vì footprint nhà trên OSM có khi sát tim hẻm chỉ 1–2m ngoài đời; ra khỏi
+đường thì va chạm nhà lại chặn như thường. Ngoài ra `build_map.py` còn
+đẩy nhà lùi khỏi tim đường gần nhất (tối đa 3 đơn vị) để đường vẽ phóng
+đại không bị nhà chồng lên quá nhiều — vị trí nhà trong game vì vậy lệch
+khỏi OSM một chút ở phố hẹp.
 
 ## Cách chơi
 
