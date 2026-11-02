@@ -11,7 +11,7 @@ const MAX_BODY = 10 * 1024;
 const PRUNE_MS = 25 * 1000;
 
 const NAMES = ['Bé Ba','Cô Ba Chợ Lớn','Chú Tám','Tí Lồng Đèn','Chị Hai','Anh Tư','Bé Hủ Tiếu','Cô Năm','Cậu Bảy','Bé Sen','Chú Sáu','Dì Ba','Tèo','Bé Mít','Anh Ba'];
-const LANDMARKS = ['Chợ Bình Tây','Chợ An Đông','Chợ Kim Biên','Chùa Bà Thiên Hậu','Hội quán Nghĩa An','Công viên Văn Lang','Phố lồng đèn Lương Nhữ Học','Phố Đông y Hải Thượng Lãn Ông','Chợ vải Soái Kình Lâm','Bến xe Chợ Lớn','Kênh Tàu Hủ'];
+const LANDMARKS = ['Chợ Bình Tây','Chợ An Đông','Chợ Kim Biên','Chùa Bà Thiên Hậu','Hội quán Nghĩa An','Công viên Văn Lang','Phố lồng đèn Lương Nhữ Học','Phố Đông y Hải Thượng Lãn Ông','Bến xe Chợ Lớn','Chợ Hòa Bình','Bệnh viện Chợ Rẫy'];
 
 // type -> { diem, checkin, message }
 const ACTIONS = {
@@ -73,6 +73,11 @@ const server = http.createServer(async (req, res) => {
     catch { sendJson(res, 500, { error: 'Không tìm thấy public/index.html' }); }
     return;
   }
+  if (req.method === 'GET' && pathname === '/quan5-map.json') {
+    try { const data = fs.readFileSync(path.join(__dirname, 'public', 'quan5-map.json')); res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(data); }
+    catch { sendJson(res, 500, { error: 'Không tìm thấy public/quan5-map.json' }); }
+    return;
+  }
   if (req.method === 'GET' && pathname === '/api/health') return sendJson(res, 200, { ok: true });
   if (req.method === 'POST' && pathname === '/api/join') {
     const body = await readBody(req, res); if (body === null) return;
@@ -80,7 +85,7 @@ const server = http.createServer(async (req, res) => {
     const room = getRoom(roomCode); prune(room);
     let name = typeof body.name === 'string' ? body.name.trim().slice(0, 24) : '';
     if (!name) name = pickName(room);
-    const player = { id: crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString('hex'), name, robe: validColor(body.robe) || '#e0651f', skin: validColor(body.skin) || '#ffe0bd', x: 62, z: 2, rot: 0, pose: 'dung', diem: 0, checkin: 0, lastSeen: Date.now() };
+    const player = { id: crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString('hex'), name, robe: validColor(body.robe) || '#e0651f', skin: validColor(body.skin) || '#ffe0bd', x: 25, z: -10, rot: 0, pose: 'dung', diem: 0, checkin: 0, lastSeen: Date.now() };
     room.players.set(player.id, player);
     return sendJson(res, 200, { playerId: player.id, name: player.name, room: roomCode });
   }
@@ -89,8 +94,8 @@ const server = http.createServer(async (req, res) => {
     const roomCode = normalizeRoom(body.room); if (!roomCode) return sendJson(res, 400, { error: 'Mã phòng không hợp lệ' });
     const room = rooms.get(roomCode); const player = room ? room.players.get(body.playerId) : undefined;
     if (!player) return sendJson(res, 404, { error: 'Không tìm thấy người chơi trong phòng' });
-    player.x = clamp(num(body.x, player.x), -135, 135);
-    player.z = clamp(num(body.z, player.z), -95, 95);
+    player.x = clamp(num(body.x, player.x), -140, 140);
+    player.z = clamp(num(body.z, player.z), -75, 75);
     player.rot = num(body.rot, player.rot);
     if (typeof body.pose === 'string' && body.pose.length <= 20) player.pose = body.pose;
     player.lastSeen = Date.now();

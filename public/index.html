@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>Thành phố Quận 5 Online — Chợ Lớn</title>
+<title>Thành phố Quận 5 Online — Bản đồ thật</title>
 <style>
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;background:#ffe8c2;color:#3a2c1e}
@@ -20,6 +20,7 @@ html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,-apple-syst
 button{border:0;border-radius:13px;padding:12px 14px;font-size:15px;font-weight:700;cursor:pointer;background:linear-gradient(135deg,#e0651f,#a83226);color:#fff;box-shadow:0 4px 14px rgba(168,50,38,.35)}
 button.secondary{background:#f3e6c8;color:#5b4632;box-shadow:none}
 button:active{transform:scale(.97)}
+button:disabled{opacity:.55;cursor:default}
 #joinBtn{width:100%;margin-top:10px;padding:14px;font-size:17px}
 .note{font-size:13px;color:#8a7a66;margin-top:12px}
 .sw{width:34px;height:34px;border-radius:50%;border:3px solid transparent;cursor:pointer;padding:0;box-shadow:none}
@@ -60,7 +61,8 @@ button:active{transform:scale(.97)}
 <div class="overlay" id="joinOverlay">
 <div class="card">
 <h1>🏮 Thành phố Quận 5 Online</h1>
-<p>Đi dạo Chợ Lớn cùng nhau, theo đúng bố cục đường thật: Trần Hưng Đạo, Nguyễn Trãi, An Dương Vương, Hải Thượng Lãn Ông, Lương Nhữ Học… Không có chat tự do — chỉ chào hỏi, ăn uống, mua sắm và check-in có sẵn.</p>
+<p id="loadStatus">Đang tải bản đồ thật từ OpenStreetMap…</p>
+<p>Đi dạo Chợ Lớn cùng nhau, trên đúng lưới đường thật của Quận 5 cũ (ranh OSM relation 3820432): đường không còn là lưới thẳng nữa, mà cong, chéo và giao nhau đúng như ngoài đời. Không có chat tự do — chỉ chào hỏi, ăn uống, mua sắm và check-in có sẵn.</p>
 <input id="roomInput" placeholder="Mã phòng (để trống = thành phố chung QUAN5)" maxlength="12" style="text-transform:uppercase">
 <div class="row"><input id="nameInput" placeholder="Tên của bạn (để trống sẽ đặt tên Chợ Lớn)" maxlength="24"><button type="button" class="secondary" id="randomNameBtn">🎲 Tên hay</button></div>
 <div style="text-align:left;font-size:13px;margin:8px 0 2px;font-weight:700">Màu áo</div>
@@ -72,15 +74,15 @@ button:active{transform:scale(.97)}
 <button type="button" class="sw" data-robe="#f9a825" style="background:#f9a825"></button>
 <button type="button" class="sw" data-robe="#7b1fa2" style="background:#7b1fa2"></button>
 </div>
-<button type="button" id="joinBtn">Vào thành phố</button>
+<button type="button" id="joinBtn" disabled>Vào thành phố</button>
 <p id="joinError" style="color:#b91c1c;font-size:13px;min-height:18px;margin:8px 0 0"></p>
-<p class="note">Mẹo: gửi link cho bạn, bạn ấy mở link là vào chung thành phố với bạn. Sơ đồ trong game là bản thu gọn theo bố cục thật, không phải bản đồ tỉ lệ 1:1.</p>
+<p class="note">Lưu ý thật: vị trí, hình dạng và thứ tự các đường là từ OpenStreetMap. Bề rộng đường, chiều cao nhà và kích thước nhân vật được phóng đại để chơi được trên điện thoại, chứ không đúng tỉ lệ mét ngoài đời. Dữ liệu © OpenStreetMap contributors, ODbL.</p>
 </div>
 </div>
 <div id="hud">
 <div class="panel" id="shareBox"><b>🔗 Link thành phố chung</b><div class="row"><input id="shareLink" readonly><button type="button" id="copyBtn">Sao chép</button></div></div>
-<div class="panel" id="stats">⭐ Điểm khám phá: <span id="diem">0</span><br>📸 Check-in: <span id="checkin">0</span> &nbsp; 👥 Đang chơi: <span id="count">0</span><br>🌅 Buổi: <span id="buoiLabel">Sáng</span> &nbsp; 📍 <span id="streetLabel">An Dương Vương</span></div>
-<div class="panel" id="minimapWrap">🗺️ Bản đồ Quận 5<canvas id="minimap" width="200" height="142"></canvas></div>
+<div class="panel" id="stats">⭐ Điểm khám phá: <span id="diem">0</span><br>📸 Check-in: <span id="checkin">0</span> &nbsp; 👥 Đang chơi: <span id="count">0</span><br>🌅 Buổi: <span id="buoiLabel">Sáng</span> &nbsp; 📍 <span id="streetLabel">Quận 5</span></div>
+<div class="panel" id="minimapWrap">🗺️ Bản đồ Quận 5 (thật)<canvas id="minimap" width="200" height="107"></canvas></div>
 <div class="panel" id="feed"></div>
 <div class="panel" id="nearBox"></div>
 <div id="actions">
@@ -98,22 +100,6 @@ button:active{transform:scale(.97)}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>
 <script>
 'use strict';
-// --- Bố cục đường thật, thu gọn (Bắc ở trên, z âm = phía Bắc) ---
-var H_ROADS=[{n:'Hùng Vương',z:-78},{n:'Trần Hưng Đạo',z:-52},{n:'Nguyễn Trãi',z:-28},{n:'An Dương Vương',z:-4},{n:'Hải Thượng Lãn Ông',z:20},{n:'Tháp Mười',z:44},{n:'Hồng Bàng',z:68}];
-var V_ROADS=[{n:'Nguyễn Thị Nhỏ',x:-118},{n:'Lương Nhữ Học',x:-68,z1:-30,z2:22},{n:'Phùng Hưng',x:-48},{n:'Châu Văn Liêm',x:-12},{n:'Ngô Quyền',x:38},{n:'Nguyễn Tri Phương',x:78},{n:'Nguyễn Văn Cừ',x:118}];
-var LANDMARKS=[
-{x:-95,z:58,w:30,d:18,name:'Chợ Bình Tây',desc:'57A Tháp Mười — chợ Chợ Lớn mới từ 1928, ngay rìa tây Quận 5 giáp Quận 6.'},
-{x:62,z:-14,w:24,d:14,name:'Chợ An Đông',desc:'34-36 An Dương Vương — chợ sỉ lẻ nổi tiếng ngay trục An Dương Vương.'},
-{x:-32,z:30,w:18,d:12,name:'Chợ Kim Biên',desc:'37 Vạn Tượng, gần Hải Thượng Lãn Ông — chợ phụ liệu, nguyên liệu.'},
-{x:-22,z:-18,w:16,d:12,name:'Chùa Bà Thiên Hậu',desc:'710 Nguyễn Trãi — Hội quán Tuệ Thành, chùa Bà linh thiêng của người Hoa.'},
-{x:14,z:-18,w:14,d:10,name:'Hội quán Nghĩa An',desc:'678 Nguyễn Trãi — hội quán Quan Thánh Đế Quân.'},
-{x:8,z:8,w:24,d:16,name:'Công viên Văn Lang',desc:'238 An Dương Vương — công viên xanh giữa lòng Quận 5.'},
-{x:-68,z:-4,w:10,d:52,name:'Phố lồng đèn Lương Nhữ Học',desc:'Phố lồng đèn rực rỡ nhất Chợ Lớn, đi dọc là thấy đèn đỏ treo khắp nơi.'},
-{x:-30,z:20,w:60,d:8,name:'Phố Đông y Hải Thượng Lãn Ông',desc:'Phố thuốc bắc, thảo dược lâu đời của Chợ Lớn.'},
-{x:28,z:6,w:14,d:10,name:'Chợ vải Soái Kình Lâm',desc:'18 An Dương Vương — phố vải sầm uất.'},
-{x:-128,z:76,w:14,d:10,name:'Bến xe Chợ Lớn',desc:'Bến xe ở rìa tây, cửa ngõ đi các tỉnh miền Tây.'},
-{x:0,z:90,w:280,d:14,name:'Kênh Tàu Hủ',desc:'Ranh phía Nam Quận 5, giáp Quận 8.'}
-];
 var scene=new THREE.Scene();
 scene.background=new THREE.Color(0xd8edf7);
 scene.fog=new THREE.Fog(0xd8edf7,60,170);
@@ -122,11 +108,12 @@ renderer.setPixelRatio(Math.min(devicePixelRatio,2));
 renderer.setSize(innerWidth,innerHeight);
 renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 document.getElementById('scene').appendChild(renderer.domElement);
-var camera=new THREE.PerspectiveCamera(innerWidth<innerHeight?70:55,innerWidth/innerHeight,0.1,300);
+renderer.domElement.style.touchAction='none';
+var camera=new THREE.PerspectiveCamera(innerWidth<innerHeight?70:55,innerWidth/innerHeight,0.1,400);
 var hemi=new THREE.HemisphereLight(0xcfe8ff,0x8a7a5a,0.85); scene.add(hemi);
 scene.add(new THREE.AmbientLight(0xfff2e0,0.35));
-var sun=new THREE.DirectionalLight(0xffe2a8,1.25); sun.position.set(40,50,30); sun.castShadow=true; sun.shadow.mapSize.set(1024,1024); sun.shadow.camera.left=-90; sun.shadow.camera.right=90; sun.shadow.camera.top=90; sun.shadow.camera.bottom=-90; sun.shadow.camera.far=200; scene.add(sun);
-function mat(c,o){ o=o||{}; return new THREE.MeshStandardMaterial({color:c,roughness:0.85,emissive:o.emissive||0x000000,emissiveIntensity:o.ei||0}); }
+var sun=new THREE.DirectionalLight(0xffe2a8,1.25); sun.position.set(40,50,30); sun.castShadow=true; sun.shadow.mapSize.set(1024,1024); sun.shadow.camera.left=-150; sun.shadow.camera.right=150; sun.shadow.camera.top=150; sun.shadow.camera.bottom=-150; sun.shadow.camera.far=300; scene.add(sun);
+function mat(c,o){ o=o||{}; return new THREE.MeshStandardMaterial({color:c,roughness:0.85,emissive:o.emissive||0x000000,emissiveIntensity:o.ei||0,side:o.side||0}); }
 function box(w,h,d,c,x,y,z,parent){ var m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat(c)); m.position.set(x,y,z); m.castShadow=true; m.receiveShadow=true; (parent||scene).add(m); return m; }
 function cyl(rt,rb,h,c,x,y,z,parent,seg){ var m=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,seg||20),mat(c)); m.position.set(x,y,z); m.castShadow=true; m.receiveShadow=true; (parent||scene).add(m); return m; }
 function sph(r,c,x,y,z,parent,sx,sy,sz){ var m=new THREE.Mesh(new THREE.SphereGeometry(r,20,16),mat(c)); m.position.set(x,y,z); m.scale.set(sx||1,sy||1,sz||1); m.castShadow=true; (parent||scene).add(m); return m; }
@@ -136,67 +123,198 @@ function textSprite(text,scale,bg){
   ctx.fillStyle='#fff3d6'; ctx.font='700 38px system-ui, sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(text,256,50);
   var tex=new THREE.CanvasTexture(cv); var sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthWrite:false})); sp.scale.set(scale||8,scale*96/512||1.5,1); return sp;
 }
-function onRoad(x,z){ for(var i=0;i<H_ROADS.length;i++){ if(Math.abs(z-H_ROADS[i].z)<=5) return true; } for(var j=0;j<V_ROADS.length;j++){ var v=V_ROADS[j]; if(Math.abs(x-v.x)<=5 && (!v.z1 || (z>=v.z1-3 && z<=v.z2+3))) return true; } return false; }
-// Va chạm: mọi khối nhà, quán, cây đều là vật cản. Người chơi có bán kính 0.7.
-// Di chuyển tách trục X/Z nên khi chạm tường sẽ trượt dọc tường thay vì kẹt cứng.
-var COLLIDERS=[];
-function addCollider(x,z,hw,hd){ COLLIDERS.push({x:x,z:z,hw:hw,hd:hd}); }
-function collides(x,z){
-  for(var i=0;i<COLLIDERS.length;i++){ var c=COLLIDERS[i];
-    if(Math.abs(x-c.x)<c.hw+0.7 && Math.abs(z-c.z)<c.hd+0.7) return true; }
-  return false;
+// ---------- Bản đồ thật ----------
+var MAP=null, LANDMARKS=[], ROAD_SEGMENTS=[], WATER_SEGMENTS=[], BOUNDARY=[];
+var BOXES=[], GRID={}, LANTERN_MATS=[];
+function hashStr(s){ var h=0; for(var i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))>>>0; return h; }
+function pointInPoly(x,z,poly){
+  var inside=false;
+  for(var i=0,j=poly.length-1;i<poly.length;j=i++){
+    var xi=poly[i][0], zi=poly[i][1], xj=poly[j][0], zj=poly[j][1];
+    if(((zi>z)!==(zj>z)) && (x < (xj-xi)*(z-zi)/(zj-zi)+xi)) inside=!inside;
+  }
+  return inside;
 }
-function inLandmark(x,z,pad){ for(var i=0;i<LANDMARKS.length;i++){ var L=LANDMARKS[i]; if(Math.abs(x-L.x)<=L.w/2+(pad||0) && Math.abs(z-L.z)<=L.d/2+(pad||0)) return L; } return null; }
-// Nền thành phố
-var ground=new THREE.Mesh(new THREE.PlaneGeometry(280,200),mat(0xcac2a8)); ground.rotation.x=-Math.PI/2; ground.receiveShadow=true; scene.add(ground);
-// Kênh Tàu Hủ ở phía Nam
-var canal=new THREE.Mesh(new THREE.PlaneGeometry(280,16),mat(0x3f8fa8)); canal.rotation.x=-Math.PI/2; canal.position.set(0,0.04,90); canal.receiveShadow=true; scene.add(canal);
-// Đường + vỉa hè hai bên (chỉ để nhìn, vẫn đi được)
-H_ROADS.forEach(function(r){ var p=new THREE.Mesh(new THREE.PlaneGeometry(280,7),mat(0x3a3f44)); p.rotation.x=-Math.PI/2; p.position.set(0,0.06,r.z); p.receiveShadow=true; scene.add(p); [-4.4,4.4].forEach(function(off){ var sw=new THREE.Mesh(new THREE.PlaneGeometry(280,1.4),mat(0xb8b0a0)); sw.rotation.x=-Math.PI/2; sw.position.set(0,0.04,r.z+off); sw.receiveShadow=true; scene.add(sw); }); for(var x=-132;x<=132;x+=12){ box(3,0.02,0.35,0xf5f0dc,x,0.08,r.z); } var sp=textSprite(r.n,10); sp.position.set(-95,2.2,r.z); scene.add(sp); });
-V_ROADS.forEach(function(v){ var z1=v.z1===undefined?-95:v.z1, z2=v.z2===undefined?95:v.z2, h=z2-z1, cz=(z1+z2)/2; var p=new THREE.Mesh(new THREE.PlaneGeometry(7,h),mat(0x3a3f44)); p.rotation.x=-Math.PI/2; p.position.set(v.x,0.06,cz); p.receiveShadow=true; scene.add(p); [-4.4,4.4].forEach(function(off){ var sw=new THREE.Mesh(new THREE.PlaneGeometry(1.4,h),mat(0xb8b0a0)); sw.rotation.x=-Math.PI/2; sw.position.set(v.x+off,0.04,cz); sw.receiveShadow=true; scene.add(sw); }); for(var z=z1+4;z<z2;z+=12){ box(0.35,0.02,3,0xf5f0dc,v.x,0.08,z); } var sp=textSprite(v.n,9); sp.position.set(v.x,2.2,cz); scene.add(sp); });
-// Landmark: khối nhà + bảng tên
-var LAND_COLORS=['#f6c453','#ff8a80','#90caf9','#c62828','#ef6c00','#66bb6a','#e53935','#8d6e63','#ab47bc','#78909c','#3f8fa8'];
-LANDMARKS.forEach(function(L,i){
-  var col=LAND_COLORS[i%LAND_COLORS.length];
-  if(L.name==='Công viên Văn Lang'){ var g=new THREE.Mesh(new THREE.PlaneGeometry(L.w,L.d),mat(0x5aa85e)); g.rotation.x=-Math.PI/2; g.position.set(L.x,0.05,L.z); g.receiveShadow=true; scene.add(g); }
-  else if(L.name==='Kênh Tàu Hủ'){ /* đã vẽ kênh */ }
-  else if(L.name.indexOf('Phố')===0){ var g=new THREE.Mesh(new THREE.PlaneGeometry(L.w,L.d),mat(0xd9a441)); g.rotation.x=-Math.PI/2; g.position.set(L.x,0.05,L.z); g.receiveShadow=true; scene.add(g); }
-  else { box(L.w,4.5,L.d,col,L.x,2.25,L.z); box(L.w+1,0.6,L.d+1,0x8a1f14,L.x,5.0,L.z); box(L.w*0.6,1.2,2,0xfff3d6,L.x,5.8,L.z); addCollider(L.x,L.z,L.w/2,L.d/2); box(1.6,2.6,0.3,0x2b1a12,L.x,1.3,L.z+L.d/2+0.05); box(2.6,1.4,0.3,0x37474f,L.x-L.w/4,2.6,L.z+L.d/2+0.05); box(2.6,1.4,0.3,0x37474f,L.x+L.w/4,2.6,L.z+L.d/2+0.05); }
-  var sp=textSprite(L.name,12); sp.position.set(L.x,7.5,L.z); scene.add(sp);
-});
-// Tháp đồng hồ Chợ Bình Tây (đặt trước chợ, phía đường Tháp Mười)
-box(3,7,3,0xf6c453,-95,3.5,48); box(3.4,1,3.4,0x8a1f14,-95,7.2,48); addCollider(-95,48,1.5,1.5);
-// Nhà phố dọc Nguyễn Trãi và Hải Thượng Lãn Ông
-var SHOP_COLORS=[0xffe0b2,0xffccbc,0xfff9c4,0xc8e6c9,0xbbdefb,0xf8bbd0,0xd1c4e9,0xffe082];
-function hash2(x,z){ var h=Math.sin(x*12.9898+z*78.233)*43758.5453; return h-Math.floor(h); }
-function shopRow(zLine,from,to,skip){
-  for(var x=from;x<=to;x+=11){
-    if(skip && skip(x)) continue;
-    if(onRoad(x,zLine) || inLandmark(x,zLine,2)) continue;
-    var h=3+hash2(x,zLine)*3, c=SHOP_COLORS[Math.floor(hash2(zLine,x)*SHOP_COLORS.length)];
-    box(8,h,7,c,x,h/2,zLine);
-    box(8.4,0.4,7.4,0x8a1f14,x,h+0.2,zLine);
-    box(6,0.8,0.5,0xa83226,x,h*0.55,zLine+3.6);
-    addCollider(x,zLine,4,3.5);
+function distToSeg(px,pz,x1,z1,x2,z2){
+  var dx=x2-x1, dz=z2-z1, len2=dx*dx+dz*dz, t=len2?Math.max(0,Math.min(1,((px-x1)*dx+(pz-z1)*dz)/len2)):0;
+  var cx=x1+dx*t, cz=z1+dz*t; return {d:Math.hypot(px-cx,pz-cz),x:cx,z:cz};
+}
+function addBoxToGrid(b){
+  var minCx=Math.floor((b.x-b.hw-1)/12), maxCx=Math.floor((b.x+b.hw+1)/12);
+  var minCz=Math.floor((b.z-b.hd-1)/12), maxCz=Math.floor((b.z+b.hd+1)/12);
+  for(var cx=minCx;cx<=maxCx;cx++) for(var cz=minCz;cz<=maxCz;cz++){
+    var k=cx+','+cz; if(!GRID[k]) GRID[k]=[]; GRID[k].push(b);
   }
 }
-shopRow(-21,-110,110,function(x){ return Math.abs(x+20)<10 || Math.abs(x-14)<9; });
-shopRow(-35,-110,110,null);
-shopRow(13,-110,110,function(x){ return Math.abs(x+32)<12 || Math.abs(x-13)<18; });
-shopRow(27,-110,110,function(x){ return Math.abs(x+32)<12; });
-shopRow(-59,-110,110,null);
-shopRow(61,-110,110,null);
-// Cây xanh
-function tree(x,z,s){ var g=new THREE.Group(); g.position.set(x,0,z); g.scale.setScalar(s); scene.add(g); cyl(0.22,0.32,2.2,0x6b4a2f,0,1.1,0,g); sph(1.5,0x3f7d44,0,3.1,0,g); sph(1.1,0x5aa85e,0.9,2.5,0.4,g); sph(1.0,0x4d9e57,-0.8,2.6,-0.3,g); addCollider(x,z,0.4,0.4); }
-for(var tx=-120;tx<=120;tx+=18){ for(var tz=-80;tz<=80;tz+=24){ if(!onRoad(tx+4,tz+3) && !inLandmark(tx+4,tz+3,4) && hash2(tx,tz)>0.62){ tree(tx+4,tz+3,0.9+hash2(tz,tx)*0.5); } } }
-// Lồng đèn dọc Lương Nhữ Học
-var lanternMats=[];
-for(var lz=-28;lz<=20;lz+=6){ cyl(0.06,0.06,3.2,0x5b4632,-68,1.6,lz); var lm=sph(0.55,0xff3d00,-68,3.4,lz,scene,1,1.25,1); lm.material.emissive=new THREE.Color(0xff7a1a); lm.material.emissiveIntensity=0.6; lanternMats.push(lm.material); }
-// Quán ăn vỉa hè gần chợ
-function foodStall(x,z,label){ box(3,2.2,2,0xfff3d6,x,1.1,z); box(3.4,0.3,2.4,0xe0651f,x,2.35,z); var sp=textSprite(label,5); sp.position.set(x,3.6,z); scene.add(sp); addCollider(x,z,1.5,1); }
-foodStall(-78,58,'Hủ tiếu'); foodStall(50,-22,'Cơm gà'); foodStall(-20,26,'Chè'); foodStall(70,2,'Cà phê vợt');
-// Đèn đường
-for(var dx=-120;dx<=120;dx+=30){ for(var dz=-70;dz<=70;dz+=28){ if(!onRoad(dx,dz)) continue; cyl(0.08,0.08,4.5,0x37474f,dx,2.25,dz); var lb=sph(0.35,0xffe082,dx,4.6,dz); lb.material.emissive=new THREE.Color(0xffe082); lb.material.emissiveIntensity=0.4; lanternMats.push(lb.material); } }
+function boxCollides(x,z,b){
+  var dx=x-b.x, dz=z-b.z, c=Math.cos(b.rot||0), s=Math.sin(b.rot||0);
+  var lx=dx*c-dz*s, lz=dx*s+dz*c;
+  return Math.abs(lx)<b.hw+0.7 && Math.abs(lz)<b.hd+0.7;
+}
+function collides(x,z){
+  var cx=Math.floor(x/12), cz=Math.floor(z/12);
+  for(var dx=-1;dx<=1;dx++) for(var dz=-1;dz<=1;dz++){
+    var list=GRID[(cx+dx)+','+(cz+dz)]||[];
+    for(var i=0;i<list.length;i++) if(boxCollides(x,z,list[i])) return true;
+  }
+  for(var i=0;i<WATER_SEGMENTS.length;i++){
+    var w=WATER_SEGMENTS[i];
+    if(Math.abs(x-w.x1)>8||Math.abs(z-w.z1)>8) continue;
+    if(distToSeg(x,z,w.x1,w.z1,w.x2,w.z2).d<2.5) return true;
+  }
+  return false;
+}
+function shapeFromGamePts(pts){
+  var sh=new THREE.Shape();
+  pts.forEach(function(p,i){ var sx=p[0], sy=-p[1]; if(i===0) sh.moveTo(sx,sy); else sh.lineTo(sx,sy); });
+  return sh;
+}
+function mergedQuads(segments,color,y){
+  var pos=[], idx=[], base=0;
+  segments.forEach(function(s){
+    var dx=s.x2-s.x1, dz=s.z2-s.z1, len=Math.hypot(dx,dz)||1, w=s.w/2;
+    var px=-dz/len*w, pz=dx/len*w;
+    pos.push(s.x1+px,y,s.z1+pz, s.x1-px,y,s.z1-pz, s.x2+px,y,s.z2+pz, s.x2-px,y,s.z2-pz);
+    idx.push(base,base+1,base+2, base+2,base+1,base+3); base+=4;
+  });
+  var geo=new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
+  geo.setIndex(idx); geo.computeVertexNormals();
+  var m=new THREE.Mesh(geo, new THREE.MeshStandardMaterial({color:color,roughness:0.9,side:THREE.DoubleSide}));
+  m.receiveShadow=true; scene.add(m); return m;
+}
+function roadWidth(type){
+  if(type==='motorway'||type==='trunk'||type==='primary') return 5;
+  if(type==='secondary') return 4.5;
+  if(type==='tertiary') return 4;
+  if(type==='residential'||type==='unclassified') return 3.5;
+  return 2.5;
+}
+function buildingColor(b){
+  var t=b.type||'';
+  if(t==='hospital') return 0xf5f5f5;
+  if(t==='school'||t==='university') return 0xffe082;
+  if(t==='temple') return 0xc62828;
+  if(t==='church') return 0xbdbdbd;
+  if(t==='commercial'||t==='retail') return 0xffcc80;
+  if(t==='civic') return 0x90caf9;
+  if(t==='apartments') return 0xbbdefb;
+  var pal=[0xffe0b2,0xffccbc,0xfff9c4,0xc8e6c9,0xbbdefb,0xf8bbd0,0xd1c4e9,0xffe082];
+  return pal[hashStr(Math.round(b.x)+':'+Math.round(b.z))%pal.length];
+}
+var LANDMARK_BOX_NAMES=['Chợ An Đông','Chợ Kim Biên','Chợ Hòa Bình'];
+var LANDMARK_BOXES={
+  'Chợ Bình Tây':{w:14,h:6,d:9,c:0xf6c453},
+  'Chợ An Đông':{w:12,h:5.5,d:9,c:0xff8a80},
+  'Chợ Kim Biên':{w:12,h:4.5,d:8,c:0x90caf9},
+  'Chùa Bà Thiên Hậu':{w:10,h:5,d:7,c:0xc62828},
+  'Hội quán Nghĩa An':{w:9,h:4.5,d:6,c:0xef6c00},
+  'Bến xe Chợ Lớn':{w:10,h:4,d:6,c:0x78909c},
+  'Bệnh viện Chợ Rẫy':{w:12,h:6,d:8,c:0xf5f5f5}
+};
+function buildMap(){
+  BOUNDARY=MAP.boundary; LANDMARKS=MAP.landmarks;
+  // Nền đúng hình Quận 5
+  var groundGeo=new THREE.ShapeGeometry(shapeFromGamePts(BOUNDARY));
+  var ground=new THREE.Mesh(groundGeo, mat(0xd8d0b8)); ground.rotation.x=-Math.PI/2; ground.position.y=0; ground.receiveShadow=true; scene.add(ground);
+  // Công viên xanh
+  (MAP.parks||[]).forEach(function(p){
+    if(p.pts.length<3) return;
+    var g=new THREE.ShapeGeometry(shapeFromGamePts(p.pts));
+    var m=new THREE.Mesh(g, mat(0x7ab648)); m.rotation.x=-Math.PI/2; m.position.y=0.03; m.receiveShadow=true; scene.add(m);
+  });
+  // Kênh, rạch: mặt nước dày theo polyline thật
+  var waterSegs=[];
+  (MAP.waters||[]).forEach(function(w){
+    for(var i=0;i+1<w.pts.length;i++) waterSegs.push({x1:w.pts[i][0],z1:w.pts[i][1],x2:w.pts[i+1][0],z2:w.pts[i+1][1],w:6});
+  });
+  WATER_SEGMENTS=waterSegs;
+  if(waterSegs.length) mergedQuads(waterSegs,0x3f8fa8,0.04);
+  // Đường: gộp tất cả đoạn thành 1 mesh, đường lớn vẽ thêm vạch trắng
+  var roadSegs=[], dashSegs=[];
+  (MAP.roads||[]).forEach(function(r){
+    var w=roadWidth(r.type);
+    for(var i=0;i+1<r.pts.length;i++){
+      var s={x1:r.pts[i][0],z1:r.pts[i][1],x2:r.pts[i+1][0],z2:r.pts[i+1][1],w:w,name:r.name};
+      roadSegs.push(s); ROAD_SEGMENTS.push(s);
+      if(r.major){
+        var len=Math.hypot(s.x2-s.x1,s.z2-s.z1), n=Math.floor(len/6);
+        for(var k=0;k<n;k++){
+          var t0=k/n, t1=t0+0.25/n*1;
+          // vạch ngắn ở giữa mỗi khoảng 6 đơn vị
+          var ax=s.x1+(s.x2-s.x1)*t0, az=s.z1+(s.z2-s.z1)*t0;
+          var bx=s.x1+(s.x2-s.x1)*Math.min(1,t0+1.5/len), bz=s.z1+(s.z2-s.z1)*Math.min(1,t0+1.5/len);
+          dashSegs.push({x1:ax,z1:az,x2:bx,z2:bz,w:0.35});
+        }
+      }
+    }
+  });
+  mergedQuads(roadSegs,0x3a3f44,0.06);
+  if(dashSegs.length) mergedQuads(dashSegs,0xf5f0dc,0.09);
+  // Nhà: 1 InstancedMesh cho toàn bộ nhà OSM (trừ 3 chợ đã vẽ riêng)
+  var list=MAP.buildings.filter(function(b){ return LANDMARK_BOX_NAMES.indexOf(b.name)<0; });
+  var inst=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1), new THREE.MeshStandardMaterial({roughness:0.85}), list.length);
+  var dummy=new THREE.Object3D(), col=new THREE.Color();
+  list.forEach(function(b,i){
+    dummy.position.set(b.x,b.h/2,b.z); dummy.rotation.set(0,b.rot||0,0); dummy.scale.set(b.hw*2,b.h,b.hd*2); dummy.updateMatrix();
+    inst.setMatrixAt(i,dummy.matrix); inst.setColorAt(i,col.setHex(buildingColor(b)));
+    var bb={x:b.x,z:b.z,hw:b.hw,hd:b.hd,rot:b.rot||0}; BOXES.push(bb); addBoxToGrid(bb);
+  });
+  if(inst.instanceColor) inst.instanceColor.needsUpdate=true;
+  inst.castShadow=true; inst.receiveShadow=true; scene.add(inst);
+  // Landmark: khối riêng nổi bật + bảng tên + va chạm
+  LANDMARKS.forEach(function(L){
+    var spec=LANDMARK_BOXES[L.name];
+    if(spec){
+      box(spec.w,spec.h,spec.d,spec.c,L.x,spec.h/2,L.z);
+      box(spec.w+1,0.6,spec.d+1,0x8a1f14,L.x,spec.h+0.3,L.z);
+      box(1.6,2.6,0.3,0x2b1a12,L.x,1.3,L.z+spec.d/2+0.05);
+      var bb={x:L.x,z:L.z,hw:spec.w/2,hd:spec.d/2,rot:0}; BOXES.push(bb); addBoxToGrid(bb);
+    }
+    var sp=textSprite(L.name,12); sp.position.set(L.x,8,L.z); scene.add(sp);
+  });
+  // Nhãn đường lớn: lấy polyline dài nhất của mỗi tên
+  var byName={};
+  (MAP.roads||[]).forEach(function(r){
+    if(!r.major||!r.name) return;
+    var len=0; for(var i=0;i+1<r.pts.length;i++) len+=Math.hypot(r.pts[i+1][0]-r.pts[i][0],r.pts[i+1][1]-r.pts[i][1]);
+    if(!byName[r.name]||len>byName[r.name].len) byName[r.name]={len:len,pts:r.pts};
+  });
+  Object.keys(byName).forEach(function(n){
+    var pts=byName[n].pts, mid=pts[Math.floor(pts.length/2)];
+    var sp=textSprite(n,9); sp.position.set(mid[0],3,mid[1]); scene.add(sp);
+  });
+  // Đèn lồng dọc đúng đường Lương Nhữ Học thật
+  (MAP.roads||[]).forEach(function(r){
+    if(r.name!=='Lương Nhữ Học') return;
+    for(var i=0;i<r.pts.length;i+=2){
+      var p=r.pts[i];
+      cyl(0.06,0.06,3.2,0x5b4632,p[0],1.6,p[1]);
+      var lm=sph(0.55,0xff3d00,p[0],3.4,p[1],scene,1,1.25,1); lm.material.emissive=new THREE.Color(0xff7a1a); lm.material.emissiveIntensity=0.6; LANTERN_MATS.push(lm.material);
+    }
+  });
+  // Cây trong công viên
+  var treeCount=0;
+  (MAP.parks||[]).forEach(function(p){
+    if(p.pts.length<3) return;
+    var xs=p.pts.map(function(q){return q[0];}), zs=p.pts.map(function(q){return q[1];});
+    var minX=Math.min.apply(null,xs), maxX=Math.max.apply(null,xs), minZ=Math.min.apply(null,zs), maxZ=Math.max.apply(null,zs);
+    for(var t=0;t<40 && treeCount<80;t++){
+      var x=minX+Math.random()*(maxX-minX), z=minZ+Math.random()*(maxZ-minZ);
+      if(!pointInPoly(x,z,p.pts)) continue;
+      var g=new THREE.Group(); g.position.set(x,0,z); g.scale.setScalar(0.9+Math.random()*0.5); scene.add(g);
+      cyl(0.22,0.32,2.2,0x6b4a2f,0,1.1,0,g); sph(1.5,0x3f7d44,0,3.1,0,g); sph(1.1,0x5aa85e,0.9,2.5,0.4,g);
+      treeCount++;
+    }
+  });
+  // Quán ăn gần các chợ thật
+  function foodStall(x,z,label){ box(3,2.2,2,0xfff3d6,x,1.1,z); box(3.4,0.3,2.4,0xe0651f,x,2.35,z); var sp=textSprite(label,5); sp.position.set(x,3.6,z); scene.add(sp); var bb={x:x,z:z,hw:1.5,hd:1,rot:0}; BOXES.push(bb); addBoxToGrid(bb); }
+  var byLM={}; LANDMARKS.forEach(function(L){ byLM[L.name]=L; });
+  if(byLM['Chợ Bình Tây']) foodStall(byLM['Chợ Bình Tây'].x+18,byLM['Chợ Bình Tây'].z,'Hủ tiếu');
+  if(byLM['Chợ An Đông']) foodStall(byLM['Chợ An Đông'].x-14,byLM['Chợ An Đông'].z+8,'Cơm gà');
+  if(byLM['Chợ Kim Biên']) foodStall(byLM['Chợ Kim Biên'].x+14,byLM['Chợ Kim Biên'].z,'Chè');
+  if(byLM['Công viên Văn Lang']) foodStall(byLM['Công viên Văn Lang'].x+10,byLM['Công viên Văn Lang'].z+6,'Cà phê vợt');
+}
 (function(){
 'use strict';
 var CITY_NAMES=['Bé Ba','Cô Ba Chợ Lớn','Chú Tám','Tí Lồng Đèn','Chị Hai','Anh Tư','Bé Hủ Tiếu','Cô Năm','Cậu Bảy','Bé Sen'];
@@ -207,7 +325,6 @@ if(params.get('room')) roomInput.value=params.get('room').toUpperCase();
 document.getElementById('randomNameBtn').onclick=function(){ nameInput.value=CITY_NAMES[Math.floor(Math.random()*CITY_NAMES.length)]; };
 var selectedRobe='#e0651f';
 document.querySelectorAll('#robeSwatches .sw').forEach(function(b){ b.addEventListener('click',function(){ selectedRobe=b.getAttribute('data-robe'); document.querySelectorAll('#robeSwatches .sw').forEach(function(x){ x.classList.remove('sel'); }); b.classList.add('sel'); }); });
-function hashStr(s){ var h=0; for(var i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))>>>0; return h; }
 function nameSprite(name){
   var cv=document.createElement('canvas'); cv.width=512; cv.height=128; var ctx=cv.getContext('2d');
   ctx.fillStyle='rgba(46,32,20,0.58)'; ctx.beginPath(); if(ctx.roundRect) ctx.roundRect(56,22,400,84,30); else ctx.rect(56,22,400,84); ctx.fill();
@@ -235,7 +352,8 @@ function makePerson(name,robe,skin){
   return outer;
 }
 var room='', playerId='', myName='';
-var myPos={x:62,z:2,rot:0}, pose='dung', poseUntil=0;
+// Điểm xuất phát thật: gần Chợ An Đông, ngoài khối nhà, trong ranh Quận 5
+var myPos={x:25,z:-10,rot:0}, pose='dung', poseUntil=0;
 var camYaw=0, keys={}, joy={x:0,y:0};
 var people={}; var myGroup=null;
 var buoiOrder=['sang','hoang-hon','dem']; var buoiLabels={sang:'Sáng','hoang-hon':'Hoàng hôn',dem:'Đêm'}; var curBuoi='sang';
@@ -243,15 +361,15 @@ var lastFeedJson=''; var lastPlayers=[];
 var clock=new THREE.Clock();
 function applyBuoi(v){
   curBuoi=v; document.getElementById('buoiLabel').textContent=buoiLabels[v]||'Sáng';
-  if(v==='sang'){ scene.background.set(0xd8edf7); scene.fog.color.set(0xd8edf7); sun.intensity=1.25; sun.color.set(0xffe2a8); hemi.intensity=0.85; lanternMats.forEach(function(m){m.emissiveIntensity=0.25;}); }
-  else if(v==='hoang-hon'){ scene.background.set(0xffb98a); scene.fog.color.set(0xffc49a); sun.intensity=0.9; sun.color.set(0xff8a3d); hemi.intensity=0.6; lanternMats.forEach(function(m){m.emissiveIntensity=0.9;}); }
-  else { scene.background.set(0x141b3a); scene.fog.color.set(0x1a2347); sun.intensity=0.3; sun.color.set(0x8fa3ff); hemi.intensity=0.35; lanternMats.forEach(function(m){m.emissiveIntensity=1.5;}); }
+  if(v==='sang'){ scene.background.set(0xd8edf7); scene.fog.color.set(0xd8edf7); sun.intensity=1.25; sun.color.set(0xffe2a8); hemi.intensity=0.85; LANTERN_MATS.forEach(function(m){m.emissiveIntensity=0.25;}); }
+  else if(v==='hoang-hon'){ scene.background.set(0xffb98a); scene.fog.color.set(0xffc49a); sun.intensity=0.9; sun.color.set(0xff8a3d); hemi.intensity=0.6; LANTERN_MATS.forEach(function(m){m.emissiveIntensity=0.9;}); }
+  else { scene.background.set(0x141b3a); scene.fog.color.set(0x1a2347); sun.intensity=0.3; sun.color.set(0x8fa3ff); hemi.intensity=0.35; LANTERN_MATS.forEach(function(m){m.emissiveIntensity=1.5;}); }
 }
 function postJson(p,b){ return fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}).then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error(j.error||('Lỗi '+r.status)); return j; }); }); }
 function ensurePerson(p){
   if(people[p.id]) return people[p.id];
   var g=makePerson(p.name, p.robe||'#e0651f', p.skin||'#ffe0bd');
-  g.position.set(p.x||62,0,p.z||2); g.rotation.y=p.rot||0; scene.add(g); people[p.id]=g; return g;
+  g.position.set(p.x||25,0,p.z||-10); g.rotation.y=p.rot||0; scene.add(g); people[p.id]=g; return g;
 }
 function setPose(p,until){ pose=p; poseUntil=until||0; if(myGroup) myGroup.userData.pose=p; }
 function nearestLandmark(){
@@ -260,24 +378,27 @@ function nearestLandmark(){
   return {L:best,d:bd};
 }
 function nearestStreet(){
-  var best='An Dương Vương', bd=1e9;
-  H_ROADS.forEach(function(r){ var d=Math.abs(myPos.z-r.z); if(d<bd){ bd=d; best=r.n; } });
-  V_ROADS.forEach(function(v){ var d=Math.abs(myPos.x-v.x); if(d<bd && (!v.z1 || (myPos.z>=v.z1 && myPos.z<=v.z2))){ bd=d; best=v.n; } });
-  return best;
+  var best='Quận 5', bd=1e9;
+  ROAD_SEGMENTS.forEach(function(s){
+    if(!s.name) return;
+    var d=distToSeg(myPos.x,myPos.z,s.x1,s.z1,s.x2,s.z2).d;
+    if(d<bd){ bd=d; best=s.name; }
+  });
+  return bd<12 ? best : 'Quận 5';
 }
 function updateNear(){
-  var nl=nearestLandmark(); var box=document.getElementById('nearBox');
-  if(nl.d<=22){ box.style.display='block'; box.innerHTML='<b>📍 '+nl.L.name+'</b><br>'+nl.L.desc+'<br><i>Bấm 📸 Check-in để +10 điểm.</i>'; }
-  else { box.style.display='none'; }
+  var nl=nearestLandmark(); var boxEl=document.getElementById('nearBox');
+  if(nl.L && nl.d<=22){ boxEl.style.display='block'; boxEl.innerHTML='<b>📍 '+nl.L.name+'</b><br>'+(nl.L.desc||'')+'<br><i>Bấm 📸 Check-in để +10 điểm.</i>'; }
+  else { boxEl.style.display='none'; }
   document.getElementById('streetLabel').textContent=nearestStreet();
-  document.getElementById('checkinBtn').textContent = nl.d<=22 ? ('📸 Check-in: '+nl.L.name) : '📸 Check-in';
+  document.getElementById('checkinBtn').textContent = (nl.L && nl.d<=22) ? ('📸 Check-in: '+nl.L.name) : '📸 Check-in';
 }
 document.querySelectorAll('#actions button[data-action]').forEach(function(btn){
   btn.addEventListener('click',function(){
     if(!playerId) return;
     var type=btn.getAttribute('data-action');
     var value=undefined;
-    if(type==='checkin'){ var nl=nearestLandmark(); if(nl.d>22){ alert('Đi lại gần một địa điểm (trong 22m) rồi mới check-in được. Gần nhất: '+nl.L.name); return; } value=nl.L.name; setPose('chup',Date.now()+1200); }
+    if(type==='checkin'){ var nl=nearestLandmark(); if(!nl.L || nl.d>22){ alert('Đi lại gần một địa điểm (trong 22m) rồi mới check-in được. Gần nhất: '+(nl.L?nl.L.name:'')); return; } value=nl.L.name; setPose('chup',Date.now()+1200); }
     else if(type==='chao'){ setPose('chao',Date.now()+1200); }
     else if(type==='chup'){ setPose('chup',Date.now()+1200); }
     postJson('api/action',{room:room,playerId:playerId,type:type,value:value}).catch(function(){});
@@ -293,6 +414,7 @@ document.getElementById('copyBtn').addEventListener('click',function(){
   else { el.select(); document.execCommand('copy'); }
 });
 document.getElementById('joinBtn').addEventListener('click',function(){
+  if(!MAP) return;
   var code=roomInput.value.trim().toUpperCase() || 'QUAN5';
   if(!/^[A-Z0-9]{1,12}$/.test(code)){ var el=document.getElementById('joinError'); if(el) el.textContent='Mã phòng chỉ gồm chữ/số, tối đa 12 ký tự.'; return; }
   postJson('api/join',{room:code,name:nameInput.value.trim(),robe:selectedRobe,skin:'#ffe0bd'}).then(function(j){
@@ -306,12 +428,7 @@ document.getElementById('joinBtn').addEventListener('click',function(){
 });
 addEventListener('keydown',function(e){ keys[e.key.toLowerCase()]=true; });
 addEventListener('keyup',function(e){ keys[e.key.toLowerCase()]=false; });
-// Xoay góc nhìn: mỗi ngón tay có ID riêng, ngón xoay được canvas giữ
-// (pointer capture) và canvas có touch-action:none, nên trình duyệt điện
-// thoại không còn ngắt quãng để đoán cuộn trang. Ngón joystick không bao
-// giờ làm xoay camera, và ngược lại — hai ngón dùng cùng lúc vẫn mượt.
 var camPointerId=null,camLastX=0;
-renderer.domElement.style.touchAction='none';
 renderer.domElement.addEventListener('pointerdown',function(e){
   camPointerId=e.pointerId; camLastX=e.clientX;
   try{ renderer.domElement.setPointerCapture(e.pointerId); }catch(err){}
@@ -334,16 +451,32 @@ joyEl.addEventListener('pointerdown',function(e){ joyId=e.pointerId; joyEl.setPo
 joyEl.addEventListener('pointermove',function(e){ if(e.pointerId===joyId) joySet(e); });
 function joyEnd(e){ if(e.pointerId===joyId){ joyId=null; joy={x:0,y:0}; knob.style.left='35px'; knob.style.top='35px'; } }
 joyEl.addEventListener('pointerup',joyEnd); joyEl.addEventListener('pointercancel',joyEnd);
+function blockedAt(x,z){
+  if(BOUNDARY.length && !pointInPoly(x,z,BOUNDARY)) return true;
+  return collides(x,z);
+}
 function drawMinimap(){
   var cv=document.getElementById('minimap'); if(!cv) return; var ctx=cv.getContext('2d');
   var W=cv.width, H=cv.height;
-  function mx(x){ return (x+135)/270*W; } function mz(z){ return (z+95)/190*H; }
+  function mx(x){ return (x+140)/280*W; } function mz(z){ return (z+75)/150*H; }
   ctx.fillStyle='#e8e0cc'; ctx.fillRect(0,0,W,H);
-  ctx.fillStyle='#3f8fa8'; ctx.fillRect(0,mz(82),W,H-mz(82));
-  ctx.strokeStyle='#3a3f44'; ctx.lineWidth=3;
-  H_ROADS.forEach(function(r){ ctx.beginPath(); ctx.moveTo(0,mz(r.z)); ctx.lineTo(W,mz(r.z)); ctx.stroke(); });
-  V_ROADS.forEach(function(v){ var z1=v.z1===undefined?-95:v.z1, z2=v.z2===undefined?95:v.z2; ctx.beginPath(); ctx.moveTo(mx(v.x),mz(z1)); ctx.lineTo(mx(v.x),mz(z2)); ctx.stroke(); });
-  LANDMARKS.forEach(function(L){ if(L.name==='Kênh Tàu Hủ') return; ctx.fillStyle='#c62828'; ctx.beginPath(); ctx.arc(mx(L.x),mz(L.z),3.5,0,Math.PI*2); ctx.fill(); });
+  if(BOUNDARY.length){
+    ctx.fillStyle='#d8d0b8'; ctx.beginPath();
+    BOUNDARY.forEach(function(p,i){ if(i===0) ctx.moveTo(mx(p[0]),mz(p[1])); else ctx.lineTo(mx(p[0]),mz(p[1])); });
+    ctx.closePath(); ctx.fill(); ctx.strokeStyle='#8a7a5a'; ctx.stroke();
+  }
+  ctx.strokeStyle='#3a3f44'; ctx.lineWidth=1;
+  (MAP?MAP.roads:[]).forEach(function(r){
+    ctx.beginPath();
+    r.pts.forEach(function(p,i){ if(i===0) ctx.moveTo(mx(p[0]),mz(p[1])); else ctx.lineTo(mx(p[0]),mz(p[1])); });
+    ctx.stroke();
+  });
+  (MAP?MAP.waters:[]).forEach(function(w){
+    ctx.strokeStyle='#3f8fa8'; ctx.lineWidth=2; ctx.beginPath();
+    w.pts.forEach(function(p,i){ if(i===0) ctx.moveTo(mx(p[0]),mz(p[1])); else ctx.lineTo(mx(p[0]),mz(p[1])); });
+    ctx.stroke(); ctx.strokeStyle='#3a3f44'; ctx.lineWidth=1;
+  });
+  LANDMARKS.forEach(function(L){ ctx.fillStyle='#c62828'; ctx.beginPath(); ctx.arc(mx(L.x),mz(L.z),3,0,Math.PI*2); ctx.fill(); });
   lastPlayers.forEach(function(p){ ctx.fillStyle=(p.id===playerId)?'#f9a825':'#1565c0'; ctx.beginPath(); ctx.arc(mx(p.x),mz(p.z),p.id===playerId?5:4,0,Math.PI*2); ctx.fill(); ctx.strokeStyle='#fff'; ctx.lineWidth=1; ctx.stroke(); });
 }
 function animate(){
@@ -356,12 +489,11 @@ function animate(){
     if(fwd||str){
       var fx=-Math.sin(camYaw), fz=-Math.cos(camYaw), rx=-fz, rz=fx;
       var mx2=rx*str+fx*fwd, mz2=rz*str+fz*fwd, len=Math.hypot(mx2,mz2); mx2/=len; mz2/=len;
-      var nx=Math.max(-135,Math.min(135,myPos.x+mx2*9*dt));
-      var nz=Math.max(-95,Math.min(95,myPos.z+mz2*9*dt));
-      var stuck=collides(myPos.x,myPos.z);
-      // Tách trục: chạm tường theo X vẫn đi được theo Z và ngược lại (trượt dọc tường).
-      if(!collides(nx,myPos.z) || stuck) myPos.x=nx;
-      if(!collides(myPos.x,nz) || stuck) myPos.z=nz;
+      var nx=Math.max(-140,Math.min(140,myPos.x+mx2*9*dt));
+      var nz=Math.max(-75,Math.min(75,myPos.z+mz2*9*dt));
+      var stuck=blockedAt(myPos.x,myPos.z);
+      if(!blockedAt(nx,myPos.z) || stuck) myPos.x=nx;
+      if(!blockedAt(myPos.x,nz) || stuck) myPos.z=nz;
       myPos.rot=Math.atan2(mx2,mz2);
       myGroup.position.set(myPos.x,0,myPos.z); myGroup.rotation.y=myPos.rot;
     }
@@ -399,6 +531,15 @@ setInterval(function(){
     updateNear(); drawMinimap();
   }).catch(function(){});
 },400);
+// Tải bản đồ thật rồi mới cho vào
+fetch('quan5-map.json').then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }).then(function(j){
+  MAP=j; buildMap();
+  document.getElementById('loadStatus').textContent='Đã tải xong bản đồ thật: '+j.roads.length+' đoạn đường, '+j.buildings.length+' nhà, '+j.landmarks.length+' landmark trong ranh Quận 5.';
+  document.getElementById('joinBtn').disabled=false;
+  camera.position.set(myPos.x,6.5,myPos.z+10); camera.lookAt(myPos.x,1.6,myPos.z);
+}).catch(function(e){
+  document.getElementById('loadStatus').textContent='Không tải được bản đồ thật ('+(e.message||'lỗi không rõ')+'). Thử tải lại trang.';
+});
 })();
 </script>
 </body>
