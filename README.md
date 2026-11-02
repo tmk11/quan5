@@ -1,7 +1,10 @@
-# Thành phố Quận 5 Online — Chợ Lớn (bản đồ thật)
+# Thành phố Quận 5 Online — Chợ Lớn (bản đồ thật, chỉ đường)
 
 Game 3D nhiều người chơi cùng lúc, phong cách nhân vật chibi cute như ảnh tham khảo.
-Bản v3 này dùng **bản đồ thật từ OpenStreetMap**, không còn lưới đường thẳng vẽ tay.
+Bản này dùng **bản đồ thật từ OpenStreetMap**, không còn lưới đường thẳng vẽ tay,
+và theo yêu cầu của Boss ngày 2026-11-02: **chỉ còn đường, không còn nhà 3D**
+(nhà, khối landmark, quán, cây 3D và đèn lồng đều đã xoá khỏi game; dữ liệu nhà
+vẫn còn trong `quan5-map.json` nhưng không được vẽ và không còn va chạm).
 
 ## Nguồn bản đồ (OpenStreetMap, ODbL)
 

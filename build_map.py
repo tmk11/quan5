@@ -71,7 +71,23 @@ def real_width_m(tags):
             pass
     return TYPE_WIDTH_M.get(tags.get('highway'), 6)
 
-highways = json.load(open(BASE / 'highways.json'))['elements']
+# Merge all highway downloads (named file + service + walk + residential
+# west/east1), deduplicated by OSM way id. The single all-highway Overpass
+# query kept hitting 502 capacity, so the data was fetched in small chunks.
+# Excludes non-roads under construction etc.
+EXCLUDE_HIGHWAY = {'construction', 'abandoned', 'demolished', 'disused', 'razed',
+                    'corridor', 'elevator', 'escalator', 'proposed'}
+_highway_by_id = {}
+for _fname in ['highways.json', 'highways_service.json', 'highways_walk.json',
+               'highways_res_west.json', 'highways_res_east1.json']:
+    try:
+        _d = json.load(open(BASE / _fname))
+    except Exception:
+        continue
+    for _e in _d.get('elements', []):
+        _highway_by_id.setdefault(_e['id'], _e)
+highways = [_e for _e in _highway_by_id.values()
+            if _e.get('tags', {}).get('highway') not in EXCLUDE_HIGHWAY]
 roads = []
 major_names = {'Trần Hưng Đạo','Nguyễn Trãi','An Dương Vương','Hải Thượng Lãn Ông',
                'Hùng Vương','Nguyễn Chí Thanh','Nguyễn Văn Cừ','Nguyễn Tri Phương',
@@ -294,7 +310,7 @@ for name, desc in [('Phố lồng đèn Lương Nhữ Học', 'Phố lồng đè
         print(' WARNING street not found:', street)
 
 out = {
-    'source': 'OpenStreetMap (ODbL), boundary OSM relation 3820432 (Quan 5), fetched 2026-11-02',
+    'source': 'OpenStreetMap (ODbL), boundary OSM relation 3820432 (Quan 5), all highways incl. unnamed alleys/footways, fetched 2026-11-02 (merged small Overpass chunks; eastmost unnamed residential strip may be incomplete due to Overpass 502 capacity, named roads there are complete)',
     'origin': {'lon': LON0, 'lat': LAT0, 'scale_units_per_meter': SCALE},
     'bounds': {'x': [-140, 140], 'z': [-75, 75]},
     'boundary': poly_game,
