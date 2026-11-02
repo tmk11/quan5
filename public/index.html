@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Thành phố Quận 5 Online — Chợ Lớn</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;background:#ffe8c2;color:#3a2c1e}
+#scene{position:fixed;inset:0}
+#scene canvas{display:block}
+.overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 30%,rgba(255,190,110,.28),rgba(28,20,12,.62));z-index:20;padding:16px}
+.card{background:linear-gradient(180deg,#fffdf6,#fff3dc);border:1px solid #ecd9ac;border-radius:24px;padding:26px 22px;max-width:460px;width:100%;box-shadow:0 18px 50px rgba(60,35,10,.38);text-align:center}
+.card h1{margin:0 0 8px;font-size:30px;color:#a83226}
+.card p{margin:0 0 14px;color:#7a6a52;line-height:1.55}
+.card input{width:100%;padding:12px 13px;border:2px solid #e3cda2;border-radius:13px;font-size:16px;margin:6px 0;background:#fffdf7;color:#3a2c1e;outline:none}
+.card input:focus{border-color:#d97706}
+.row{display:flex;gap:8px}
+.row input{flex:1;min-width:0}
+button{border:0;border-radius:13px;padding:12px 14px;font-size:15px;font-weight:700;cursor:pointer;background:linear-gradient(135deg,#e0651f,#a83226);color:#fff;box-shadow:0 4px 14px rgba(168,50,38,.35)}
+button.secondary{background:#f3e6c8;color:#5b4632;box-shadow:none}
+button:active{transform:scale(.97)}
+#joinBtn{width:100%;margin-top:10px;padding:14px;font-size:17px}
+.note{font-size:13px;color:#8a7a66;margin-top:12px}
+.sw{width:34px;height:34px;border-radius:50%;border:3px solid transparent;cursor:pointer;padding:0;box-shadow:none}
+.sw.sel{border-color:#a83226}
+#hud{position:fixed;inset:0;pointer-events:none;z-index:10;display:none}
+#hud.on{display:block}
+.panel{position:absolute;background:rgba(255,250,238,.94);border:1px solid rgba(236,217,172,.9);border-radius:16px;padding:10px 12px;box-shadow:0 8px 24px rgba(60,35,10,.22)}
+#shareBox{top:10px;left:10px;right:10px;pointer-events:auto}
+#shareBox .row{margin-top:6px}
+#shareBox input{flex:1;min-width:0;padding:9px;border:1px solid #e7d7b8;border-radius:10px;font-size:13px;background:#fffdf7}
+#stats{top:104px;left:10px;font-weight:700;line-height:1.55}
+#minimapWrap{top:104px;right:10px;text-align:center;font-size:12px;font-weight:700}
+#minimapWrap canvas{display:block;margin-top:4px;border-radius:10px;background:#e8e0cc}
+#feed{top:280px;right:10px;width:230px;max-height:170px;overflow:auto;font-size:13px;line-height:1.45}
+#feed div{margin:3px 0}
+#nearBox{left:10px;bottom:120px;max-width:280px;font-size:13px;line-height:1.5;display:none}
+#actions{position:absolute;left:50%;transform:translateX(-50%);bottom:12px;display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:96vw;pointer-events:auto;background:rgba(255,250,238,.94);border:1px solid rgba(236,217,172,.9);border-radius:18px;padding:8px;box-shadow:0 8px 24px rgba(60,35,10,.22)}
+#actions button{padding:9px 11px;font-size:13px;background:#fff7e8;color:#5b3a1e;border:1px solid #ecd9ac;box-shadow:0 2px 8px rgba(60,35,10,.12);white-space:nowrap}
+#actions button.buoi{background:linear-gradient(135deg,#8b5cf6,#6d28d9);color:#fff;border:0}
+#joy{position:absolute;left:16px;bottom:190px;width:110px;height:110px;border-radius:50%;background:rgba(255,255,255,.35);border:2px solid rgba(255,255,255,.7);display:none;pointer-events:auto;touch-action:none}
+#knob{position:absolute;left:35px;top:35px;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.9)}
+@media (pointer:coarse){ #joy{display:block} #feed{width:170px} }
+@media (max-width:640px){
+#shareBox{top:8px;left:8px;right:8px;padding:8px 10px;font-size:13px}
+#stats{top:78px;left:8px;padding:8px 10px;font-size:13px;line-height:1.4}
+#minimapWrap{display:none}
+#feed{display:none}
+#nearBox{bottom:210px;left:8px;right:8px;max-width:none}
+#actions{left:8px;right:8px;bottom:8px;transform:none;max-width:none;display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:8px;max-height:38vh;overflow-y:auto}
+#actions button{padding:10px 4px;font-size:13px}
+#joy{left:12px;bottom:250px;width:96px;height:96px}
+#knob{left:28px;top:28px}
+}
+</style>
+</head>
+<body>
+<div id="scene"></div>
+<div class="overlay" id="joinOverlay">
+<div class="card">
+<h1>🏮 Thành phố Quận 5 Online</h1>
+<p>Đi dạo Chợ Lớn cùng nhau, theo đúng bố cục đường thật: Trần Hưng Đạo, Nguyễn Trãi, An Dương Vương, Hải Thượng Lãn Ông, Lương Nhữ Học… Không có chat tự do — chỉ chào hỏi, ăn uống, mua sắm và check-in có sẵn.</p>
+<input id="roomInput" placeholder="Mã phòng (để trống = thành phố chung QUAN5)" maxlength="12" style="text-transform:uppercase">
+<div class="row"><input id="nameInput" placeholder="Tên của bạn (để trống sẽ đặt tên Chợ Lớn)" maxlength="24"><button type="button" class="secondary" id="randomNameBtn">🎲 Tên hay</button></div>
+<div style="text-align:left;font-size:13px;margin:8px 0 2px;font-weight:700">Màu áo</div>
+<div class="row" id="robeSwatches" style="flex-wrap:wrap">
+<button type="button" class="sw sel" data-robe="#e0651f" style="background:#e0651f"></button>
+<button type="button" class="sw" data-robe="#2e7d32" style="background:#2e7d32"></button>
+<button type="button" class="sw" data-robe="#1565c0" style="background:#1565c0"></button>
+<button type="button" class="sw" data-robe="#c2185b" style="background:#c2185b"></button>
+<button type="button" class="sw" data-robe="#f9a825" style="background:#f9a825"></button>
+<button type="button" class="sw" data-robe="#7b1fa2" style="background:#7b1fa2"></button>
+</div>
+<button type="button" id="joinBtn">Vào thành phố</button>
+<p id="joinError" style="color:#b91c1c;font-size:13px;min-height:18px;margin:8px 0 0"></p>
+<p class="note">Mẹo: gửi link cho bạn, bạn ấy mở link là vào chung thành phố với bạn. Sơ đồ trong game là bản thu gọn theo bố cục thật, không phải bản đồ tỉ lệ 1:1.</p>
+</div>
+</div>
+<div id="hud">
+<div class="panel" id="shareBox"><b>🔗 Link thành phố chung</b><div class="row"><input id="shareLink" readonly><button type="button" id="copyBtn">Sao chép</button></div></div>
+<div class="panel" id="stats">⭐ Điểm khám phá: <span id="diem">0</span><br>📸 Check-in: <span id="checkin">0</span> &nbsp; 👥 Đang chơi: <span id="count">0</span><br>🌅 Buổi: <span id="buoiLabel">Sáng</span> &nbsp; 📍 <span id="streetLabel">An Dương Vương</span></div>
+<div class="panel" id="minimapWrap">🗺️ Bản đồ Quận 5<canvas id="minimap" width="200" height="142"></canvas></div>
+<div class="panel" id="feed"></div>
+<div class="panel" id="nearBox"></div>
+<div id="actions">
+<button type="button" data-action="chao">👋 Chào</button>
+<button type="button" data-action="an">🍜 Ăn hủ tiếu</button>
+<button type="button" data-action="cafe">☕ Cà phê vợt</button>
+<button type="button" data-action="mua">🏮 Mua lồng đèn</button>
+<button type="button" data-action="muasam">🛍️ Mua sắm</button>
+<button type="button" data-action="checkin" id="checkinBtn">📸 Check-in</button>
+<button type="button" data-action="chup">📷 Chụp ảnh</button>
+<button type="button" class="buoi" id="buoiBtn">🌅 Đổi buổi</button>
+</div>
+<div id="joy"><div id="knob"></div></div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>
+<script>
+'use strict';
+// --- Bố cục đường thật, thu gọn (Bắc ở trên, z âm = phía Bắc) ---
+var H_ROADS=[{n:'Hùng Vương',z:-78},{n:'Trần Hưng Đạo',z:-52},{n:'Nguyễn Trãi',z:-28},{n:'An Dương Vương',z:-4},{n:'Hải Thượng Lãn Ông',z:20},{n:'Tháp Mười',z:44},{n:'Hồng Bàng',z:68}];
+var V_ROADS=[{n:'Nguyễn Thị Nhỏ',x:-118},{n:'Lương Nhữ Học',x:-68,z1:-30,z2:22},{n:'Phùng Hưng',x:-48},{n:'Châu Văn Liêm',x:-12},{n:'Ngô Quyền',x:38},{n:'Nguyễn Tri Phương',x:78},{n:'Nguyễn Văn Cừ',x:118}];
+var LANDMARKS=[
+{x:-95,z:52,w:30,d:18,name:'Chợ Bình Tây',desc:'57A Tháp Mười — chợ Chợ Lớn mới từ 1928, ngay rìa tây Quận 5 giáp Quận 6.'},
+{x:62,z:-14,w:24,d:14,name:'Chợ An Đông',desc:'34-36 An Dương Vương — chợ sỉ lẻ nổi tiếng ngay trục An Dương Vương.'},
+{x:-32,z:28,w:18,d:12,name:'Chợ Kim Biên',desc:'37 Vạn Tượng, gần Hải Thượng Lãn Ông — chợ phụ liệu, nguyên liệu.'},
+{x:-20,z:-20,w:16,d:12,name:'Chùa Bà Thiên Hậu',desc:'710 Nguyễn Trãi — Hội quán Tuệ Thành, chùa Bà linh thiêng của người Hoa.'},
+{x:14,z:-20,w:14,d:10,name:'Hội quán Nghĩa An',desc:'678 Nguyễn Trãi — hội quán Quan Thánh Đế Quân.'},
+{x:13,z:8,w:30,d:16,name:'Công viên Văn Lang',desc:'238 An Dương Vương — công viên xanh giữa lòng Quận 5.'},
+{x:-68,z:-4,w:10,d:52,name:'Phố lồng đèn Lương Nhữ Học',desc:'Phố lồng đèn rực rỡ nhất Chợ Lớn, đi dọc là thấy đèn đỏ treo khắp nơi.'},
+{x:-30,z:20,w:60,d:8,name:'Phố Đông y Hải Thượng Lãn Ông',desc:'Phố thuốc bắc, thảo dược lâu đời của Chợ Lớn.'},
+{x:36,z:6,w:18,d:10,name:'Chợ vải Soái Kình Lâm',desc:'18 An Dương Vương — phố vải sầm uất.'},
+{x:-125,z:70,w:14,d:10,name:'Bến xe Chợ Lớn',desc:'Bến xe ở rìa tây, cửa ngõ đi các tỉnh miền Tây.'},
+{x:0,z:90,w:280,d:14,name:'Kênh Tàu Hủ',desc:'Ranh phía Nam Quận 5, giáp Quận 8.'}
+];
+var scene=new THREE.Scene();
+scene.background=new THREE.Color(0xd8edf7);
+scene.fog=new THREE.Fog(0xd8edf7,60,170);
+var renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+document.getElementById('scene').appendChild(renderer.domElement);
+var camera=new THREE.PerspectiveCamera(innerWidth<innerHeight?70:55,innerWidth/innerHeight,0.1,300);
+var hemi=new THREE.HemisphereLight(0xcfe8ff,0x8a7a5a,0.85); scene.add(hemi);
+scene.add(new THREE.AmbientLight(0xfff2e0,0.35));
+var sun=new THREE.DirectionalLight(0xffe2a8,1.25); sun.position.set(40,50,30); sun.castShadow=true; sun.shadow.mapSize.set(1024,1024); sun.shadow.camera.left=-90; sun.shadow.camera.right=90; sun.shadow.camera.top=90; sun.shadow.camera.bottom=-90; sun.shadow.camera.far=200; scene.add(sun);
+function mat(c,o){ o=o||{}; return new THREE.MeshStandardMaterial({color:c,roughness:0.85,emissive:o.emissive||0x000000,emissiveIntensity:o.ei||0}); }
+function box(w,h,d,c,x,y,z,parent){ var m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat(c)); m.position.set(x,y,z); m.castShadow=true; m.receiveShadow=true; (parent||scene).add(m); return m; }
+function cyl(rt,rb,h,c,x,y,z,parent,seg){ var m=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,seg||20),mat(c)); m.position.set(x,y,z); m.castShadow=true; m.receiveShadow=true; (parent||scene).add(m); return m; }
+function sph(r,c,x,y,z,parent,sx,sy,sz){ var m=new THREE.Mesh(new THREE.SphereGeometry(r,20,16),mat(c)); m.position.set(x,y,z); m.scale.set(sx||1,sy||1,sz||1); m.castShadow=true; (parent||scene).add(m); return m; }
+function textSprite(text,scale,bg){
+  var cv=document.createElement('canvas'); cv.width=512; cv.height=96; var ctx=cv.getContext('2d');
+  ctx.fillStyle=bg||'rgba(30,25,18,0.72)'; ctx.beginPath(); if(ctx.roundRect) ctx.roundRect(6,10,500,76,22); else ctx.rect(6,10,500,76); ctx.fill();
+  ctx.fillStyle='#fff3d6'; ctx.font='700 38px system-ui, sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(text,256,50);
+  var tex=new THREE.CanvasTexture(cv); var sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthWrite:false})); sp.scale.set(scale||8,scale*96/512||1.5,1); return sp;
+}
+function onRoad(x,z){ for(var i=0;i<H_ROADS.length;i++){ if(Math.abs(z-H_ROADS[i].z)<=5) return true; } for(var j=0;j<V_ROADS.length;j++){ var v=V_ROADS[j]; if(Math.abs(x-v.x)<=5 && (!v.z1 || (z>=v.z1-3 && z<=v.z2+3))) return true; } return false; }
+function inLandmark(x,z,pad){ for(var i=0;i<LANDMARKS.length;i++){ var L=LANDMARKS[i]; if(Math.abs(x-L.x)<=L.w/2+(pad||0) && Math.abs(z-L.z)<=L.d/2+(pad||0)) return L; } return null; }
+// Nền thành phố
+var ground=new THREE.Mesh(new THREE.PlaneGeometry(280,200),mat(0xcac2a8)); ground.rotation.x=-Math.PI/2; ground.receiveShadow=true; scene.add(ground);
+// Kênh Tàu Hủ ở phía Nam
+var canal=new THREE.Mesh(new THREE.PlaneGeometry(280,16),mat(0x3f8fa8)); canal.rotation.x=-Math.PI/2; canal.position.set(0,0.04,90); canal.receiveShadow=true; scene.add(canal);
+// Đường
+H_ROADS.forEach(function(r){ var p=new THREE.Mesh(new THREE.PlaneGeometry(280,7),mat(0x3a3f44)); p.rotation.x=-Math.PI/2; p.position.set(0,0.06,r.z); p.receiveShadow=true; scene.add(p); for(var x=-132;x<=132;x+=12){ box(3,0.02,0.35,0xf5f0dc,x,0.08,r.z); } var sp=textSprite(r.n,10); sp.position.set(-95,2.2,r.z); scene.add(sp); });
+V_ROADS.forEach(function(v){ var z1=v.z1===undefined?-95:v.z1, z2=v.z2===undefined?95:v.z2, h=z2-z1, cz=(z1+z2)/2; var p=new THREE.Mesh(new THREE.PlaneGeometry(7,h),mat(0x3a3f44)); p.rotation.x=-Math.PI/2; p.position.set(v.x,0.06,cz); p.receiveShadow=true; scene.add(p); for(var z=z1+4;z<z2;z+=12){ box(0.35,0.02,3,0xf5f0dc,v.x,0.08,z); } var sp=textSprite(v.n,9); sp.position.set(v.x,2.2,cz); scene.add(sp); });
+// Landmark: khối nhà + bảng tên
+var LAND_COLORS=['#f6c453','#ff8a80','#90caf9','#c62828','#ef6c00','#66bb6a','#e53935','#8d6e63','#ab47bc','#78909c','#3f8fa8'];
+LANDMARKS.forEach(function(L,i){
+  var col=LAND_COLORS[i%LAND_COLORS.length];
+  if(L.name==='Công viên Văn Lang'){ var g=new THREE.Mesh(new THREE.PlaneGeometry(L.w,L.d),mat(0x5aa85e)); g.rotation.x=-Math.PI/2; g.position.set(L.x,0.05,L.z); g.receiveShadow=true; scene.add(g); }
+  else if(L.name==='Kênh Tàu Hủ'){ /* đã vẽ kênh */ }
+  else if(L.name.indexOf('Phố')===0){ var g=new THREE.Mesh(new THREE.PlaneGeometry(L.w,L.d),mat(0xd9a441)); g.rotation.x=-Math.PI/2; g.position.set(L.x,0.05,L.z); g.receiveShadow=true; scene.add(g); }
+  else { box(L.w,4.5,L.d,col,L.x,2.25,L.z); box(L.w+1,0.6,L.d+1,0x8a1f14,L.x,5.0,L.z); box(L.w*0.6,1.2,2,0xfff3d6,L.x,5.8,L.z); }
+  var sp=textSprite(L.name,12); sp.position.set(L.x,7.5,L.z); scene.add(sp);
+});
+// Tháp đồng hồ Chợ Bình Tây
+box(3,7,3,0xf6c453,-95,3.5,42); box(3.4,1,3.4,0x8a1f14,-95,7.2,42);
+// Nhà phố dọc Nguyễn Trãi và Hải Thượng Lãn Ông
+var SHOP_COLORS=[0xffe0b2,0xffccbc,0xfff9c4,0xc8e6c9,0xbbdefb,0xf8bbd0,0xd1c4e9,0xffe082];
+function hash2(x,z){ var h=Math.sin(x*12.9898+z*78.233)*43758.5453; return h-Math.floor(h); }
+function shopRow(zLine,from,to,skip){
+  for(var x=from;x<=to;x+=11){
+    if(skip && skip(x)) continue;
+    if(onRoad(x,zLine) || inLandmark(x,zLine,2)) continue;
+    var h=3+hash2(x,zLine)*3, c=SHOP_COLORS[Math.floor(hash2(zLine,x)*SHOP_COLORS.length)];
+    box(8,h,7,c,x,h/2,zLine);
+    box(8.4,0.4,7.4,0x8a1f14,x,h+0.2,zLine);
+    box(6,0.8,0.5,0xa83226,x,h*0.55,zLine+3.6);
+  }
+}
+shopRow(-21,-110,110,function(x){ return Math.abs(x+20)<10 || Math.abs(x-14)<9; });
+shopRow(-35,-110,110,null);
+shopRow(13,-110,110,function(x){ return Math.abs(x+32)<12 || Math.abs(x-13)<18; });
+shopRow(27,-110,110,function(x){ return Math.abs(x+32)<12; });
+shopRow(-59,-110,110,null);
+shopRow(61,-110,110,null);
+// Cây xanh
+function tree(x,z,s){ var g=new THREE.Group(); g.position.set(x,0,z); g.scale.setScalar(s); scene.add(g); cyl(0.22,0.32,2.2,0x6b4a2f,0,1.1,0,g); sph(1.5,0x3f7d44,0,3.1,0,g); sph(1.1,0x5aa85e,0.9,2.5,0.4,g); sph(1.0,0x4d9e57,-0.8,2.6,-0.3,g); }
+for(var tx=-120;tx<=120;tx+=18){ for(var tz=-80;tz<=80;tz+=24){ if(!onRoad(tx+4,tz+3) && !inLandmark(tx+4,tz+3,4) && hash2(tx,tz)>0.62){ tree(tx+4,tz+3,0.9+hash2(tz,tx)*0.5); } } }
+// Lồng đèn dọc Lương Nhữ Học
+var lanternMats=[];
+for(var lz=-28;lz<=20;lz+=6){ cyl(0.06,0.06,3.2,0x5b4632,-68,1.6,lz); var lm=sph(0.55,0xff3d00,-68,3.4,lz,scene,1,1.25,1); lm.material.emissive=new THREE.Color(0xff7a1a); lm.material.emissiveIntensity=0.6; lanternMats.push(lm.material); }
+// Quán ăn vỉa hè gần chợ
+function foodStall(x,z,label){ box(3,2.2,2,0xfff3d6,x,1.1,z); box(3.4,0.3,2.4,0xe0651f,x,2.35,z); var sp=textSprite(label,5); sp.position.set(x,3.6,z); scene.add(sp); }
+foodStall(-78,58,'Hủ tiếu'); foodStall(50,-22,'Cơm gà'); foodStall(-20,26,'Chè'); foodStall(70,2,'Cà phê vợt');
+// Đèn đường
+for(var dx=-120;dx<=120;dx+=30){ for(var dz=-70;dz<=70;dz+=28){ if(!onRoad(dx,dz)) continue; cyl(0.08,0.08,4.5,0x37474f,dx,2.25,dz); var lb=sph(0.35,0xffe082,dx,4.6,dz); lb.material.emissive=new THREE.Color(0xffe082); lb.material.emissiveIntensity=0.4; lanternMats.push(lb.material); } }
+(function(){
+'use strict';
+var CITY_NAMES=['Bé Ba','Cô Ba Chợ Lớn','Chú Tám','Tí Lồng Đèn','Chị Hai','Anh Tư','Bé Hủ Tiếu','Cô Năm','Cậu Bảy','Bé Sen'];
+var params=new URLSearchParams(location.search);
+var roomInput=document.getElementById('roomInput');
+var nameInput=document.getElementById('nameInput');
+if(params.get('room')) roomInput.value=params.get('room').toUpperCase();
+document.getElementById('randomNameBtn').onclick=function(){ nameInput.value=CITY_NAMES[Math.floor(Math.random()*CITY_NAMES.length)]; };
+var selectedRobe='#e0651f';
+document.querySelectorAll('#robeSwatches .sw').forEach(function(b){ b.addEventListener('click',function(){ selectedRobe=b.getAttribute('data-robe'); document.querySelectorAll('#robeSwatches .sw').forEach(function(x){ x.classList.remove('sel'); }); b.classList.add('sel'); }); });
+function hashStr(s){ var h=0; for(var i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))>>>0; return h; }
+function nameSprite(name){
+  var cv=document.createElement('canvas'); cv.width=512; cv.height=128; var ctx=cv.getContext('2d');
+  ctx.fillStyle='rgba(46,32,20,0.58)'; ctx.beginPath(); if(ctx.roundRect) ctx.roundRect(56,22,400,84,30); else ctx.rect(56,22,400,84); ctx.fill();
+  ctx.strokeStyle='rgba(240,200,110,0.9)'; ctx.lineWidth=3; ctx.beginPath(); if(ctx.roundRect) ctx.roundRect(58,24,396,80,28); else ctx.rect(58,24,396,80); ctx.stroke();
+  ctx.fillStyle='#fff8e8'; ctx.font='700 42px system-ui, sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(name,256,66);
+  var tex=new THREE.CanvasTexture(cv); var sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthWrite:false})); sp.scale.set(2.9,0.72,1); sp.position.y=3.0; return sp;
+}
+function makePerson(name,robe,skin){
+  var outer=new THREE.Group(), inner=new THREE.Group(); outer.add(inner);
+  var robeMat=new THREE.MeshStandardMaterial({color:robe,roughness:0.75});
+  var skinMat=new THREE.MeshStandardMaterial({color:skin||'#ffe0bd',roughness:0.6});
+  var body=new THREE.Mesh(new THREE.CapsuleGeometry(0.5,0.55,6,18),robeMat); body.position.y=0.62; body.scale.set(1,1,0.82); body.castShadow=true; inner.add(body);
+  var head=new THREE.Mesh(new THREE.SphereGeometry(0.58,28,20),skinMat); head.position.y=1.5; head.scale.set(1,0.95,0.92); head.castShadow=true; inner.add(head);
+  var earL=new THREE.Mesh(new THREE.SphereGeometry(0.13,12,10),skinMat); earL.position.set(-0.56,1.48,0); inner.add(earL);
+  var earR=earL.clone(); earR.position.x=0.56; inner.add(earR);
+  [-0.23,0.23].forEach(function(ex){
+    var eye=new THREE.Mesh(new THREE.SphereGeometry(0.135,18,14),new THREE.MeshStandardMaterial({color:0x1a1a1a,roughness:0.15})); eye.position.set(ex,1.56,0.5); inner.add(eye);
+    var cheek=new THREE.Mesh(new THREE.SphereGeometry(0.16,14,10),new THREE.MeshStandardMaterial({color:0xff8fa0,roughness:0.7,transparent:true,opacity:0.85})); cheek.position.set(ex*1.85,1.36,0.44); cheek.scale.set(1,0.7,0.5); inner.add(cheek);
+  });
+  var smile=new THREE.Mesh(new THREE.TorusGeometry(0.16,0.025,8,16,Math.PI),mat(0x5b4632)); smile.position.set(0,1.34,0.54); smile.rotation.z=Math.PI; inner.add(smile);
+  var hair=new THREE.Mesh(new THREE.SphereGeometry(0.58,20,14,0,Math.PI*2,0,Math.PI*0.45),new THREE.MeshStandardMaterial({color:0x2b1a12,roughness:0.8})); hair.position.y=1.58; hair.scale.set(1,0.95,0.92); inner.add(hair);
+  [-0.54,0.54].forEach(function(ax){ var arm=new THREE.Mesh(new THREE.CapsuleGeometry(0.13,0.3,4,12),robeMat); arm.position.set(ax,0.95,0.05); arm.rotation.z=ax>0?-0.25:0.25; inner.add(arm); });
+  outer.add(nameSprite(name));
+  outer.userData={inner:inner,tilt:0,pose:'dung'};
+  return outer;
+}
+var room='', playerId='', myName='';
+var myPos={x:62,z:2,rot:0}, pose='dung', poseUntil=0;
+var camYaw=0, keys={}, joy={x:0,y:0};
+var people={}; var myGroup=null;
+var buoiOrder=['sang','hoang-hon','dem']; var buoiLabels={sang:'Sáng','hoang-hon':'Hoàng hôn',dem:'Đêm'}; var curBuoi='sang';
+var lastFeedJson=''; var lastPlayers=[];
+var clock=new THREE.Clock();
+function applyBuoi(v){
+  curBuoi=v; document.getElementById('buoiLabel').textContent=buoiLabels[v]||'Sáng';
+  if(v==='sang'){ scene.background.set(0xd8edf7); scene.fog.color.set(0xd8edf7); sun.intensity=1.25; sun.color.set(0xffe2a8); hemi.intensity=0.85; lanternMats.forEach(function(m){m.emissiveIntensity=0.25;}); }
+  else if(v==='hoang-hon'){ scene.background.set(0xffb98a); scene.fog.color.set(0xffc49a); sun.intensity=0.9; sun.color.set(0xff8a3d); hemi.intensity=0.6; lanternMats.forEach(function(m){m.emissiveIntensity=0.9;}); }
+  else { scene.background.set(0x141b3a); scene.fog.color.set(0x1a2347); sun.intensity=0.3; sun.color.set(0x8fa3ff); hemi.intensity=0.35; lanternMats.forEach(function(m){m.emissiveIntensity=1.5;}); }
+}
+function postJson(p,b){ return fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}).then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error(j.error||('Lỗi '+r.status)); return j; }); }); }
+function ensurePerson(p){
+  if(people[p.id]) return people[p.id];
+  var g=makePerson(p.name, p.robe||'#e0651f', p.skin||'#ffe0bd');
+  g.position.set(p.x||62,0,p.z||2); g.rotation.y=p.rot||0; scene.add(g); people[p.id]=g; return g;
+}
+function setPose(p,until){ pose=p; poseUntil=until||0; if(myGroup) myGroup.userData.pose=p; }
+function nearestLandmark(){
+  var best=null, bd=1e9;
+  LANDMARKS.forEach(function(L){ var d=Math.hypot(myPos.x-L.x,myPos.z-L.z); if(d<bd){ bd=d; best=L; } });
+  return {L:best,d:bd};
+}
+function nearestStreet(){
+  var best='An Dương Vương', bd=1e9;
+  H_ROADS.forEach(function(r){ var d=Math.abs(myPos.z-r.z); if(d<bd){ bd=d; best=r.n; } });
+  V_ROADS.forEach(function(v){ var d=Math.abs(myPos.x-v.x); if(d<bd && (!v.z1 || (myPos.z>=v.z1 && myPos.z<=v.z2))){ bd=d; best=v.n; } });
+  return best;
+}
+function updateNear(){
+  var nl=nearestLandmark(); var box=document.getElementById('nearBox');
+  if(nl.d<=22){ box.style.display='block'; box.innerHTML='<b>📍 '+nl.L.name+'</b><br>'+nl.L.desc+'<br><i>Bấm 📸 Check-in để +10 điểm.</i>'; }
+  else { box.style.display='none'; }
+  document.getElementById('streetLabel').textContent=nearestStreet();
+  document.getElementById('checkinBtn').textContent = nl.d<=22 ? ('📸 Check-in: '+nl.L.name) : '📸 Check-in';
+}
+document.querySelectorAll('#actions button[data-action]').forEach(function(btn){
+  btn.addEventListener('click',function(){
+    if(!playerId) return;
+    var type=btn.getAttribute('data-action');
+    var value=undefined;
+    if(type==='checkin'){ var nl=nearestLandmark(); if(nl.d>22){ alert('Đi lại gần một địa điểm (trong 22m) rồi mới check-in được. Gần nhất: '+nl.L.name); return; } value=nl.L.name; setPose('chup',Date.now()+1200); }
+    else if(type==='chao'){ setPose('chao',Date.now()+1200); }
+    else if(type==='chup'){ setPose('chup',Date.now()+1200); }
+    postJson('api/action',{room:room,playerId:playerId,type:type,value:value}).catch(function(){});
+  });
+});
+document.getElementById('buoiBtn').addEventListener('click',function(){
+  if(!playerId) return; var next=buoiOrder[(buoiOrder.indexOf(curBuoi)+1)%buoiOrder.length]; applyBuoi(next);
+  postJson('api/action',{room:room,playerId:playerId,type:'buoi',value:next}).catch(function(){});
+});
+document.getElementById('copyBtn').addEventListener('click',function(){
+  var el=document.getElementById('shareLink');
+  if(navigator.clipboard) navigator.clipboard.writeText(el.value).catch(function(){ el.select(); document.execCommand('copy'); });
+  else { el.select(); document.execCommand('copy'); }
+});
+document.getElementById('joinBtn').addEventListener('click',function(){
+  var code=roomInput.value.trim().toUpperCase() || 'QUAN5';
+  if(!/^[A-Z0-9]{1,12}$/.test(code)){ var el=document.getElementById('joinError'); if(el) el.textContent='Mã phòng chỉ gồm chữ/số, tối đa 12 ký tự.'; return; }
+  postJson('api/join',{room:code,name:nameInput.value.trim(),robe:selectedRobe,skin:'#ffe0bd'}).then(function(j){
+    room=j.room; playerId=j.playerId; myName=j.name;
+    document.getElementById('joinOverlay').style.display='none';
+    document.getElementById('hud').classList.add('on');
+    document.getElementById('shareLink').value=location.origin+location.pathname+'?room='+room;
+    myGroup=ensurePerson({id:playerId,name:myName,robe:selectedRobe,skin:'#ffe0bd',x:myPos.x,z:myPos.z,rot:0});
+    applyBuoi('sang');
+  }).catch(function(e){ var msg='Không vào được: '+(e.message||'lỗi không rõ'); var el=document.getElementById('joinError'); if(el) el.textContent=msg; alert(msg); });
+});
+addEventListener('keydown',function(e){ keys[e.key.toLowerCase()]=true; });
+addEventListener('keyup',function(e){ keys[e.key.toLowerCase()]=false; });
+var dragging=false,lastX=0;
+renderer.domElement.addEventListener('pointerdown',function(e){ dragging=true; lastX=e.clientX; });
+addEventListener('pointermove',function(e){ if(!dragging) return; camYaw-=(e.clientX-lastX)*0.005; lastX=e.clientX; });
+addEventListener('pointerup',function(){ dragging=false; });
+var joyEl=document.getElementById('joy'), knob=document.getElementById('knob'), joyId=null;
+function joySet(e){ var r=joyEl.getBoundingClientRect(), cx=r.left+r.width/2, cy=r.top+r.height/2; var dx=(e.clientX-cx)/45, dy=(e.clientY-cy)/45, len=Math.hypot(dx,dy); if(len>1){ dx/=len; dy/=len; } joy={x:dx,y:dy}; knob.style.left=(35+dx*28)+'px'; knob.style.top=(35+dy*28)+'px'; }
+joyEl.addEventListener('pointerdown',function(e){ joyId=e.pointerId; joyEl.setPointerCapture(joyId); joySet(e); });
+joyEl.addEventListener('pointermove',function(e){ if(e.pointerId===joyId) joySet(e); });
+function joyEnd(e){ if(e.pointerId===joyId){ joyId=null; joy={x:0,y:0}; knob.style.left='35px'; knob.style.top='35px'; } }
+joyEl.addEventListener('pointerup',joyEnd); joyEl.addEventListener('pointercancel',joyEnd);
+function drawMinimap(){
+  var cv=document.getElementById('minimap'); if(!cv) return; var ctx=cv.getContext('2d');
+  var W=cv.width, H=cv.height;
+  function mx(x){ return (x+135)/270*W; } function mz(z){ return (z+95)/190*H; }
+  ctx.fillStyle='#e8e0cc'; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#3f8fa8'; ctx.fillRect(0,mz(82),W,H-mz(82));
+  ctx.strokeStyle='#3a3f44'; ctx.lineWidth=3;
+  H_ROADS.forEach(function(r){ ctx.beginPath(); ctx.moveTo(0,mz(r.z)); ctx.lineTo(W,mz(r.z)); ctx.stroke(); });
+  V_ROADS.forEach(function(v){ var z1=v.z1===undefined?-95:v.z1, z2=v.z2===undefined?95:v.z2; ctx.beginPath(); ctx.moveTo(mx(v.x),mz(z1)); ctx.lineTo(mx(v.x),mz(z2)); ctx.stroke(); });
+  LANDMARKS.forEach(function(L){ if(L.name==='Kênh Tàu Hủ') return; ctx.fillStyle='#c62828'; ctx.beginPath(); ctx.arc(mx(L.x),mz(L.z),3.5,0,Math.PI*2); ctx.fill(); });
+  lastPlayers.forEach(function(p){ ctx.fillStyle=(p.id===playerId)?'#f9a825':'#1565c0'; ctx.beginPath(); ctx.arc(mx(p.x),mz(p.z),p.id===playerId?5:4,0,Math.PI*2); ctx.fill(); ctx.strokeStyle='#fff'; ctx.lineWidth=1; ctx.stroke(); });
+}
+function animate(){
+  requestAnimationFrame(animate);
+  var dt=Math.min(clock.getDelta(),0.05); var t=clock.elapsedTime;
+  if(playerId&&myGroup){
+    if(poseUntil&&Date.now()>poseUntil){ setPose('dung',0); }
+    var fwd=(keys['w']||keys['arrowup']?1:0)-(keys['s']||keys['arrowdown']?1:0)-joy.y;
+    var str=(keys['d']||keys['arrowright']?1:0)-(keys['a']||keys['arrowleft']?1:0)+joy.x;
+    if(fwd||str){
+      var fx=-Math.sin(camYaw), fz=-Math.cos(camYaw), rx=-fz, rz=fx;
+      var mx2=rx*str+fx*fwd, mz2=rz*str+fz*fwd, len=Math.hypot(mx2,mz2); mx2/=len; mz2/=len;
+      myPos.x=Math.max(-135,Math.min(135,myPos.x+mx2*9*dt));
+      myPos.z=Math.max(-95,Math.min(95,myPos.z+mz2*9*dt));
+      myPos.rot=Math.atan2(mx2,mz2);
+      myGroup.position.set(myPos.x,0,myPos.z); myGroup.rotation.y=myPos.rot;
+    }
+    var camDist=innerWidth<innerHeight?13:10;
+    camera.position.set(myPos.x+Math.sin(camYaw)*camDist, 6.5, myPos.z+Math.cos(camYaw)*camDist);
+    camera.lookAt(myPos.x,1.6,myPos.z);
+  }
+  Object.keys(people).forEach(function(id){
+    var g=people[id], u=g.userData;
+    if(u.pose==='chao') u.inner.position.y=Math.sin(t*10)*0.06; else u.inner.position.y=0;
+    if(u.pose==='chup') u.inner.rotation.z=Math.sin(t*6)*0.05; else u.inner.rotation.z=0;
+    if(id!==playerId && g.userData.target){ g.position.x += (g.userData.target.x-g.position.x)*0.3; g.position.z += (g.userData.target.z-g.position.z)*0.3; g.rotation.y=g.userData.target.rot; }
+  });
+  renderer.render(scene,camera);
+}
+animate();
+addEventListener('resize',function(){ camera.aspect=innerWidth/innerHeight; camera.fov=innerWidth<innerHeight?70:55; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
+setInterval(function(){
+  if(!playerId) return;
+  postJson('api/heartbeat',{room:room,playerId:playerId,x:myPos.x,z:myPos.z,rot:myPos.rot,pose:pose}).then(function(){
+    return fetch('api/state?room='+encodeURIComponent(room)).then(function(r){ return r.json(); });
+  }).then(function(st){
+    if(st.buoi&&st.buoi!==curBuoi) applyBuoi(st.buoi);
+    lastPlayers=st.players||[];
+    document.getElementById('count').textContent=lastPlayers.length;
+    var seen={};
+    lastPlayers.forEach(function(p){
+      seen[p.id]=true; var g=ensurePerson(p);
+      if(p.id===playerId){ document.getElementById('diem').textContent=p.diem; document.getElementById('checkin').textContent=p.checkin; }
+      else { g.userData.target={x:p.x,z:p.z,rot:p.rot}; g.userData.pose=p.pose||'dung'; }
+    });
+    Object.keys(people).forEach(function(id){ if(!seen[id]){ scene.remove(people[id]); delete people[id]; } });
+    var feedJson=JSON.stringify(st.events||[]);
+    if(feedJson!==lastFeedJson){ lastFeedJson=feedJson; document.getElementById('feed').innerHTML=(st.events||[]).slice().reverse().slice(0,10).map(function(e){ return '<div>• '+e.message+'</div>'; }).join('') || '<div>Chưa có ai làm gì cả.</div>'; }
+    updateNear(); drawMinimap();
+  }).catch(function(){});
+},400);
+})();
+</script>
+</body>
+</html>

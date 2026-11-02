@@ -1,0 +1,15 @@
+[Unit]
+Description=Thanh pho Quan 5 Online multiplayer
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/quan5-online
+Environment=PORT=3102
+ExecStart=/usr/bin/node /home/ubuntu/quan5-online/server.js
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
