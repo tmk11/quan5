@@ -1,5 +1,11 @@
 // Thành phố Quận 5 Online — nhiều người cùng chơi, theo khung Chùa Online.
-// Không dùng npm, chỉ dùng module có sẵn của Node. Dữ liệu chỉ giữ trong RAM.
+// Không dùng npm, chỉ dùng module có sẵn của Node.
+// Phòng/người chơi trong phiên vẫn chỉ giữ trong RAM (restart là mất, như cũ).
+// RIÊNG tiền và nhà ở thì lưu bền trong economy.json (v1, 2026-11-02 tối):
+// restart server không mất nhà đã mua, không mất tiền. Tiền là tiền trong game,
+// không phải tiền thật. Chủ nhà và tiền gắn với deviceId của trình duyệt
+// (lưu ở localStorage), không có mật khẩu ở v1 — ai dùng cùng thiết bị/trình
+// duyệt thì dùng chung ví, xóa localStorage là mất ví.
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -29,6 +35,92 @@ const BUOI_VALUES = { sang: 'sang', 'hoang-hon': 'hoang-hon', dem: 'dem' };
 const BUOI_ALIASES = { 'sáng': 'sang', 'sang': 'sang', 'hoàng hôn': 'hoang-hon', 'chiều': 'hoang-hon', 'chieu': 'hoang-hon', 'đêm': 'dem', 'dem': 'dem', 'tối': 'dem' };
 
 const rooms = new Map();
+
+// ---------- Kinh tế nhà ở v1 ----------
+// Giá nhà tính từ diện tích footprint thật, PHẢI khớp đúng với client
+// (client dùng cùng công thức từ cùng dữ liệu nhà trong quan5-map.json).
+// area_m2 = (hw*2 * hd*2) / SCALE^2, giá = 20.000 + area*300, làm tròn nghìn,
+// sàn 20.000, trần 1.000.000. Nhà nhỏ ~80m2 -> ~45.000, nhà ~400m2 -> ~144.000.
+const ECONOMY_PATH = path.join(__dirname, 'economy.json');
+const START_TIEN = 100000;
+const CHECKIN_TIEN = 5000;
+const SELL_RATE = 0.8;
+const economy = { players: {}, houses: {} };
+function loadEconomy() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(ECONOMY_PATH, 'utf8'));
+    if (parsed && typeof parsed === 'object') {
+      if (parsed.players && typeof parsed.players === 'object') economy.players = parsed.players;
+      if (parsed.houses && typeof parsed.houses === 'object') economy.houses = parsed.houses;
+    }
+  } catch { /* chưa có file hoặc file hỏng -> bắt đầu trống */ }
+}
+function saveEconomy() {
+  try { const tmp = ECONOMY_PATH + '.tmp'; fs.writeFileSync(tmp, JSON.stringify(economy)); fs.renameSync(tmp, ECONOMY_PATH); }
+  catch (e) { console.error('Không lưu được economy.json:', e.message); }
+}
+let cachedMap = null, cachedMapMtime = 0;
+function getMap() {
+  try {
+    const p = path.join(__dirname, 'public', 'quan5-map.json');
+    const st = fs.statSync(p);
+    if (!cachedMap || st.mtimeMs !== cachedMapMtime) { cachedMap = JSON.parse(fs.readFileSync(p, 'utf8')); cachedMapMtime = st.mtimeMs; }
+    return cachedMap;
+  } catch { return cachedMap; }
+}
+function housePrice(b, map) {
+  const scale = (map && map.origin && map.origin.scale_units_per_meter) || (280 / 4018);
+  const area = ((b.hw * 2) * (b.hd * 2)) / (scale * scale);
+  const p = Math.round((20000 + area * 300) / 1000) * 1000;
+  return Math.max(20000, Math.min(1000000, p));
+}
+function findHouse(houseId) {
+  const map = getMap();
+  if (!map || !Array.isArray(map.buildings)) return null;
+  const b = map.buildings.find((x) => x.id === houseId);
+  return b ? { building: b, map, price: housePrice(b, map) } : null;
+}
+function pointInPolyGame(x, z, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i][0], zi = poly[i][1], xj = poly[j][0], zj = poly[j][1];
+    if (((zi > z) !== (zj > z)) && (x < (xj - xi) * (z - zi) / (zj - zi) + xi)) inside = !inside;
+  }
+  return inside;
+}
+function homeSpawn(house, map) {
+  // Spawn ngay ngoài nhà (cách mép nhà 2 đơn vị), thử 4 hướng, lấy hướng
+  // đầu tiên còn trong ranh Quận 5; không hướng nào vừa thì về điểm mặc định.
+  const offs = [[0, house.hd + 2], [0, -(house.hd + 2)], [house.hw + 2, 0], [-(house.hw + 2), 0]];
+  for (const [dx, dz] of offs) {
+    const x = Math.max(-140, Math.min(140, house.x + dx)), z = Math.max(-75, Math.min(75, house.z + dz));
+    if (!map.boundary || !map.boundary.length || pointInPolyGame(x, z, map.boundary)) return { x, z };
+  }
+  return { x: 25, z: -10 };
+}
+function cleanupOrphans() {
+  // Nhà bị bỏ khỏi bản đồ trong một lần cập nhật sau thì hoàn tiền cho chủ
+  // theo đúng giá đã mua, và xóa nhà khỏi sổ — chủ không mất tiền oan.
+  const map = getMap();
+  if (!map || !Array.isArray(map.buildings)) return;
+  const ids = new Set(map.buildings.map((b) => b.id));
+  let changed = false;
+  for (const hid of Object.keys(economy.houses)) {
+    if (ids.has(hid)) continue;
+    const rec = economy.houses[hid];
+    const owner = economy.players[rec.owner];
+    if (owner) { owner.tien = (Number(owner.tien) || 0) + (Number(rec.price) || 0); if (owner.home === hid) owner.home = null; }
+    delete economy.houses[hid];
+    changed = true;
+  }
+  if (changed) saveEconomy();
+}
+function getOrCreateEconPlayer(deviceId, name) {
+  let rec = economy.players[deviceId];
+  if (!rec) { rec = { name, tien: START_TIEN, home: null }; economy.players[deviceId] = rec; saveEconomy(); }
+  else if (name && rec.name !== name) { rec.name = name; saveEconomy(); }
+  return rec;
+}
 function normalizeRoom(raw) {
   if (typeof raw !== 'string') return null;
   const code = raw.trim().toUpperCase();
@@ -43,7 +135,7 @@ function prune(room) {
   for (const [id, p] of room.players) if (now - p.lastSeen > PRUNE_MS) room.players.delete(id);
 }
 function publicPlayer(p) {
-  return { id: p.id, name: p.name, robe: p.robe, skin: p.skin, x: p.x, z: p.z, rot: p.rot, pose: p.pose, diem: p.diem, checkin: p.checkin };
+  return { id: p.id, name: p.name, robe: p.robe, skin: p.skin, x: p.x, z: p.z, rot: p.rot, pose: p.pose, diem: p.diem, checkin: p.checkin, tien: p.tien || 0, home: p.home || null };
 }
 function pickName(room) {
   const used = new Set([...room.players.values()].map((p) => p.name));
@@ -85,9 +177,15 @@ const server = http.createServer(async (req, res) => {
     const room = getRoom(roomCode); prune(room);
     let name = typeof body.name === 'string' ? body.name.trim().slice(0, 24) : '';
     if (!name) name = pickName(room);
-    const player = { id: crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString('hex'), name, robe: validColor(body.robe) || '#e0651f', skin: validColor(body.skin) || '#ffe0bd', x: 25, z: -10, rot: 0, pose: 'dung', diem: 0, checkin: 0, lastSeen: Date.now() };
+    const deviceId = (typeof body.deviceId === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(body.deviceId)) ? body.deviceId : (crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString('hex'));
+    const econ = getOrCreateEconPlayer(deviceId, name);
+    // Spawn: nếu đã có nhà chính và nhà còn trên bản đồ thì spawn ngay ngoài
+    // nhà đó; không thì spawn mặc định gần Chợ An Đông như cũ.
+    let spawn = { x: 25, z: -10 };
+    if (econ.home) { const found = findHouse(econ.home); if (found) spawn = homeSpawn(found.building, found.map); else econ.home = null; }
+    const player = { id: crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString('hex'), name, robe: validColor(body.robe) || '#e0651f', skin: validColor(body.skin) || '#ffe0bd', x: spawn.x, z: spawn.z, rot: 0, pose: 'dung', diem: 0, checkin: 0, deviceId, tien: econ.tien, home: econ.home, lastSeen: Date.now() };
     room.players.set(player.id, player);
-    return sendJson(res, 200, { playerId: player.id, name: player.name, room: roomCode });
+    return sendJson(res, 200, { playerId: player.id, name: player.name, room: roomCode, deviceId, tien: econ.tien, home: econ.home, x: spawn.x, z: spawn.z });
   }
   if (req.method === 'POST' && pathname === '/api/heartbeat') {
     const body = await readBody(req, res); if (body === null) return;
@@ -111,20 +209,79 @@ const server = http.createServer(async (req, res) => {
     if (!type || !ACTIONS[type]) return sendJson(res, 400, { error: 'Loại hành động không hợp lệ' });
     const spec = ACTIONS[type];
     player.diem += spec.diem || 0; player.checkin += spec.checkin || 0; player.lastSeen = Date.now();
+    // Check-in vừa +điểm như cũ, vừa +tiền để dành mua nhà.
+    if (type === 'checkin' && player.deviceId) {
+      const econ = economy.players[player.deviceId];
+      if (econ) { econ.tien = (Number(econ.tien) || 0) + CHECKIN_TIEN; player.tien = econ.tien; saveEconomy(); }
+    }
     let place = '';
     if (type === 'checkin') { const v = typeof body.value === 'string' ? body.value.trim().slice(0, 40) : ''; place = LANDMARKS.includes(v) ? v : 'một địa điểm ở Quận 5'; }
     if (type === 'buoi') { const v = typeof body.value === 'string' ? body.value.trim().toLowerCase() : ''; const normalized = BUOI_VALUES[v] || BUOI_ALIASES[v]; if (normalized) room.buoi = normalized; }
-    const msg = type === 'checkin' ? (player.name + ' đã check-in tại ' + place) : (player.name + ' ' + spec.message);
+    const msg = type === 'checkin' ? (player.name + ' đã check-in tại ' + place + ' (+' + CHECKIN_TIEN.toLocaleString('vi-VN') + 'đ)') : (player.name + ' ' + spec.message);
     room.events.push({ at: Date.now(), playerId: player.id, name: player.name, type, message: msg, value: place || undefined });
     room.events = room.events.slice(-30);
-    return sendJson(res, 200, { ok: true, diem: player.diem, checkin: player.checkin, buoi: room.buoi });
+    return sendJson(res, 200, { ok: true, diem: player.diem, checkin: player.checkin, buoi: room.buoi, tien: player.tien || 0 });
+  }
+  if (req.method === 'POST' && pathname === '/api/house') {
+    const body = await readBody(req, res); if (body === null) return;
+    const roomCode = normalizeRoom(body.room); if (!roomCode) return sendJson(res, 400, { error: 'Mã phòng không hợp lệ' });
+    const room = rooms.get(roomCode); const player = room ? room.players.get(body.playerId) : undefined;
+    if (!player) return sendJson(res, 404, { error: 'Không tìm thấy người chơi trong phòng' });
+    const action = body.action;
+    if (action !== 'buy' && action !== 'sell' && action !== 'sethome') return sendJson(res, 400, { error: 'Hành động nhà không hợp lệ (buy/sell/sethome)' });
+    const houseId = typeof body.houseId === 'string' ? body.houseId : '';
+    cleanupOrphans();
+    const found = findHouse(houseId);
+    if (!found) return sendJson(res, 404, { error: 'Không tìm thấy nhà này trên bản đồ hiện tại' });
+    const econ = getOrCreateEconPlayer(player.deviceId, player.name);
+    player.lastSeen = Date.now();
+    if (action === 'buy') {
+      if (economy.houses[houseId]) return sendJson(res, 400, { error: 'Nhà này đã có chủ: ' + (economy.houses[houseId].ownerName || '') });
+      if ((Number(econ.tien) || 0) < found.price) return sendJson(res, 400, { error: 'Không đủ tiền. Nhà này ' + found.price.toLocaleString('vi-VN') + 'đ, bạn có ' + (Number(econ.tien) || 0).toLocaleString('vi-VN') + 'đ' });
+      econ.tien -= found.price; econ.home = houseId;
+      economy.houses[houseId] = { owner: player.deviceId, ownerName: player.name, price: found.price };
+      player.tien = econ.tien; player.home = houseId;
+      saveEconomy();
+      const label = found.building.name || 'một ngôi nhà';
+      room.events.push({ at: Date.now(), playerId: player.id, name: player.name, type: 'house', message: player.name + ' đã mua ' + label + ' (' + found.price.toLocaleString('vi-VN') + 'đ) và dọn vào ở' });
+      room.events = room.events.slice(-30);
+      return sendJson(res, 200, { ok: true, tien: econ.tien, home: houseId, houseId, price: found.price });
+    }
+    if (action === 'sell') {
+      const rec = economy.houses[houseId];
+      if (!rec || rec.owner !== player.deviceId) return sendJson(res, 400, { error: 'Bạn không phải chủ nhà này nên không bán được' });
+      const refund = Math.round((Number(rec.price) || 0) * SELL_RATE / 1000) * 1000;
+      econ.tien = (Number(econ.tien) || 0) + refund;
+      if (econ.home === houseId) econ.home = null;
+      delete economy.houses[houseId];
+      player.tien = econ.tien; player.home = econ.home;
+      saveEconomy();
+      const label = found.building.name || 'một ngôi nhà';
+      room.events.push({ at: Date.now(), playerId: player.id, name: player.name, type: 'house', message: player.name + ' đã bán ' + label + ' (nhận lại ' + refund.toLocaleString('vi-VN') + 'đ, 80% giá mua)' });
+      room.events = room.events.slice(-30);
+      return sendJson(res, 200, { ok: true, tien: econ.tien, home: econ.home, houseId, refund });
+    }
+    // sethome
+    const rec = economy.houses[houseId];
+    if (!rec || rec.owner !== player.deviceId) return sendJson(res, 400, { error: 'Bạn không phải chủ nhà này nên không đặt làm nhà chính được' });
+    econ.home = houseId; player.home = houseId;
+    saveEconomy();
+    return sendJson(res, 200, { ok: true, tien: econ.tien, home: houseId, houseId });
   }
   if (req.method === 'GET' && pathname === '/api/state') {
     const roomCode = normalizeRoom(url.searchParams.get('room')); if (!roomCode) return sendJson(res, 400, { error: 'Thiếu mã phòng hợp lệ' });
-    const room = rooms.get(roomCode); if (!room) return sendJson(res, 200, { players: [], events: [], buoi: 'sang' });
+    const room = rooms.get(roomCode); if (!room) { cleanupOrphans(); return sendJson(res, 200, { players: [], events: [], buoi: 'sang', houses: economy.houses }); }
     prune(room);
-    return sendJson(res, 200, { players: [...room.players.values()].map(publicPlayer), events: room.events.slice(-30), buoi: room.buoi });
+    cleanupOrphans();
+    // Đồng bộ tiền/nhà chính từ sổ kinh tế vào phiên chơi (để sau khi hoàn
+    // tiền do nhà bị bỏ khỏi bản đồ thì người chơi thấy đúng số tiền ngay).
+    for (const p of room.players.values()) {
+      const econ = p.deviceId ? economy.players[p.deviceId] : null;
+      if (econ) { p.tien = econ.tien; p.home = econ.home; }
+    }
+    return sendJson(res, 200, { players: [...room.players.values()].map(publicPlayer), events: room.events.slice(-30), buoi: room.buoi, houses: economy.houses });
   }
   return sendJson(res, 404, { error: 'Không tìm thấy' });
 });
+loadEconomy();
 server.listen(PORT, HOST, () => { console.log('Quan 5 Online dang chay tai http://' + HOST + ':' + PORT + '/'); });

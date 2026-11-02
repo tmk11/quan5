@@ -63,7 +63,7 @@ button:disabled{opacity:.55;cursor:default}
 <div class="card">
 <h1>🏮 Thành phố Quận 5 Online</h1>
 <p id="loadStatus">Đang tải bản đồ thật từ OpenStreetMap…</p>
-<p>Đi dạo Chợ Lớn cùng nhau, trên đúng lưới đường thật của Quận 5 cũ (ranh OSM relation 3820432): nhà 3D dựng lại nhưng chỉ trên nền đất vàng, không dựng ra đường — đường cong, chéo và giao nhau đúng như ngoài đời, kể cả hẻm và lối đi không tên. Không có chat tự do — chỉ chào hỏi, ăn uống, mua sắm và check-in có sẵn.</p>
+<p>Đi dạo Chợ Lớn cùng nhau, trên đúng lưới đường thật của Quận 5 cũ (ranh OSM relation 3820432): nhà 3D chỉ trên nền đất vàng, không dựng ra đường — đường cong, chéo và giao nhau đúng như ngoài đời, kể cả hẻm và lối đi không tên. Không có chat tự do — chỉ chào hỏi, ăn uống, mua sắm và check-in có sẵn. <b>Mới: dùng tiền trong game để mua nhà và vào ở</b> — bắt đầu với 100.000đ, check-in +5.000đ, đi lại gần một ngôi nhà rồi bấm Mua nhà; nhà đã mua sẽ hiện bảng tên chủ, lần sau vào lại sẽ spawn ngay ngoài nhà chính của bạn.</p>
 <input id="roomInput" placeholder="Mã phòng (để trống = thành phố chung QUAN5)" maxlength="12" style="text-transform:uppercase">
 <div class="row"><input id="nameInput" placeholder="Tên của bạn (để trống sẽ đặt tên Chợ Lớn)" maxlength="24"><button type="button" class="secondary" id="randomNameBtn">🎲 Tên hay</button></div>
 <div style="text-align:left;font-size:13px;margin:8px 0 2px;font-weight:700">Màu áo</div>
@@ -77,12 +77,12 @@ button:disabled{opacity:.55;cursor:default}
 </div>
 <button type="button" id="joinBtn" disabled>Vào thành phố</button>
 <p id="joinError" style="color:#b91c1c;font-size:13px;min-height:18px;margin:8px 0 0"></p>
-<p class="note">Lưu ý thật: nhà 3D chỉ dựng trên nền đất vàng, không dựng ra đường. Vị trí, hình dạng và thứ tự các đường là từ OpenStreetMap, gồm cả đường không tên, hẻm và lối đi bộ; nhà cũng từ footprint thật của OpenStreetMap, nhưng đã đẩy khỏi hành lang đường, nhà trong công viên và nhà nhỏ vẫn chồng đường đã bị bỏ hẳn — và nhà vẽ bằng đúng footprint thật (bản cũ phóng đại tối thiểu 2x2 nên hộp vẽ rộng hơn hành lang đã dọn, nhìn như nhà tràn ra đường). Màu nhà trầm, đồng tông nền vàng, không còn cầu vồng pastel. Bề rộng đường tỉ lệ với bề rộng thật (lấy từ OSM: tag width, không có thì số làn × 3,5m, không có nữa thì mặc định theo loại đường; trong game = bề rộng thật × 0,15, tối thiểu 1,0 để nhân vật đi được, tối đa 3,5 — nên đường 16m rộng gấp đôi đường 8m đúng như ngoài đời, và đường đủ hẹp để nhà có chỗ đứng trên nền vàng). Nhân vật đi trên đường không bị nhà chặn; ra khỏi đường thì nhà vẫn chặn như thường, và chỉ bị chặn ở ranh Quận 5 và ở kênh (trừ khi đang ở trên cầu/đường). Dữ liệu © OpenStreetMap contributors, ODbL.</p>
+<p class="note">Lưu ý thật: nhà 3D chỉ dựng trên nền đất vàng, không dựng ra đường. Vị trí, hình dạng và thứ tự các đường là từ OpenStreetMap, gồm cả đường không tên, hẻm và lối đi bộ; nhà cũng từ footprint thật của OpenStreetMap, nhưng đã đẩy khỏi hành lang đường, nhà trong công viên và nhà nhỏ vẫn chồng đường đã bị bỏ hẳn — và nhà vẽ bằng đúng footprint thật (bản cũ phóng đại tối thiểu 2x2 nên hộp vẽ rộng hơn hành lang đã dọn, nhìn như nhà tràn ra đường). Màu nhà trầm, đồng tông nền vàng, không còn cầu vồng pastel. Bề rộng đường tỉ lệ với bề rộng thật (lấy từ OSM: tag width, không có thì số làn × 3,5m, không có nữa thì mặc định theo loại đường; trong game = bề rộng thật × 0,25, tối thiểu 1,8, tối đa 5,0 — nên đường 16m rộng gấp đôi đường 8m đúng như ngoài đời, và đường đủ rộng cho nhiều người đi cùng nhau; nhà không vừa lô vàng thì bỏ, không vẽ lên đường). Nhân vật đi trên đường không bị nhà chặn; ra khỏi đường thì nhà vẫn chặn như thường, và chỉ bị chặn ở ranh Quận 5 và ở kênh (trừ khi đang ở trên cầu/đường). Dữ liệu © OpenStreetMap contributors, ODbL.</p>
 </div>
 </div>
 <div id="hud">
 <div class="panel" id="shareBox"><b>🔗 Link thành phố chung</b><div class="row"><input id="shareLink" readonly><button type="button" id="copyBtn">Sao chép</button></div></div>
-<div class="panel" id="stats">⭐ Điểm khám phá: <span id="diem">0</span><br>📸 Check-in: <span id="checkin">0</span> &nbsp; 👥 Đang chơi: <span id="count">0</span><br>🌅 Buổi: <span id="buoiLabel">Sáng</span> &nbsp; 📍 <span id="streetLabel">Quận 5</span></div>
+<div class="panel" id="stats">⭐ Điểm khám phá: <span id="diem">0</span><br>📸 Check-in: <span id="checkin">0</span> &nbsp; 👥 Đang chơi: <span id="count">0</span><br>💰 Tiền trong game: <span id="tien">0</span> &nbsp; 🏠 Nhà chính: <span id="homeLabel">Chưa có</span><br>🌅 Buổi: <span id="buoiLabel">Sáng</span> &nbsp; 📍 <span id="streetLabel">Quận 5</span></div>
 <div class="panel" id="minimapWrap">🗺️ Bản đồ Quận 5 (thật)<canvas id="minimap" width="200" height="107"></canvas></div>
 <div class="panel" id="feed"></div>
 <div class="panel" id="nearBox"></div>
@@ -94,6 +94,9 @@ button:disabled{opacity:.55;cursor:default}
 <button type="button" data-action="muasam">🛍️ Mua sắm</button>
 <button type="button" data-action="checkin" id="checkinBtn">📸 Check-in</button>
 <button type="button" data-action="chup">📷 Chụp ảnh</button>
+<button type="button" id="buyHouseBtn" style="display:none">🏠 Mua nhà</button>
+<button type="button" id="sellHouseBtn" style="display:none">🏠 Bán nhà</button>
+<button type="button" id="homeHouseBtn" style="display:none">🏠 Đặt làm nhà chính</button>
 <button type="button" class="buoi" id="buoiBtn">🌅 Đổi buổi</button>
 </div>
 <div id="joy"><div id="knob"></div></div>
@@ -213,19 +216,29 @@ function mergedQuads(segments,color,y){
   m.receiveShadow=true; scene.add(m); return m;
 }
 // Bề rộng game tỉ lệ thuần với bề rộng thật (mét, từ OSM: width > lanes*3.5 > mặc định theo loại đường).
-// Công thức: width_m * 0.15, sàn 1.0 để nhân vật (rộng ~0.7) đi được, trần 3.5.
-// Ví dụ: đường 16m -> 2.4, đường 8m -> 1.2, hẻm 5m -> 1.0 (sàn), lối đi 3m -> 1.0 (sàn).
+// Công thức: width_m * 0.25, sàn 1.8, trần 5.0.
+// Ví dụ: đường 16m -> 4.0, đường 8m -> 2.0, hẻm 5m -> 1.8 (sàn), lối đi 3m -> 1.8 (sàn).
 // Đường lớn vì vậy vẫn rộng gấp đôi đường nhỏ đúng như ngoài đời, chứ không còn gần bằng nhau.
-// LÝ DO đổi từ 0.3/sàn 1.8 sang 0.15/sàn 1.0 (2026-11-02 tối): đường vẽ quá rộng
-// làm lô đất giữa hai đường không còn chỗ cho nhà — nhà nào cũng chồng đường,
-// nên bản lọc nền-vàng đầu tiên rớt 2552 -> 315 nhà. Thu hẹp đường lại thì
-// nhà mới có chỗ đứng trên nền vàng được, mà vẫn tỉ lệ và vẫn đi vừa hẻm.
+// Lịch sử: 0.3/sàn 1.8 làm nhà không vừa lô (lọc đầu rớt 2552 -> 315), 0.15/sàn 1.0
+// sửa được chỗ đứng cho nhà nhưng đường 8m chỉ rộng 1.2 — quá hẹp cho đông người
+// đi cùng nhau. Boss 2026-11-02 tối: nới TẤT CẢ đường cho đông người, chấp nhận
+// nhà còn 474 căn (nhà không vừa lô vàng thì bỏ, không vẽ lên đường).
 // PHẢI khớp đúng với game_road_width trong build_map.py, nếu không bản lọc
 // và đường vẽ sẽ không đồng ý với nhau về "cái gì là trên đường".
 function roadWidthFromMeters(m){
-  var v=(Number(m)||6)*0.15;
-  return Math.max(1.0,Math.min(3.5,v));
+  var v=(Number(m)||6)*0.25;
+  return Math.max(1.8,Math.min(5.0,v));
 }
+// Giá nhà trong game — PHẢI khớp đúng với server housePrice:
+// area_m2 = (hw*2 * hd*2) / SCALE^2, giá = 20.000 + area*300, làm tròn nghìn,
+// sàn 20.000, trần 1.000.000. Tiền này là tiền trong game, không phải tiền thật.
+function housePrice(b){
+  var scale=(MAP&&MAP.origin&&MAP.origin.scale_units_per_meter)||(280/4018);
+  var area=((b.hw*2)*(b.hd*2))/(scale*scale);
+  var p=Math.round((20000+area*300)/1000)*1000;
+  return Math.max(20000,Math.min(1000000,p));
+}
+function fmtMoney(n){ return Math.round(n||0).toLocaleString('vi-VN')+'đ'; }
 function buildingColor(b){
   // Bảng màu trầm, đồng tông với nền vàng — không còn cầu vồng pastel
   // (đó là một phần lý do bản cũ trông "loạn"). Chỉ 4 tông ấm/xám nhạt,
@@ -363,6 +376,11 @@ function makePerson(name,robe,skin){
   return outer;
 }
 var room='', playerId='', myName='';
+// Ví trong game gắn với thiết bị (localStorage), không phải với phiên chơi:
+// đổi phiên, tải lại trang hay restart server cũng không mất tiền/nhà.
+// v1 chưa có mật khẩu — ai dùng cùng thiết bị thì dùng chung ví.
+var deviceId=(function(){ try{ var k='quan5-device-id'; var v=localStorage.getItem(k); if(!v){ v='dev-'+Math.random().toString(36).slice(2,10)+Date.now().toString(36); localStorage.setItem(k,v); } return v; }catch(e){ return 'dev-'+Math.random().toString(36).slice(2,10); } })();
+var myTien=0, myHome=null, lastHouses={}, lastHousesJson='';
 // Điểm xuất phát thật: gần Chợ An Đông, ngoài khối nhà, trong ranh Quận 5
 var myPos={x:25,z:-10,rot:0}, pose='dung', poseUntil=0;
 var camYaw=0, keys={}, joy={x:0,y:0};
@@ -387,6 +405,77 @@ function nearestLandmark(){
   var best=null, bd=1e9;
   LANDMARKS.forEach(function(L){ var d=Math.hypot(myPos.x-L.x,myPos.z-L.z); if(d<bd){ bd=d; best=L; } });
   return {L:best,d:bd};
+}
+// Nhà gần nhất: khoảng cách tới mép hộp nhà (không phải tới tâm), vì nhà
+// lớn có tâm xa nhưng mép đã ở ngay bên cạnh người chơi. Chỉ tính khi < 4.
+function nearestHouse(){
+  if(!MAP||!MAP.buildings) return null;
+  var best=null, bd=1e9;
+  MAP.buildings.forEach(function(b){
+    var dx=myPos.x-b.x, dz=myPos.z-b.z, c=Math.cos(b.rot||0), s=Math.sin(b.rot||0);
+    var lx=dx*c-dz*s, lz=dx*s+dz*c;
+    var qx=Math.max(Math.abs(lx)-b.hw,0), qz=Math.max(Math.abs(lz)-b.hd,0);
+    var d=Math.hypot(qx,qz);
+    if(d<bd){ bd=d; best=b; }
+  });
+  return bd<4 ? {b:best,d:bd} : null;
+}
+function houseDisplayName(b){ return b.name || 'Ngôi nhà'; }
+var houseLabels={};
+function rebuildHouseLabels(){
+  Object.keys(houseLabels).forEach(function(id){ scene.remove(houseLabels[id]); });
+  houseLabels={};
+  if(!MAP||!MAP.buildings) return;
+  var byId={}; MAP.buildings.forEach(function(b){ byId[b.id]=b; });
+  Object.keys(lastHouses).forEach(function(id){
+    var b=byId[id], rec=lastHouses[id];
+    if(!b||!rec) return;
+    var sp=textSprite('Nhà của '+(rec.ownerName||''),6); sp.position.set(b.x,b.h+1.5,b.z); scene.add(sp); houseLabels[id]=sp;
+  });
+}
+function updateHouseUI(){
+  var nh=nearestHouse();
+  var buyBtn=document.getElementById('buyHouseBtn'), sellBtn=document.getElementById('sellHouseBtn'), homeBtn=document.getElementById('homeHouseBtn');
+  buyBtn.style.display='none'; sellBtn.style.display='none'; homeBtn.style.display='none';
+  if(!nh||!playerId) return;
+  var b=nh.b, rec=lastHouses[b.id];
+  if(!rec){
+    var price=housePrice(b);
+    buyBtn.style.display=''; buyBtn.textContent='🏠 Mua: '+houseDisplayName(b)+' — '+fmtMoney(price)+' (bạn có '+fmtMoney(myTien)+')';
+    buyBtn.onclick=function(){
+      postJson('api/house',{room:room,playerId:playerId,action:'buy',houseId:b.id}).then(function(j){
+        myTien=j.tien; myHome=j.home; document.getElementById('tien').textContent=fmtMoney(myTien); updateHomeLabel(); lastHousesJson='';
+      }).catch(function(e){ alert(e.message||'Không mua được'); });
+    };
+  } else if(rec.owner===deviceId){
+    // Nhà của mình (server kiểm tra cuối cùng khi bấm, nên nút hiện ở
+    // client chỉ là tiện ích, không phải là quyền).
+    sellBtn.style.display='';
+    sellBtn.textContent='🏠 Bán nhà (nhận lại '+fmtMoney(Math.round(rec.price*0.8/1000)*1000)+')';
+    sellBtn.onclick=function(){
+      if(!confirm('Bán '+houseDisplayName(b)+' và nhận lại 80% giá mua?')) return;
+      postJson('api/house',{room:room,playerId:playerId,action:'sell',houseId:b.id}).then(function(j){
+        myTien=j.tien; myHome=j.home; document.getElementById('tien').textContent=fmtMoney(myTien); updateHomeLabel(); lastHousesJson='';
+      }).catch(function(e){ alert(e.message||'Không bán được'); });
+    };
+    if(myHome!==b.id){
+      homeBtn.style.display='';
+      homeBtn.textContent='🏠 Đặt làm nhà chính';
+      homeBtn.onclick=function(){
+        postJson('api/house',{room:room,playerId:playerId,action:'sethome',houseId:b.id}).then(function(j){
+          myHome=j.home; updateHomeLabel(); lastHousesJson='';
+        }).catch(function(e){ alert(e.message||'Không đặt được'); });
+      };
+    }
+  }
+  // Nhà của người khác: không hiện nút nào, chỉ có bảng tên 3D "Nhà của X".
+}
+function updateHomeLabel(){
+  var el=document.getElementById('homeLabel'); if(!el) return;
+  if(!myHome){ el.textContent='Chưa có'; return; }
+  var b=null;
+  if(MAP&&MAP.buildings) MAP.buildings.forEach(function(x){ if(x.id===myHome) b=x; });
+  el.textContent=b?houseDisplayName(b):'Đã có nhà';
 }
 var dynStreetSprite=null, dynStreetName='';
 function nearestStreet(){
@@ -413,12 +502,13 @@ function updateStreetLabel(ns){
 }
 function updateNear(){
   var nl=nearestLandmark(); var boxEl=document.getElementById('nearBox');
-  if(nl.L && nl.d<=22){ boxEl.style.display='block'; boxEl.innerHTML='<b>📍 '+nl.L.name+'</b><br>'+(nl.L.desc||'')+'<br><i>Bấm 📸 Check-in để +10 điểm.</i>'; }
+  if(nl.L && nl.d<=22){ boxEl.style.display='block'; boxEl.innerHTML='<b>📍 '+nl.L.name+'</b><br>'+(nl.L.desc||'')+'<br><i>Bấm 📸 Check-in để +10 điểm và +5.000đ.</i>'; }
   else { boxEl.style.display='none'; }
   var ns=nearestStreet();
   document.getElementById('streetLabel').textContent=ns?ns.name:'Quận 5';
   updateStreetLabel(ns);
   document.getElementById('checkinBtn').textContent = (nl.L && nl.d<=22) ? ('📸 Check-in: '+nl.L.name) : '📸 Check-in';
+  updateHouseUI();
 }
 document.querySelectorAll('#actions button[data-action]').forEach(function(btn){
   btn.addEventListener('click',function(){
@@ -444,11 +534,15 @@ document.getElementById('joinBtn').addEventListener('click',function(){
   if(!MAP) return;
   var code=roomInput.value.trim().toUpperCase() || 'QUAN5';
   if(!/^[A-Z0-9]{1,12}$/.test(code)){ var el=document.getElementById('joinError'); if(el) el.textContent='Mã phòng chỉ gồm chữ/số, tối đa 12 ký tự.'; return; }
-  postJson('api/join',{room:code,name:nameInput.value.trim(),robe:selectedRobe,skin:'#ffe0bd'}).then(function(j){
+  postJson('api/join',{room:code,name:nameInput.value.trim(),robe:selectedRobe,skin:'#ffe0bd',deviceId:deviceId}).then(function(j){
     room=j.room; playerId=j.playerId; myName=j.name;
+    if(j.deviceId) deviceId=j.deviceId;
+    myTien=j.tien||0; myHome=j.home||null;
+    if(typeof j.x==='number'&&typeof j.z==='number'){ myPos.x=j.x; myPos.z=j.z; }
     document.getElementById('joinOverlay').style.display='none';
     document.getElementById('hud').classList.add('on');
     document.getElementById('shareLink').value=location.origin+location.pathname+'?room='+room;
+    document.getElementById('tien').textContent=fmtMoney(myTien); updateHomeLabel();
     myGroup=ensurePerson({id:playerId,name:myName,robe:selectedRobe,skin:'#ffe0bd',x:myPos.x,z:myPos.z,rot:0});
     applyBuoi('sang');
   }).catch(function(e){ var msg='Không vào được: '+(e.message||'lỗi không rõ'); var el=document.getElementById('joinError'); if(el) el.textContent=msg; alert(msg); });
@@ -562,10 +656,13 @@ setInterval(function(){
     if(st.buoi&&st.buoi!==curBuoi) applyBuoi(st.buoi);
     lastPlayers=st.players||[];
     document.getElementById('count').textContent=lastPlayers.length;
+    lastHouses=st.houses||{};
+    var hj=JSON.stringify(lastHouses);
+    if(hj!==lastHousesJson){ lastHousesJson=hj; rebuildHouseLabels(); }
     var seen={};
     lastPlayers.forEach(function(p){
       seen[p.id]=true; var g=ensurePerson(p);
-      if(p.id===playerId){ document.getElementById('diem').textContent=p.diem; document.getElementById('checkin').textContent=p.checkin; }
+      if(p.id===playerId){ document.getElementById('diem').textContent=p.diem; document.getElementById('checkin').textContent=p.checkin; document.getElementById('tien').textContent=fmtMoney(p.tien); myTien=p.tien||0; if(p.home!==myHome){ myHome=p.home||null; updateHomeLabel(); } }
       else { g.userData.target={x:p.x,z:p.z,rot:p.rot}; g.userData.pose=p.pose||'dung'; }
     });
     Object.keys(people).forEach(function(id){ if(!seen[id]){ scene.remove(people[id]); delete people[id]; } });
@@ -577,7 +674,7 @@ setInterval(function(){
 // Tải bản đồ thật rồi mới cho vào
 fetch('quan5-map.json').then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }).then(function(j){
   MAP=j; buildMap(); buildMinimapStatic();
-  document.getElementById('loadStatus').textContent='Đã tải xong bản đồ thật: '+j.roads.length+' đoạn đường, '+j.buildings.length+' nhà trên nền vàng (không nhà trên đường), '+j.landmarks.length+' landmark trong ranh Quận 5.';
+  document.getElementById('loadStatus').textContent='Đã tải xong bản đồ thật: '+j.roads.length+' đoạn đường, '+j.buildings.length+' nhà trên nền vàng có thể mua bán (không nhà trên đường), '+j.landmarks.length+' landmark trong ranh Quận 5.';
   document.getElementById('joinBtn').disabled=false;
   camera.position.set(myPos.x,6.5,myPos.z+10); camera.lookAt(myPos.x,1.6,myPos.z);
 }).catch(function(e){

@@ -1,18 +1,33 @@
-# Thành phố Quận 5 Online — Chợ Lớn (bản đồ thật, nhà trên nền vàng)
+# Thành phố Quận 5 Online — Chợ Lớn (bản đồ thật, nhà trên nền vàng, kinh tế nhà ở)
 
 Game 3D nhiều người chơi cùng lúc, phong cách nhân vật chibi cute như ảnh tham khảo.
 Bản này dùng **bản đồ thật từ OpenStreetMap**, không còn lưới đường thẳng vẽ tay.
-Theo yêu cầu của Boss tối 2026-11-02, nhà 3D đã được dựng lại nhưng **chỉ trên
-nền đất vàng, không dựng ra đường**: nhà vẽ bằng đúng footprint thật của OSM
-(bản cũ phóng đại tối thiểu 2x2 nên hộp vẽ rộng hơn hành lang đã dọn — đó là lý
-do nhìn như nhà tràn ra đường), đã đẩy khỏi hành lang đường, nhà trong công viên
-và nhà nhỏ vẫn chồng đường sau khi đẩy đã bị bỏ hẳn, màu nhà trầm đồng tông
-nền vàng (không còn cầu vồng pastel). Đường vẽ theo tỉ lệ ×0,15 (sàn 1,0,
-trần 3,5) — đủ hẹp để nhà có chỗ đứng giữa hai đường, vẫn tỉ lệ và vẫn đi
-vừa hẻm; công thức này phải khớp đúng ở build_map.py và client, nếu không
-bản lọc và đường vẽ sẽ không đồng ý với nhau về "cái gì là trên đường".
-Va chạm: nhà chặn khi đi ngoài đường; khi đang ở trên đường/cầu thì nhà/kênh
-không chặn (lưới an toàn cho các khối lớn như chợ chạm mép đường phóng đại).
+Nhà 3D **chỉ trên nền đất vàng, không dựng ra đường**: nhà vẽ bằng đúng footprint
+thật của OSM, đã đẩy khỏi hành lang đường, nhà trong công viên và nhà nhỏ vẫn
+chồng đường sau khi đẩy đã bị bỏ hẳn, màu nhà trầm đồng tông nền vàng.
+Đường vẽ theo tỉ lệ ×0,25 (sàn 1,8, trần 5,0) — đủ rộng cho nhiều người đi cùng
+nhau (đường 8m rộng 2,0, đường 16m rộng 4,0), vẫn tỉ lệ; công thức này phải khớp
+đúng ở build_map.py và client, nếu không bản lọc và đường vẽ sẽ không đồng ý
+với nhau về "cái gì là trên đường". Đánh đổi: đường càng rộng thì nhà còn lại
+càng ít (474/2552 với đường ×0,25) — nhà không vừa lô vàng thì bỏ, không vẽ
+lên đường. Va chạm: nhà chặn khi đi ngoài đường; khi đang ở trên đường/cầu
+thì nhà/kênh không chặn.
+
+## Kinh tế nhà ở v1 (2026-11-02 tối)
+- Tiền trong game (không phải tiền thật). Người mới bắt đầu với 100.000đ,
+  check-in landmark +5.000đ (cộng thêm +10 điểm như cũ).
+- Giá nhà từ diện tích footprint thật: 20.000 + diện tích(m2)×300, làm tròn
+  nghìn, sàn 20.000, trần 1.000.000. Nhà phố nhỏ ~45.000đ, khối lớn tới 1.000.000đ.
+- Đi lại gần một ngôi nhà (cách mép nhà < 4) sẽ hiện nút Mua (nếu chưa có chủ),
+  Bán (nếu là của mình, nhận lại 80% giá mua), Đặt làm nhà chính (nếu là của mình).
+  Mua nhà xong thì nhà đó thành nhà chính, lần sau vào lại sẽ spawn ngay ngoài
+  nhà chính. Nhà đã bán hiện bảng tên "Nhà của <tên>" cho mọi người thấy.
+- Nhà và tiền gắn với deviceId ở localStorage của trình duyệt, lưu bền trong
+  `economy.json` trên VPS — restart server không mất. v1 chưa có mật khẩu:
+  ai dùng cùng thiết bị thì dùng chung ví, xóa localStorage là mất ví.
+  Phòng chỉ là kênh chơi riêng, còn nhà và tiền là chung toàn thành phố.
+- Nếu một ngôi nhà bị bỏ khỏi bản đồ trong lần cập nhật sau, chủ được hoàn
+  đúng giá đã mua và nhà bị xóa khỏi sổ (không mất tiền oan).
 
 ## Nguồn bản đồ (OpenStreetMap, ODbL)
 

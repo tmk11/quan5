@@ -151,14 +151,18 @@ def street_midpoint(name):
 # So by construction, every small house drawn sits on yellow land only.
 # Game road width (MUST match client roadWidthFromMeters exactly, otherwise
 # the build-time filter and the drawn road disagree about what is "on a road"):
-# width_m * 0.15, floor 1.0 (character is ~0.7 wide, so alleys stay walkable),
-# cap 3.5. Still proportional (16 m road is twice an 8 m road), but narrow
-# enough that houses in normal Cholon blocks actually fit between roads.
-# The old 0.3 / floor 1.8 made roads so wide in game that most houses in
-# narrow blocks could never fit between two road corridors — that is why
-# the first yellow-plot pass dropped 2552 -> 315 buildings.
+# width_m * 0.25, floor 1.8, cap 5.0. Still proportional (16 m road is twice
+# an 8 m road). History: 0.3/floor 1.8/cap 6.5 made roads so wide that most
+# houses in narrow blocks could never fit between two corridors (first
+# yellow-plot pass dropped 2552 -> 315); 0.15/floor 1.0/cap 3.5 fixed the fit
+# but left roads only 1.2 wide for an 8 m street — too narrow for many
+# players walking together. Boss 2026-11-02 evening: widen ALL roads for
+# future crowds, and start the buy/sell/live-in house economy. 0.25 gives
+# 8 m -> 2.0 (2-3 players side by side), 16 m -> 4.0, alley/footway -> 1.8
+# floor (2 players side by side). Houses that cannot fit between the wider
+# corridors are still dropped, not drawn on roads — that trade-off stays.
 def game_road_width(width_m):
-    return max(1.0, min(3.5, (width_m or 6) * 0.15))
+    return max(1.8, min(5.0, (width_m or 6) * 0.25))
 
 road_segs = []
 for r in roads:
@@ -210,7 +214,9 @@ def displace_building(cx, cz, hw_t_, hd_t_, rot_):
     required = hw_ + extent + 0.5
     if d >= required:
         return cx, cz
-    shift = min(required - d, 3.0)
+    # Cap raised 3.0 -> 4.0 for the wider roads (2026-11-02 evening): houses
+    # need more room to clear a 2.0-4.0 wide corridor and still stay on land.
+    shift = min(required - d, 4.0)
     return cx + nx * shift, cz + nz * shift
 
 def building_overlaps_road(cx, cz, bhw, bhd, rot_):
@@ -261,6 +267,7 @@ print('park polygons for plot filter:', len(park_lonlat))
 
 blds = json.load(open(BASE / 'buildings.json'))['elements']
 buildings = []
+used_house_ids = set()
 dropped_park = 0
 dropped_road = 0
 for e in blds:
@@ -330,7 +337,17 @@ for e in blds:
     if area < 2000 and building_overlaps_road(cx, cz, hw, hd, -ang):
         dropped_road += 1
         continue
-    buildings.append({'x': round(cx, 2), 'z': round(cz, 2), 'hw': round(hw, 2), 'hd': round(hd, 2),
+    # Stable house ID for the buy/sell economy: from the ORIGINAL OSM
+    # centroid (lon/lat), NOT the displaced game position — so the ID survives
+    # road-width changes and future map regenerations. Deduplicate just in case.
+    base_id = 'h%.6f_%.6f' % (clon, clat)
+    hid = base_id
+    suffix = 2
+    while hid in used_house_ids:
+        hid = base_id + '_' + str(suffix)
+        suffix += 1
+    used_house_ids.add(hid)
+    buildings.append({'id': hid, 'x': round(cx, 2), 'z': round(cz, 2), 'hw': round(hw, 2), 'hd': round(hd, 2),
                       'hw_t': round(hw_t, 2), 'hd_t': round(hd_t, 2),
                       'rot': round(-ang, 3), 'h': height,
                       'type': btype, 'name': name})
