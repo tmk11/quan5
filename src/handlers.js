@@ -94,6 +94,42 @@ async function handleJoin(req, res, ctx) {
       }
     }
     ctx.economyStore.save();
+    // Deep link ghé thăm (v1.6, viral loop): ?visit=<house_id> trên URL
+    // được client gửi kèm trong body join. Chỉ đổi spawn của phiên này,
+    // không đổi nhà chính, không đổi ví. Nhà không tồn tại trên bản đồ
+    // thì bỏ qua lặng lẽ (link cũ, gõ sai) để join vẫn thành công ở
+    // vị trí bình thường, không chặn người chơi mới vì một link hỏng.
+    // Spawn là điểm gần nhất trên đường tới tâm nhà (mọi đoạn đường,
+    // kể cả hẻm nhỏ — nhà mặt hẻm thì đường trước cửa là hẻm đó), nên
+    // người chơi đứng trên mặt đường trước cửa nhà, không bị kẹt trong
+    // nhà (va chạm chặn đứng trong footprint nhà ngoài đường).
+    let visitHouse = null;
+    if (typeof body.visit === 'string' && body.visit.trim() !== '') {
+      const visitId = body.visit.trim();
+      const foundVisit = ctx.mapStore.findHouse(visitId);
+      if (foundVisit) {
+        let best = null, bestD = Infinity;
+        for (const r of map.roads) {
+          for (let i = 0; i < r.pts.length - 1; i++) {
+            const seg = S.distToSeg(foundVisit.building.x, foundVisit.building.z, r.pts[i][0], r.pts[i][1], r.pts[i + 1][0], r.pts[i + 1][1]);
+            if (seg.d < bestD) {
+              bestD = seg.d;
+              best = seg;
+            }
+          }
+        }
+        if (best) {
+          spawn = {
+            x: Math.max(S.BOUNDS.xMin, Math.min(S.BOUNDS.xMax, best.x)),
+            z: Math.max(S.BOUNDS.zMin, Math.min(S.BOUNDS.zMax, best.z))
+          };
+        }
+        const visitRec = ctx.economyStore.houses[visitId];
+        const owned = !!(visitRec && typeof visitRec.owner === 'string');
+        const ownerName = owned && ctx.economyStore.players[visitRec.owner] ? ctx.economyStore.players[visitRec.owner].name : null;
+        visitHouse = { id: visitId, ownerName, owned };
+      }
+    }
     const player = {
       id: newId(),
       name,
@@ -120,7 +156,8 @@ async function handleJoin(req, res, ctx) {
       tien: econ.tien,
       home: econ.home,
       x: spawn.x,
-      z: spawn.z
+      z: spawn.z,
+      visitHouse
     });
   } catch (e) {
     ctx.economyStore.restore(snap);

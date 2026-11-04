@@ -11,6 +11,7 @@
 <div class="overlay" id="joinOverlay">
 <div class="card">
 <h1>🏮 Thành phố Quận 5 Online</h1>
+<p id="gameVersion" class="note"></p>
 <div id="mapState">
 <div id="mapSkeleton" class="skeleton-wrap" aria-hidden="true"><div class="skeleton-block">🗺️</div><div class="skeleton-line" style="width:90%"></div><div class="skeleton-line" style="width:65%"></div></div>
 <p id="loadStatus">Đang tải bản đồ thật từ OpenStreetMap…</p>
@@ -88,6 +89,7 @@
 </div>
 <button type="button" id="quickToggle" aria-expanded="false" aria-label="Mở thao tác nhanh">⚡ Thao tác</button>
 <button type="button" id="shipperBtn">📦 Nhận đơn giao hàng</button>
+<button type="button" id="soHongBtn" style="display:none">📜 Xem Sổ Hồng / Khoe Nhà</button>
 </div>
 <div id="joy"><div id="knob"></div></div>
 <div id="mapModal" style="display:none" role="dialog" aria-modal="true" aria-label="Bản đồ Quận 5 lớn">
@@ -98,6 +100,17 @@
 </div>
 </div>
 <div id="toast" role="status" aria-live="polite"></div>
+<div id="soHongModal" style="display:none" role="dialog" aria-modal="true" aria-label="Sổ Hồng Quận 5">
+<div class="sohong-panel">
+<div class="sohong-head"><b>📜 Sổ Hồng Quận 5</b><button type="button" id="soHongClose" aria-label="Đóng Sổ Hồng">✕</button></div>
+<canvas id="soHongCanvas" width="1200" height="630"></canvas>
+<input type="text" id="soHongLinkInput" readonly aria-label="Link mời bạn ghé thăm nhà">
+<div class="sohong-btns">
+<button type="button" id="soHongDownloadBtn" class="secondary">📥 Tải ảnh Sổ Hồng</button>
+<button type="button" id="soHongCopyBtn">🔗 Copy Link Rủ Bạn Tới Chơi</button>
+</div>
+</div>
+</div>
 </div>
 <div id="errorToast" role="status" aria-live="polite"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>

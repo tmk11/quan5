@@ -23,6 +23,18 @@ var params = new URLSearchParams(location.search);
 var roomInput = document.getElementById('roomInput');
 var nameInput = document.getElementById('nameInput');
 if (params.get('room')) roomInput.value = params.get('room').toUpperCase();
+// Deep link ghé thăm (v1.6): ?visit=<house_id> từ link Sổ Hồng bạn bè
+// gửi. Gửi kèm khi join để server spawn trên đường trước nhà đó.
+var visitParam = (params.get('visit') || '').trim();
+// Số phiên bản trên màn hình vào game (v1.6): để người check và Boss
+// xác nhận được đúng bản đang chạy, tránh tranh cãi "đã deploy chưa"
+// hay "trình duyệt chạy code cũ". Lấy từ /api/health, lỗi thì để trống.
+try {
+  fetch('api/health').then(function (r) { return r.json(); }).then(function (j) {
+    var el = document.getElementById('gameVersion');
+    if (el && j && j.version) el.textContent = 'Phiên bản ' + j.version;
+  }).catch(function () {});
+} catch (e) {}
 document.getElementById('randomNameBtn').onclick = function () {
   var names = Quan5Shared.NAMES;
   nameInput.value = names[Math.floor(Math.random() * names.length)];
@@ -626,6 +638,9 @@ function handleSessionExpired(msg) {
   lastLion = null;
   lastEnvelopes = [];
   closeMapModal();
+  closeSoHong();
+  lastHouses = {};
+  updateSoHongBtn();
   var popup = document.getElementById('ctxPopup');
   if (popup) popup.style.display = 'none';
   var overlay = document.getElementById('joinOverlay');
@@ -1006,6 +1021,249 @@ document.getElementById('buoiBtn').addEventListener('click', function () {
     showErrorToast(e.message || 'Không đổi buổi được.');
   }).finally(function () { setBusy(btn, false); });
 });
+// Sổ Hồng Quận 5 (v1.6, viral loop): thẻ chia sẻ vẽ bằng Canvas 2D
+// 1200x630, không dùng ảnh ngoài nên canvas không bị taint và PNG xuất
+// ra luôn đầy đủ. Ảnh khu nhà lấy từ bản đồ 2D tĩnh (bigMinimapStatic,
+// đã vẽ sẵn từ dữ liệu OSM, không có ảnh ngoài) thay vì snapshot
+// WebGL — vừa tránh lỗi trang trắng do preserveDrawingBuffer=false,
+// vừa đúng "khu vực ngôi nhà" thay vì khung nhìn hiện tại của người
+// chơi (người chơi có thể đang ở đầu kia bản đồ khi bấm Sổ Hồng).
+// Chữ trên thẻ chỉ dùng sans-serif hệ thống, không emoji, để tiếng Việt
+// không bị ô vuông trên máy thiếu font emoji; emoji chỉ ở nút HTML.
+function soHongOwned() {
+  var out = [];
+  Object.keys(lastHouses).forEach(function (id) {
+    if (lastHouses[id] && lastHouses[id].owner === deviceId) out.push({ id: id, rec: lastHouses[id] });
+  });
+  return out;
+}
+function soHongPickHouse() {
+  var owned = soHongOwned();
+  if (!owned.length) return null;
+  for (var i = 0; i < owned.length; i++) { if (owned[i].id === myHome) return owned[i]; }
+  return owned[0];
+}
+function soHongStreetName(x, z) {
+  if (!MAP || !MAP.roads) return null;
+  var best = null, bestD = 20;
+  MAP.roads.forEach(function (r) {
+    if (!r.name) return;
+    for (var i = 0; i < r.pts.length - 1; i++) {
+      var s = distToSeg(x, z, r.pts[i][0], r.pts[i][1], r.pts[i + 1][0], r.pts[i + 1][1]);
+      if (s.d < bestD) { bestD = s.d; best = r.name; }
+    }
+  });
+  return best;
+}
+function soHongShopText(shopType) {
+  if (!shopType || !Quan5Shared.SHOP_TYPES[shopType]) return 'Chưa chọn biển hiệu';
+  // Bỏ token đầu nếu nó không chứa chữ cái (token emoji), giữ tên quán
+  // thuần chữ để vẽ lên canvas an toàn.
+  var parts = Quan5Shared.SHOP_TYPES[shopType].split(' ');
+  if (parts.length > 1 && !/[A-Za-zÀ-ỹ]/.test(parts[0])) parts.shift();
+  return parts.join(' ');
+}
+function soHongInviteLink(houseId) {
+  var base = location.origin + location.pathname;
+  if (base.charAt(base.length - 1) !== '/') base += '/';
+  return base + '?room=QUAN5&visit=' + encodeURIComponent(houseId);
+}
+function drawSoHongCard(canvas, d) {
+  var c = canvas.getContext('2d');
+  var grad = c.createLinearGradient(0, 0, 1200, 630);
+  grad.addColorStop(0, '#fdf6e3');
+  grad.addColorStop(1, '#e8d5a3');
+  c.fillStyle = grad;
+  c.fillRect(0, 0, 1200, 630);
+  var vig = c.createRadialGradient(600, 315, 200, 600, 315, 750);
+  vig.addColorStop(0, 'rgba(122,59,30,0)');
+  vig.addColorStop(1, 'rgba(122,59,30,0.18)');
+  c.fillStyle = vig;
+  c.fillRect(0, 0, 1200, 630);
+  c.strokeStyle = '#7a1f1f';
+  c.lineWidth = 8;
+  c.strokeRect(12, 12, 1176, 606);
+  c.strokeStyle = '#b8860b';
+  c.lineWidth = 2;
+  c.strokeRect(28, 28, 1144, 574);
+  c.fillStyle = '#b8860b';
+  [[28, 28], [1172, 28], [28, 602], [1172, 602]].forEach(function (p) {
+    c.save();
+    c.translate(p[0], p[1]);
+    c.rotate(Math.PI / 4);
+    c.fillRect(-7, -7, 14, 14);
+    c.restore();
+  });
+  c.textAlign = 'center';
+  c.fillStyle = '#7a1f1f';
+  c.font = 'bold 44px Arial, Helvetica, sans-serif';
+  c.fillText('CHỨNG NHẬN ĐỊA CHỦ QUẬN 5 - CHỢ LỚN', 600, 90);
+  c.fillStyle = '#5b3a1e';
+  c.font = '26px Arial, Helvetica, sans-serif';
+  c.fillText('Người sở hữu nhà trong Thành phố Quận 5 Online', 600, 140);
+  c.strokeStyle = '#b8860b';
+  c.lineWidth = 2;
+  c.beginPath();
+  c.moveTo(300, 160);
+  c.lineTo(900, 160);
+  c.stroke();
+  c.fillStyle = '#b8860b';
+  c.save();
+  c.translate(600, 160);
+  c.rotate(Math.PI / 4);
+  c.fillRect(-5, -5, 10, 10);
+  c.restore();
+  c.textAlign = 'left';
+  c.fillStyle = '#3a2317';
+  c.font = 'bold 36px Arial, Helvetica, sans-serif';
+  c.fillText('Chủ sở hữu: ' + d.ownerName, 80, 210);
+  c.fillStyle = '#5b3a1e';
+  c.font = '30px Arial, Helvetica, sans-serif';
+  c.fillText('Quán: ' + d.shopText, 80, 260);
+  c.fillText('Giá nhà: ' + fmtMoney(d.housePrice), 80, 310);
+  c.fillText('Khu vực: ' + d.streetText, 80, 360);
+  c.fillStyle = '#7a1f1f';
+  c.font = 'bold 36px Arial, Helvetica, sans-serif';
+  c.fillText('Tổng tài sản: ' + fmtMoney(d.totalWealth), 80, 420);
+  c.fillStyle = '#5b3a1e';
+  c.font = '26px Arial, Helvetica, sans-serif';
+  c.fillText('Tiền mặt: ' + fmtMoney(d.cash) + ' • Sở hữu: ' + d.houseCount + ' căn nhà', 80, 465);
+  // Khung bản đồ khu nhà (phải): crop bigMinimapStatic quanh nhà, tỉ lệ
+  // crop 240x160 khớp khung 300x200 nên không méo; nhà gần mép bản đồ
+  // thì crop kẹp vào mép, chấm đỏ vẫn đúng vị trí tương đối.
+  c.strokeStyle = '#7a1f1f';
+  c.lineWidth = 3;
+  c.strokeRect(820, 190, 300, 200);
+  if (typeof bigMinimapStatic !== 'undefined' && bigMinimapStatic) {
+    var mx = (d.houseX + 140) / 280 * 600, mz = (d.houseZ + 75) / 150 * 320;
+    var cx = Math.max(0, Math.min(600 - 240, mx - 120));
+    var cy = Math.max(0, Math.min(320 - 160, mz - 80));
+    c.drawImage(bigMinimapStatic, cx, cy, 240, 160, 820, 190, 300, 200);
+    var dotX = 820 + (mx - cx) / 240 * 300, dotY = 190 + (mz - cy) / 160 * 200;
+    c.fillStyle = '#c62828';
+    c.beginPath();
+    c.arc(dotX, dotY, 10, 0, Math.PI * 2);
+    c.fill();
+    c.strokeStyle = '#f9a825';
+    c.lineWidth = 3;
+    c.beginPath();
+    c.arc(dotX, dotY, 14, 0, Math.PI * 2);
+    c.stroke();
+  } else {
+    c.fillStyle = '#e8d5a3';
+    c.fillRect(823, 193, 294, 194);
+    c.fillStyle = '#5b3a1e';
+    c.font = '22px Arial, Helvetica, sans-serif';
+    c.textAlign = 'center';
+    c.fillText('Bản đồ chưa tải', 970, 290);
+    c.textAlign = 'left';
+  }
+  c.fillStyle = '#5b3a1e';
+  c.font = '22px Arial, Helvetica, sans-serif';
+  c.textAlign = 'center';
+  c.fillText('Vị trí nhà trên bản đồ Quận 5', 970, 415);
+  // Con dấu địa chủ: chỉ chữ, không ký hiệu lạ, đè nhẹ lên mép hộp
+  // link như dấu đóng thật — cố ý, không phải lỗi bố cục.
+  c.strokeStyle = '#b8860b';
+  c.lineWidth = 4;
+  c.beginPath();
+  c.arc(970, 465, 40, 0, Math.PI * 2);
+  c.stroke();
+  c.fillStyle = '#7a1f1f';
+  c.font = 'bold 24px Arial, Helvetica, sans-serif';
+  c.fillText('ĐỊA CHỦ', 970, 462);
+  c.font = 'bold 20px Arial, Helvetica, sans-serif';
+  c.fillText('QUẬN 5', 970, 488);
+  c.fillStyle = '#fffdf5';
+  c.fillRect(80, 500, 1040, 60);
+  c.strokeStyle = '#7a1f1f';
+  c.lineWidth = 1;
+  c.strokeRect(80, 500, 1040, 60);
+  c.fillStyle = '#1a1a1a';
+  c.font = '22px "Courier New", monospace';
+  c.fillText(d.inviteLink, 600, 536);
+  c.fillStyle = '#8a7a5a';
+  c.font = '18px Arial, Helvetica, sans-serif';
+  c.fillText('Chỉ dùng trong game Thành phố Quận 5 Online — không phải giấy tờ thật.', 600, 590);
+}
+function openSoHong() {
+  var pick = soHongPickHouse();
+  if (!pick) return;
+  var b = null;
+  if (MAP && MAP.buildings) MAP.buildings.forEach(function (x) { if (x.id === pick.id) b = x; });
+  if (!b) { showErrorToast('Không tìm thấy nhà trên bản đồ, thử tải lại trang.'); return; }
+  var owned = soHongOwned();
+  var houseSum = 0;
+  owned.forEach(function (o) { houseSum += o.rec.price || 0; });
+  var street = soHongStreetName(b.x, b.z);
+  var link = soHongInviteLink(pick.id);
+  var data = {
+    ownerName: myName,
+    shopText: soHongShopText(pick.rec.shopType),
+    housePrice: pick.rec.price || 0,
+    streetText: street ? 'Đường ' + street : 'Quận 5, Chợ Lớn',
+    totalWealth: myTien + houseSum,
+    cash: myTien,
+    houseCount: owned.length,
+    houseX: b.x,
+    houseZ: b.z,
+    inviteLink: link
+  };
+  drawSoHongCard(document.getElementById('soHongCanvas'), data);
+  document.getElementById('soHongLinkInput').value = link;
+  document.getElementById('soHongModal').classList.add('open');
+}
+function closeSoHong() {
+  document.getElementById('soHongModal').classList.remove('open');
+}
+document.getElementById('soHongBtn').addEventListener('click', openSoHong);
+document.getElementById('soHongClose').addEventListener('click', closeSoHong);
+document.getElementById('soHongModal').addEventListener('click', function (e) {
+  if (e.target === document.getElementById('soHongModal')) closeSoHong();
+});
+document.getElementById('soHongDownloadBtn').addEventListener('click', function () {
+  var canvas = document.getElementById('soHongCanvas');
+  var pick = soHongPickHouse();
+  var fname = 'so-hong-quan5' + (pick ? '-' + pick.id : '') + '.png';
+  var save = function (href) {
+    var a = document.createElement('a');
+    a.href = href;
+    a.download = fname;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    if (href.indexOf('blob:') === 0) setTimeout(function () { URL.revokeObjectURL(href); }, 5000);
+  };
+  if (canvas.toBlob) canvas.toBlob(function (blob) { if (blob) save(URL.createObjectURL(blob)); else save(canvas.toDataURL('image/png')); });
+  else save(canvas.toDataURL('image/png'));
+  showToast('Đã tải ảnh Sổ Hồng!');
+});
+document.getElementById('soHongCopyBtn').addEventListener('click', function () {
+  var link = document.getElementById('soHongLinkInput').value;
+  if (!link) return;
+  var text = '🏠 Tới thăm nhà mình ở Thành phố Quận 5 Online đi! ' + link;
+  var done = function () { showToast('Đã copy link rủ bạn! Dán vào chat để mời bạn tới chơi.'); };
+  var fallback = function () {
+    var input = document.getElementById('soHongLinkInput');
+    input.focus();
+    input.select();
+    try { input.setSelectionRange(0, 99999); } catch (err) {}
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch (err) {}
+    if (ok) done();
+    else showErrorToast('Không copy tự động được, bấm vào ô link rồi copy tay nhé.');
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(fallback);
+  } else fallback();
+});
+function updateSoHongBtn() {
+  var owned = soHongOwned().length > 0;
+  var btn = document.getElementById('soHongBtn');
+  if (btn) btn.style.display = owned ? '' : 'none';
+  var popup = document.getElementById('ctxPopup');
+  if (popup) popup.classList.toggle('ctx-sohong', owned);
+}
 document.getElementById('shipperBtn').addEventListener('click', function () {
   doShipper('take', document.getElementById('shipperBtn'));
 });
@@ -1037,7 +1295,7 @@ document.getElementById('joinBtn').addEventListener('click', function () {
   setJoinError('');
   setBusy(joinBtn, true);
   setJoinFormDisabled(true);
-  postJson('api/join', { room: code, name: nameRaw, robe: selectedRobe, skin: '#ffe0bd', deviceId: deviceId }).then(function (j) {
+  postJson('api/join', { room: code, name: nameRaw, robe: selectedRobe, skin: '#ffe0bd', deviceId: deviceId, visit: visitParam || null }).then(function (j) {
     room = j.room;
     playerId = j.playerId;
     myName = j.name;
@@ -1050,7 +1308,30 @@ document.getElementById('joinBtn').addEventListener('click', function () {
     shareUrl = location.origin + location.pathname + '?room=' + room;
     document.getElementById('tien').textContent = fmtMoney(myTien);
     updateHomeLabel();
-    myGroup = ensurePerson({ id: playerId, name: myName, robe: selectedRobe, skin: '#ffe0bd', x: myPos.x, z: myPos.z, rot: 0 });
+    // Ghé thăm: server đã spawn trên đường trước nhà, client quay mặt
+    // về phía nhà và đặt camera ở phía đối diện để nhà nằm ngay trong
+    // tầm nhìn (camera ở myPos + (sin,cos)*dist nhìn về myPos, nên
+    // camYaw đối diện hướng nhà thì nhà ở phía sau lưng nhân vật nhìn
+    // từ camera, tức là hiện ra ngay sau nhân vật). Nhà không tìm thấy
+    // trong MAP (bản đồ lệch phiên bản) thì bỏ qua phần quay, chỉ giữ
+    // thông báo — spawn vẫn đúng vì server đã tính.
+    if (j.visitHouse && j.visitHouse.id) {
+      if (j.visitHouse.owned && j.visitHouse.ownerName) showToast('Bạn đang đứng trước nhà của ' + j.visitHouse.ownerName + '!');
+      else if (j.visitHouse.owned) showToast('Bạn đang đứng trước nhà của một người chơi khác!');
+      else showToast('Bạn đang đứng trước một ngôi nhà đang rao bán!');
+      if (MAP && MAP.buildings) {
+        var vb = null;
+        MAP.buildings.forEach(function (x) { if (x.id === j.visitHouse.id) vb = x; });
+        if (vb) {
+          var vdx = vb.x - myPos.x, vdz = vb.z - myPos.z;
+          if (vdx !== 0 || vdz !== 0) {
+            myPos.rot = Math.atan2(vdx, vdz);
+            camYaw = Math.atan2(-vdx, -vdz);
+          }
+        }
+      }
+    }
+    myGroup = ensurePerson({ id: playerId, name: myName, robe: selectedRobe, skin: '#ffe0bd', x: myPos.x, z: myPos.z, rot: myPos.rot || 0 });
     applyBuoi('sang');
   }).catch(function (e) {
     setJoinError('Không vào được: ' + (e.message || 'lỗi không rõ'));
@@ -1350,6 +1631,10 @@ function pollOnce() {
         delete people[id];
       }
     });
+    // Sổ Hồng (v1.6): hiện nút khi sở hữu từ 1 nhà, ẩn khi bán hết.
+    // lastHouses và myHome đã tươi ở điểm này (vòng lastPlayers vừa
+    // chạy xong), nên đếm đúng ngay poll đầu sau khi mua/bán.
+    updateSoHongBtn();
     var feedJson = JSON.stringify(st.events || []);
     if (feedJson !== lastFeedJson) {
       lastFeedJson = feedJson;

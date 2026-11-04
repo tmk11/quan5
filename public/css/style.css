@@ -116,10 +116,10 @@ button.is-busy::after{content:'';display:inline-block;width:14px;height:14px;mar
    ở phải trên) nên joystick không bao giờ bị đè. */
 #joy{position:absolute;left:16px;bottom:16px;width:110px;height:110px;border-radius:50%;background:rgba(255,255,255,.35);border:2px solid rgba(255,255,255,.7);display:none;pointer-events:auto;touch-action:none}
 #knob{position:absolute;left:35px;top:35px;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.9)}
-#errorToast{position:fixed;left:50%;transform:translateX(-50%);top:12px;z-index:30;max-width:92vw;background:rgba(185,28,28,.96);color:#fff;font-size:14px;font-weight:600;line-height:1.4;padding:10px 14px;border-radius:12px;box-shadow:var(--shadow);display:none;pointer-events:none;text-align:center}
+#errorToast{position:fixed;left:50%;transform:translateX(-50%);top:12px;z-index:50;max-width:92vw;background:rgba(185,28,28,.96);color:#fff;font-size:14px;font-weight:600;line-height:1.4;padding:10px 14px;border-radius:12px;box-shadow:var(--shadow);display:none;pointer-events:none;text-align:center}
 /* Toast thành công/thông báo nhỏ: giữa mép trên, dưới top bar, vùng
    giữa trống (street pill trái, minimap phải) nên không đè chữ nào. */
-#toast{position:fixed;left:50%;transform:translateX(-50%);top:56px;z-index:30;max-width:92vw;background:rgba(30,25,18,.92);color:#fff;font-size:14px;font-weight:700;line-height:1.4;padding:10px 16px;border-radius:999px;box-shadow:var(--shadow);display:none;pointer-events:none;text-align:center;white-space:nowrap}
+#toast{position:fixed;left:50%;transform:translateX(-50%);top:56px;z-index:50;max-width:92vw;background:rgba(30,25,18,.92);color:#fff;font-size:14px;font-weight:700;line-height:1.4;padding:10px 16px;border-radius:999px;box-shadow:var(--shadow);display:none;pointer-events:none;text-align:center;white-space:nowrap}
 #toast.show{display:block}
 #pollError{position:absolute;left:10px;top:92px;background:var(--danger-bg);border:1px solid #fecaca;color:var(--danger);border-radius:var(--radius);padding:8px 12px;font-size:var(--font-sm);font-weight:600;line-height:1.4;box-shadow:var(--shadow);display:none;align-items:center;gap:10px;max-width:280px;pointer-events:auto}
 #pollError.show{display:flex}
@@ -194,6 +194,23 @@ button.is-busy::after{content:'';display:inline-block;width:14px;height:14px;mar
 .shop-btns button.sel{border-color:var(--accent-dark);background:#ffedb8}
 /* Huy hiệu buff tốc độ trên top bar: chỉ hiện 30 giây sau khi ghé quán. */
 #buffLabel{color:#b45309;font-weight:800}
+/* Sổ Hồng Quận 5 (v1.6, viral loop): nút ở Quick Dock cùng hàng với
+   nút Shipper; modal dùng chung kiểu với mapModal nhưng z-index thấp
+   hơn toast (toast lên 50) để bấm Copy xong vẫn thấy "Đã copy!".
+   Popup nhà được nâng lên 190px khi nút Sổ Hồng hiện (3 nút Quick Dock
+   cao ~160px từ đáy) để nút không đè nút Mua/Bán trên điện thoại; khi
+   Quick Panel mở thì vẫn chấp nhận đè như cũ, đóng panel là mua được. */
+#soHongBtn{border-radius:999px;padding:12px 16px;font-size:14px}
+#ctxPopup.ctx-sohong{bottom:190px}
+#soHongModal{position:fixed;inset:0;background:rgba(20,15,10,.6);display:none;align-items:center;justify-content:center;z-index:40;pointer-events:auto;padding:16px;overflow-y:auto}
+#soHongModal.open{display:flex}
+.sohong-panel{background:linear-gradient(180deg,var(--paper),var(--paper-warm));border:1px solid var(--line);border-radius:20px;padding:16px;max-width:960px;width:100%;box-shadow:var(--shadow-lg);text-align:center;margin:auto}
+.sohong-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:var(--font-base)}
+.sohong-head button{background:var(--accent-soft);color:#5b4632;box-shadow:none;padding:8px 12px;min-height:36px}
+#soHongCanvas{width:100%;height:auto;display:block;border-radius:12px}
+#soHongLinkInput{width:100%;margin-top:10px;padding:10px 12px;font-family:monospace;font-size:13px;border:1px solid var(--line);border-radius:10px;background:#fffdf5;color:#1a1a1a}
+.sohong-btns{display:flex;gap:8px;margin-top:10px}
+.sohong-btns button{flex:1;min-width:0;white-space:normal}
 @media (max-width:640px){
 #leaderboard{left:8px;width:170px}
 #leaderBody{font-size:var(--font-xs)}

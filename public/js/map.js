@@ -540,7 +540,13 @@ function buildStreetProps() {
     });
     var ringScale = 5.5, ringX = L.x, ringZ = L.z;
     if (bestD < 12) { ringScale = 4; ringX = bestX; ringZ = bestZ; }
-    var ring = new THREE.Mesh(new THREE.RingGeometry(0.85, 1.0, 32), new THREE.MeshBasicMaterial({ color: 0xf9a825, transparent: true, opacity: 0.8, side: THREE.DoubleSide }));
+    // Vòng landmark màu ĐỎ (khớp ghim đỏ), khác hẳn vòng nhà (cam =
+    // chưa có chủ, xanh lá = nhà mình, xám = nhà người khác). Trước đây
+    // vòng landmark cũng cam nên browser check 1.4/1.5 đã nhìn nhầm vòng
+    // landmark thành vòng nhà và kết luận popup nhà không hiện, trong
+    // khi người chơi đứng gần spawn còn cách nhà gần nhất 5,39 đơn vị
+    // (ngoài tầm 4) nên popup landmark là đúng.
+    var ring = new THREE.Mesh(new THREE.RingGeometry(0.85, 1.0, 32), new THREE.MeshBasicMaterial({ color: 0xe53935, transparent: true, opacity: 0.8, side: THREE.DoubleSide }));
     ring.rotation.x = -Math.PI / 2;
     ring.position.set(ringX, 0.20, ringZ);
     ring.scale.set(ringScale, ringScale, ringScale);

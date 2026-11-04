@@ -20,7 +20,7 @@ const handlers = require('./src/handlers.js');
 const { serveStatic } = require('./src/static.js');
 const Lion = require('./src/lion.js');
 
-let version = '1.5.0';
+let version = '1.6.0';
 try {
   const pkg = JSON.parse(fs.readFileSync(path.join(config.ROOT_DIR, 'package.json'), 'utf8'));
   if (pkg && typeof pkg.version === 'string') {

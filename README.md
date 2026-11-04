@@ -276,6 +276,51 @@ vì server đọc lại theo mtime.
 - `quan5-online.service` — file systemd.
 - `quan5-snippet.txt` — đoạn cấu hình nginx.
 
+## Sổ Hồng Quận 5 & Deep Link ghé thăm (v1.6, 2026-11-04)
+
+- Sửa nhầm lẫn từ browser check v1.5 (popup nhà vẫn chỉ thấy landmark):
+  chẩn đoán "hai phần popup chồng nhau" ở v1.5 là sai — code ưu tiên
+  nhà đã đúng và đã lên live. Bằng chứng: điểm spawn cách nhà gần nhất
+  5,39 đơn vị (ngoài tầm 4 nên popup landmark ở spawn là đúng), còn
+  vòng landmark màu cam, cùng cỡ với vòng nhà chưa có chủ nên người
+  check đã nhìn nhầm vòng landmark thành vòng nhà. Nay vòng landmark
+  đổi sang đỏ (khớp ghim đỏ), vòng nhà giữ cam/xanh lá/xám, và màn
+  hình vào game hiện "Phiên bản X.Y.Z" từ /api/health để lần check sau
+  xác nhận được đúng bản trước khi chơi.
+
+- Deep link: link `?room=QUAN5&visit=<house_id>` gửi kèm khi join.
+  Server spawn người chơi ở điểm gần nhất trên mọi đoạn đường tới tâm
+  nhà (kể cả hẻm nhỏ — nhà mặt hẻm thì đường trước cửa là hẻm đó),
+  chỉ đổi spawn của phiên này, không đổi nhà chính, không đổi ví. Nhà
+  không tồn tại trên bản đồ thì bỏ qua lặng lẽ để join vẫn thành công
+  ở spawn bình thường (link cũ, gõ sai không được chặn người mới).
+  Client quay mặt nhân vật về phía nhà và đặt camera ở phía đối diện
+  để nhà nằm ngay trong tầm nhìn, kèm thông báo đúng mẫu: "Bạn đang
+  đứng trước nhà của [Tên Chủ Nhà]!" (nhà chưa có chủ: "…một ngôi nhà
+  đang rao bán!"). Giao thức vẫn là HTTP polling, không có WebSocket.
+- Sổ Hồng: nút "📜 Xem Sổ Hồng / Khoe Nhà" ở Quick Dock, chỉ hiện khi
+  sở hữu từ 1 nhà (ẩn khi bán hết), popup nhà được nâng lên 190px khi
+  nút hiện để nút không đè nút Mua/Bán trên điện thoại. Bấm nút mở
+  modal vẽ thẻ 1200x630 bằng Canvas 2D: tiêu đề "CHỨNG NHẬN ĐỊA CHỦ
+  QUẬN 5 - CHỢ LỚN", chủ sở hữu, biển hiệu (chữ thuần, không emoji để
+  khỏi ô vuông), giá nhà, đường gần nhất, tổng tài sản (tiền mặt + mọi
+  nhà đang sở hữu, cùng công thức bảng Top Địa Chủ) kèm dòng giải
+  thích tiền mặt/số căn, khung bản đồ khu nhà crop từ bản đồ 2D tĩnh,
+  con dấu "ĐỊA CHỦ QUẬN 5", hộp link mời `?room=QUAN5&visit=<house_id>`
+  (room cố định QUAN5 vì nhà là tài sản toàn thành phố, phòng chỉ là
+  kênh chơi), và dòng "Chỉ dùng trong game — không phải giấy tờ thật".
+  Nhà hiển thị là nhà chính nếu có, không thì nhà mua đầu tiên.
+- Ảnh khu nhà lấy từ bản đồ 2D tĩnh thay vì snapshot WebGL: vừa tránh
+  lỗi trang trắng do preserveDrawingBuffer=false, vừa đúng "khu vực
+  ngôi nhà" thay vì khung nhìn hiện tại của người chơi. Canvas không
+  vẽ ảnh ngoài nên không bị taint, PNG xuất ra luôn đầy đủ.
+- Hai nút dưới thẻ: "📥 Tải ảnh Sổ Hồng" (PNG 1200x630, tên file kèm
+  house_id) và "🔗 Copy Link Rủ Bạn Tới Chơi" (copy câu rủ mẫu + link
+  vào clipboard, có fallback execCommand cho trình duyệt HTTP không
+  có Clipboard API, và ô link chỉ đọc để copy tay khi cả hai đều lỗi).
+  Toast được nâng z-index lên 50 để bấm Copy xong vẫn thấy "Đã copy!"
+  dù modal đang mở.
+
 ## Shipper Chợ Lớn & Đoàn Lân (v1.5, 2026-11-04)
 
 - Sửa popup ngữ cảnh (phát hiện từ browser check 1.4): trước đây khi
