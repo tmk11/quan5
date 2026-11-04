@@ -117,7 +117,11 @@ khỏi OSM một chút ở phố hẹp.
   đường gần spawn (An Dương Vương, Hùng Vương) chỉ rộng 2,62 trong
   game nên ngưỡng cũ loại gần hết đại lộ; vòng sáng landmark dời ra
   điểm đường gần nhất (tâm chợ An Đông nằm gọn trong nhà cao 5,4 nên
-  vòng cũ bị nhà che mất).
+  vòng cũ bị nhà che mất). Sửa tiếp sau kiểm tra lần 3 (vòng đã thấy,
+  popup vẫn hiện): cây/đèn vẫn thưa vì luật cũ loại mọi điểm chồng nhà
+  — mô phỏng chỉ đặt được 5 cây / 4 đèn cả bản đồ do nhà phố xây sát
+  vỉa hè; luật mới chỉ loại điểm nằm sâu trong nhà hơn 0,3 đơn vị, lấy
+  đều khắp bản đồ về mức trần, đèn thêm tay vươn ra đường để nhận ra.
   Kiểm tra visual cuối cùng vẫn là điện thoại của Boss.
 
 ## Nâng cấp UI/UX v1.2 (2026-11-04) — 4 trạng thái, design system, micro-interactions
