@@ -246,15 +246,24 @@ async function handleHeartbeat(req, res, ctx) {
             if (!econ) {
               econ = ctx.economyStore.getOrCreatePlayer(player.deviceId, player.name).record;
             }
-            econ.tien = (Number(econ.tien) || 0) + reward;
+            // Trần shipper v1.9: 5 đơn/ngày thưởng đầy đủ, từ đơn thứ 6
+            // chỉ +điểm, không +tiền (đếm theo ngày Berlin, lưu bền).
+            if (!econ.shipperDay || typeof econ.shipperDay !== 'object' || Array.isArray(econ.shipperDay)) {
+              econ.shipperDay = { day: '', count: 0 };
+            }
+            const payout = S.applyShipperPayout(econ.shipperDay, S.berlinDayKey(Date.now()), reward);
+            econ.tien = (Number(econ.tien) || 0) + payout.money;
+            player.diem = (player.diem || 0) + S.SHIPPER_DIEM;
             ctx.economyStore.save();
             player.mission = null;
-            missionEvent = { type: 'delivered', reward, deliveryName };
+            missionEvent = { type: 'delivered', reward: payout.money, deliveryName, capped: payout.capped, diem: S.SHIPPER_DIEM };
             ctx.roomStore.pushEvent(room, {
               playerId: player.id,
               name: player.name,
               type: 'shipper',
-              message: player.name + ' đã giao hàng tới ' + deliveryName + ' (+' + S.fmtMoney(reward) + ')!'
+              message: payout.capped
+                ? player.name + ' đã giao hàng tới ' + deliveryName + ' (hết thưởng tiền hôm nay, +' + S.SHIPPER_DIEM + ' điểm)!'
+                : player.name + ' đã giao hàng tới ' + deliveryName + ' (+' + S.fmtMoney(payout.money) + ')!'
             });
           } catch (e) {
             // Lưu hỏng thì giữ nguyên nhiệm vụ để tick sau thử lại (người
@@ -394,6 +403,35 @@ async function handleAction(req, res, ctx) {
     checkinPlace = V.requireNonEmptyString(body.value, 'Tên địa điểm check-in');
   }
   const { room, player } = getSession(ctx.roomStore, roomCode, body.playerId);
+  // Giá hành động v1.9: kiểm tra đủ tiền TRƯỚC khi trừ rate limit (theo
+  // nguyên tắc "request sai không hao quota"). Ăn tại quán nhà mình thì
+  // miễn phí (chủ không tự trả tiền cho quán mình); các hành động có giá
+  // khác đều đốt tiền, trừ phần chủ quán nhận ở nhánh shop bên dưới
+  // (khách trả 3.000đ ăn, chủ nhận 2.000đ, 1.000đ còn lại đốt).
+  const costBase = S.actionCost(type);
+  let payCost = costBase;
+  if (costBase > 0 && S.SHOP_INCOME_ACTIONS.indexOf(type) !== -1) {
+    for (const id of Object.keys(ctx.economyStore.houses)) {
+      const rec = ctx.economyStore.houses[id];
+      if (!rec || rec.owner !== player.deviceId) continue;
+      const found = ctx.mapStore.findHouse(id);
+      if (!found) continue;
+      if (S.boxDistance(player.x, player.z, found.building) <= S.HOUSE_SERVER_MAX_DISTANCE) {
+        payCost = 0;
+        break;
+      }
+    }
+  }
+  if (payCost > 0) {
+    const econPre = ctx.economyStore.players[player.deviceId];
+    const balance = econPre ? (Number(econPre.tien) || 0) : S.START_TIEN;
+    if (balance < payCost) {
+      throw badRequest(
+        'Không đủ tiền để ' + S.actionCostName(type) + ' (' + S.fmtMoney(payCost) +
+        '), bạn có ' + S.fmtMoney(balance) + '.'
+      );
+    }
+  }
   ctx.actionLimiter.checkAction(player.id);
 
   const spec = S.ACTIONS[type];
@@ -409,7 +447,10 @@ async function handleAction(req, res, ctx) {
         'cần trong ' + S.CHECKIN_SERVER_MAX_DISTANCE + ' đơn vị mới check-in được.'
       );
     }
-    // Giao dịch check-in: điểm (RAM) + tiền (đĩa) phải cùng thành công.
+    // Giao dịch check-in (v1.9): điểm (RAM) + tiền (đĩa) phải cùng thành
+    // công. Tiền chỉ thưởng 1 lần/ngày/landmark/người — lần sau trong
+    // ngày tại cùng landmark chỉ +điểm, không +tiền (khóa vòi farm
+    // check-in; mốc ngày Berlin lưu bền trong ví nên vào lại cũng nhớ).
     const snap = ctx.economyStore.snapshot();
     const oldDiem = player.diem;
     const oldCheckin = player.checkin;
@@ -421,13 +462,19 @@ async function handleAction(req, res, ctx) {
       if (!econ) {
         econ = ctx.economyStore.getOrCreatePlayer(player.deviceId, player.name).record;
       }
-      econ.tien = (Number(econ.tien) || 0) + S.CHECKIN_TIEN;
+      if (!econ.checkinMoney || typeof econ.checkinMoney !== 'object' || Array.isArray(econ.checkinMoney)) {
+        econ.checkinMoney = {};
+      }
+      const moneyAward = S.applyCheckinMoney(econ.checkinMoney, landmark.name, S.berlinDayKey(Date.now()));
+      econ.tien = (Number(econ.tien) || 0) + moneyAward;
       ctx.economyStore.save();
       ctx.roomStore.pushEvent(room, {
         playerId: player.id,
         name: player.name,
         type,
-        message: player.name + ' đã check-in tại ' + landmark.name + ' (+' + S.fmtMoney(S.CHECKIN_TIEN) + ')',
+        message: moneyAward > 0
+          ? player.name + ' đã check-in tại ' + landmark.name + ' (+' + S.fmtMoney(moneyAward) + ')'
+          : player.name + ' đã check-in tại ' + landmark.name + ' (hôm nay đã nhận tiền ở đây rồi, chỉ +điểm)',
         value: landmark.name
       });
       sendJson(res, 200, {
@@ -435,7 +482,8 @@ async function handleAction(req, res, ctx) {
         diem: player.diem,
         checkin: player.checkin,
         buoi: room.buoi,
-        tien: econ.tien
+        tien: econ.tien,
+        tienAward: moneyAward
       });
     } catch (e) {
       ctx.economyStore.restore(snap);
@@ -501,6 +549,9 @@ async function handleAction(req, res, ctx) {
       if (!visitorEcon) {
         visitorEcon = ctx.economyStore.getOrCreatePlayer(player.deviceId, player.name).record;
       }
+      // Khách trả giá hành động (đã kiểm tra đủ tiền trước rate limit);
+      // chủ quán nhận SHOP_INCOME trong số đó, phần còn lại đốt.
+      visitorEcon.tien = (Number(visitorEcon.tien) || 0) - payCost;
       let ownerEcon = ctx.economyStore.players[shopIncome.owner];
       if (!ownerEcon) {
         ownerEcon = ctx.economyStore.getOrCreatePlayer(shopIncome.owner, shopIncome.ownerName).record;
@@ -553,13 +604,27 @@ async function handleAction(req, res, ctx) {
     type,
     message: player.name + ' ' + spec.message
   });
-  // Hành động không liên quan đến tiền: nếu ví chưa tồn tại (trường hợp
-  // hiếm sau khi khôi phục economy), tạo ví trong bộ nhớ và thử lưu, nhưng
-  // lỗi lưu không được chặn hành động vì điểm là RAM và không phụ thuộc
-  // vào ví. Lỗi vẫn được log rõ ràng.
+  // Hành động không liên quan đến tiền chủ quán: nếu ví chưa tồn tại
+  // (trường hợp hiếm sau khi khôi phục economy), tạo ví trong bộ nhớ và
+  // thử lưu, nhưng lỗi lưu không được chặn hành động vì điểm là RAM và
+  // không phụ thuộc vào ví — TRỪ khi hành động có giá: lúc đó tiền trừ
+  // phải lưu được xuống đĩa, lưu hỏng thì rollback ví và trả lỗi (không
+  // để trừ oan tiền mà không ghi nhận). Lỗi vẫn được log rõ ràng.
   let econ = ctx.economyStore.players[player.deviceId];
-  if (!econ) {
+  const econCreated = !econ;
+  if (econCreated) {
     econ = ctx.economyStore.getOrCreatePlayer(player.deviceId, player.name).record;
+  }
+  if (payCost > 0) {
+    const snap = ctx.economyStore.snapshot();
+    try {
+      econ.tien = (Number(econ.tien) || 0) - payCost;
+      ctx.economyStore.save();
+    } catch (e) {
+      ctx.economyStore.restore(snap);
+      throw e;
+    }
+  } else if (econCreated) {
     try {
       ctx.economyStore.save();
     } catch (e) {
@@ -632,7 +697,8 @@ async function handleHouse(req, res, ctx) {
         ownerName: player.name,
         price: found.price,
         paid: found.price,
-        shopType: null
+        shopType: null,
+        shieldUntil: 0
       };
       ctx.economyStore.save();
       ctx.roomStore.pushEvent(room, {
@@ -645,22 +711,31 @@ async function handleHouse(req, res, ctx) {
       return;
     }
     if (action === 'takeover') {
-      // Mua lại (thâu tóm): chỉ nhà đã có chủ của người khác mới mua lại
-      // được. Người mua trả giá hiện tại +25%, chủ cũ nhận lại tiền gốc
-      // lúc mua +15% lời (trả thẳng vào ví economy.json nên offline cũng
-      // nhận được), 10% còn lại đốt khỏi hệ thống (không trả cho ai).
-      // Biển hiệu giữ nguyên của chủ cũ, chủ mới đổi miễn phí sau nếu muốn.
+      // Mua lại (thâu tóm, v1.9): chỉ nhà đã có chủ của người khác mới
+      // mua lại được. Người mua trả giá hiện tại +25%, chủ cũ nhận lại
+      // ĐÚNG tiền gốc lúc mua (không lãi, không lỗ — hết chiến thuật
+      // "mua để bị lấy"), 25% còn lại đốt khỏi hệ thống (không trả cho
+      // ai). Biển hiệu giữ nguyên của chủ cũ, chủ mới đổi miễn phí sau
+      // nếu muốn. Nhà vừa bị mua lại niêm phong 24 giờ (shieldUntil) —
+      // trong thời gian đó không ai mua lại được nữa.
       // Chống race: toàn bộ khối kiểm tra → đổi → lưu là đồng bộ, không
       // có await ở giữa, nên hai request cùng lúc không thể cùng đọc giá
       // cũ rồi cùng trả success — request thứ hai chạy sau sẽ thấy giá
       // mới (tăng 25%) và chủ mới, và thường sẽ rớt vì không đủ tiền cho
-      // giá mới hoặc vì nhà đã đổi chủ.
+      // giá mới hoặc vì nhà đã đổi chủ (hoặc vì niêm phong mới).
       const rec = ctx.economyStore.houses[houseId];
       if (!rec) {
         throw badRequest('Nhà này chưa có chủ, bấm Mua nhà thay vì Mua lại.');
       }
       if (rec.owner === player.deviceId) {
         throw badRequest('Đây là nhà của bạn, không mua lại chính mình được.');
+      }
+      const nowTake = Date.now();
+      if (S.isShielded(rec.shieldUntil, nowTake)) {
+        throw badRequest(
+          'Nhà này đang niêm phong (còn ~' + S.shieldRemainingHours(rec.shieldUntil, nowTake) +
+          ' giờ nữa mới mua lại được).'
+        );
       }
       const newPrice = S.takeoverPrice(rec.price);
       if ((Number(econ.tien) || 0) < newPrice) {
@@ -687,14 +762,15 @@ async function handleHouse(req, res, ctx) {
         ownerName: player.name,
         price: newPrice,
         paid: newPrice,
-        shopType: keptShop
+        shopType: keptShop,
+        shieldUntil: nowTake + S.TAKEOVER_SHIELD_MS
       };
       ctx.economyStore.save();
       ctx.roomStore.pushEvent(room, {
         playerId: player.id,
         name: player.name,
         type: 'house',
-        message: player.name + ' đã mua lại ' + label + ' của ' + oldOwnerName + ' với ' + S.fmtMoney(newPrice) + ' (giá tăng 25%)! ' + oldOwnerName + ' nhận lại ' + S.fmtMoney(payout) + ' (gốc + 15% lời).'
+        message: player.name + ' đã mua lại ' + label + ' của ' + oldOwnerName + ' với ' + S.fmtMoney(newPrice) + ' (giá tăng 25%)! ' + oldOwnerName + ' nhận lại ' + S.fmtMoney(payout) + ' (đúng tiền gốc).'
       });
       sendJson(res, 200, { ok: true, tien: econ.tien, home: houseId, houseId, price: newPrice, payout, oldOwner: oldOwnerName, shopType: keptShop });
       return;

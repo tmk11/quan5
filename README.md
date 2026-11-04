@@ -278,7 +278,37 @@ vì server đọc lại theo mtime.
 
 ## Sổ Hồng Quận 5 & Deep Link ghé thăm (v1.6, 2026-11-04)
 
-## Thu nhỏ nhân vật & lấp đầy nhà (v1.8, 2026-11-04, đã build + test local, CHƯA deploy vì check 1.7.0 đang chạy)
+## Cân bằng tiền — thiết kế v2 giai đoạn 1 (v1.9, 2026-11-04, Boss duyệt cả 3 giai đoạn, làm lần lượt)
+
+- Check-in: tiền chỉ thưởng 1 lần/ngày/landmark/người (mốc ngày Berlin
+  lưu bền trong ví, `checkinMoney`); lần sau trong ngày chỉ +điểm.
+  Response check-in thêm `tienAward` để chữ bay client hiện đúng tiền
+  thật (không còn hiện +5.000đ khi đã hết tiền hôm nay).
+- Shipper: 5 đơn/ngày thưởng đầy đủ, đơn thứ 6 trở đi chỉ +10 điểm,
+  không +tiền (`shipperDay` lưu bền, đếm theo ngày Berlin). Đơn vượt
+  trần vẫn hoàn thành bình thường, feed ghi rõ "hết thưởng tiền hôm nay".
+- Hành động có giá: ăn hủ tiếu 3.000đ, cà phê vợt 2.000đ, mua lồng đèn
+  5.000đ, mua sắm 4.000đ; chào/chụp/check-in/đổi buổi miễn phí. Ăn tại
+  quán của người khác: chủ nhận 2.000đ trong số khách trả, phần còn lại
+  đốt; ăn ngoài đường: toàn bộ đốt; ăn tại quán nhà mình: miễn phí.
+  Không đủ tiền thì 400 "Không đủ tiền", kiểm tra trước rate limit nên
+  không hao quota. Giá hiện ngay trên nút Thao tác (đọc từ
+  `ACTION_COSTS` trong shared-core).
+- Mua lại: chủ cũ nhận đúng tiền gốc (100%, không còn +15% lời), 25%
+  còn lại đốt. Nhà vừa bị mua lại niêm phong 24 giờ (`shieldUntil`):
+  mua lại trong thời gian đó thì 400 "niêm phong", popup hiện 🔒 và
+  nút mua lại bị khóa (còn ~X giờ). Mua nhà mới: `shieldUntil: 0`.
+- Không đụng ví/nhà hiện có: ví cũ được chuẩn hóa thêm field mới
+  (trống), `validateEconomy` vẫn permissive với field mới nên server
+  cũ/mới đều đọc được file economy.
+- Test: unit 35 cũ → cập nhật kỳ vọng takeover (48.000 → 42.000, đốt
+  5.000 → 11.000) + 6 test mới (ngày Berlin, giá hành động, niêm phong,
+  check-in ngày, trần shipper); smoke mới `scripts/p1-smoke.js`
+  (check-in ngày, giá hành động, không đủ tiền, mua lại 100% + niêm
+  phong, trần shipper 6 đơn); shop-smoke chỉ sửa comment (assert động
+  theo `takeoverPayout` nên tự thích ứng).
+
+## Thu nhỏ nhân vật & lấp đầy nhà (v1.8, 2026-11-04, đã deploy live 21:07 CET)
 
 - Nhân vật (kể cả NPC) thu hình ảnh còn 0,7 lần trong makePerson;
   tốc độ, bán kính va chạm 0,35, tầm mua/check-in giữ nguyên; Đoàn

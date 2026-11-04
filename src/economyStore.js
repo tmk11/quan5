@@ -69,6 +69,23 @@ class EconomyStore {
       if (!S.validateColor(p.robe).ok) {
         p.robe = '#e0651f';
       }
+      // Cân bằng v1.9: mốc tiền check-in theo ngày (tối đa 11 landmark)
+      // và đếm đơn shipper theo ngày. Ví cũ chưa có thì bắt đầu trống —
+      // không ảnh hưởng tiền/nhà hiện có.
+      if (!p.checkinMoney || typeof p.checkinMoney !== 'object' || Array.isArray(p.checkinMoney)) {
+        p.checkinMoney = {};
+      }
+      if (!p.shipperDay || typeof p.shipperDay !== 'object' || Array.isArray(p.shipperDay)) {
+        p.shipperDay = { day: '', count: 0 };
+      }
+    }
+    // Niêm phong v1.9: nhà cũ chưa có mốc thì coi như không niêm phong.
+    for (const id of Object.keys(houses)) {
+      const h = houses[id];
+      if (!h || typeof h !== 'object') continue;
+      if (!Number.isFinite(h.shieldUntil) || h.shieldUntil < 0) {
+        h.shieldUntil = 0;
+      }
     }
     if (parsed.incomeCooldown === undefined || parsed.incomeCooldown === null || typeof parsed.incomeCooldown !== 'object' || Array.isArray(parsed.incomeCooldown)) {
       parsed.incomeCooldown = {};

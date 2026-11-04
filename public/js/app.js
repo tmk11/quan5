@@ -872,19 +872,26 @@ function updateHouseUI() {
   } else {
     var newPrice = Quan5Shared.takeoverPrice(rec.price);
     var payout = Quan5Shared.takeoverPayout(rec.paid || rec.price);
-    var key3 = 'other:' + b.id + ':' + (rec.ownerName || '') + ':' + rec.price + ':' + (rec.shopType || '');
+    var shieldH = Quan5Shared.isShielded(rec.shieldUntil, Date.now()) ? Quan5Shared.shieldRemainingHours(rec.shieldUntil, Date.now()) : 0;
+    var key3 = 'other:' + b.id + ':' + (rec.ownerName || '') + ':' + rec.price + ':' + (rec.shopType || '') + ':sh' + shieldH;
     if (row && lastHouseRowKey !== key3) {
       lastHouseRowKey = key3;
       row.className = 'house-data';
       var otherSign = rec.shopType ? ' — ' + Quan5Shared.escapeHtml(Quan5Shared.SHOP_TYPES[rec.shopType]) : '';
-      row.innerHTML = '<span class="house-name">🏠 Nhà của ' + Quan5Shared.escapeHtml(rec.ownerName || '') + ': ' + Quan5Shared.escapeHtml(houseDisplayName(b)) + '</span>' + otherSign + ' — mua lại <span class="house-price">' + fmtMoney(newPrice) + '</span> (+25% so với ' + fmtMoney(rec.price) + ')';
+      var shieldText = shieldH > 0 ? ' — <span class="house-price">🔒 Niêm phong, còn ~' + shieldH + ' giờ</span>' : '';
+      row.innerHTML = '<span class="house-name">🏠 Nhà của ' + Quan5Shared.escapeHtml(rec.ownerName || '') + ': ' + Quan5Shared.escapeHtml(houseDisplayName(b)) + '</span>' + otherSign + ' — mua lại <span class="house-price">' + fmtMoney(newPrice) + '</span> (+25% so với ' + fmtMoney(rec.price) + ')' + shieldText;
     }
     buyBtn.style.display = '';
-    buyBtn.textContent = '🏠 Mua lại (+25%): ' + fmtMoney(newPrice) + ' (bạn có ' + fmtMoney(myTien) + ')';
-    buyBtn.onclick = function () {
-      if (!confirm('Mua lại ' + houseDisplayName(b) + ' của ' + (rec.ownerName || '') + ' với ' + fmtMoney(newPrice) + '? Chủ cũ nhận lại ' + fmtMoney(payout) + ' (gốc + 15% lời).')) return;
-      houseAction(buyBtn, 'takeover', b.id);
-    };
+    if (shieldH > 0) {
+      buyBtn.textContent = '🔒 Niêm phong, còn ~' + shieldH + ' giờ mới mua lại được';
+      buyBtn.onclick = function () { showErrorToast('Nhà này đang niêm phong, còn ~' + shieldH + ' giờ nữa mới mua lại được.'); };
+    } else {
+      buyBtn.textContent = '🏠 Mua lại (+25%): ' + fmtMoney(newPrice) + ' (bạn có ' + fmtMoney(myTien) + ')';
+      buyBtn.onclick = function () {
+        if (!confirm('Mua lại ' + houseDisplayName(b) + ' của ' + (rec.ownerName || '') + ' với ' + fmtMoney(newPrice) + '? Chủ cũ nhận lại ' + fmtMoney(payout) + ' (đúng tiền gốc).')) return;
+        houseAction(buyBtn, 'takeover', b.id);
+      };
+    }
   }
 }
 function updateHomeLabel() {
@@ -1009,7 +1016,8 @@ function doAction(btn, type) {
     }
     if (!myGroup) return;
     if (type === 'checkin') {
-      spawnFloatingText(myGroup.position, '+' + Quan5Shared.ACTIONS.checkin.diem + '⭐ +' + fmtMoney(Quan5Shared.CHECKIN_TIEN));
+      var awardTxt = (typeof j.tienAward === 'number' && j.tienAward > 0) ? ' +' + fmtMoney(j.tienAward) : '';
+      spawnFloatingText(myGroup.position, '+' + Quan5Shared.ACTIONS.checkin.diem + '⭐' + awardTxt);
       spawnBurst(myGroup.position, ACTION_BURST_COLORS.checkin);
     } else if (Quan5Shared.ACTIONS[type] && Quan5Shared.ACTIONS[type].diem > 0) {
       spawnFloatingText(myGroup.position, '+' + Quan5Shared.ACTIONS[type].diem + '⭐');
@@ -1023,6 +1031,13 @@ document.querySelectorAll('#quickPanel button[data-action]').forEach(function (b
   btn.addEventListener('click', function () {
     doAction(btn, btn.getAttribute('data-action'));
   });
+});
+// Giá hành động v1.9: hiện giá ngay trên nút (nguồn duy nhất là
+// Quan5Shared.ACTION_COSTS — đổi số ở shared-core là nút đổi theo).
+document.querySelectorAll('#quickPanel button[data-action]').forEach(function (btn) {
+  var t = btn.getAttribute('data-action');
+  var c = Quan5Shared.ACTION_COSTS ? Quan5Shared.ACTION_COSTS[t] : 0;
+  if (c > 0) btn.textContent = btn.textContent + ' · ' + fmtMoney(c);
 });
 document.getElementById('ctxCheckinBtn').addEventListener('click', function () {
   doAction(document.getElementById('ctxCheckinBtn'), 'checkin');

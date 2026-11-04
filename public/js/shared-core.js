@@ -47,10 +47,14 @@
   //    này chặn: ghé quán là được buff, tiền thì 60 giây mới tính 1 lần.
   //  - SHOP_BUFF_RATE / SHOP_BUFF_MS: buff tốc độ chạy của khách.
   //  - TAKEOVER_RATE / TAKEOVER_PAYOUT_RATE: mua lại = giá hiện tại +25%,
-  //    chủ cũ nhận lại tiền gốc lúc mua +15% lời, 10% còn lại đốt khỏi
-  //    hệ thống (25 - 15 = 10, chênh lệch làm tròn tối đa 1.000đ vì giá
-  //    và tiền lời đều làm tròn về nghìn). Giá nhà sau mua lại = giá cũ
-  //    +25%, cũng làm tròn về nghìn như housePrice/sellRefund.
+  //    chủ cũ nhận lại ĐÚNG tiền gốc lúc mua (v1.9: không còn +15% lời —
+  //    bị lấy nhà không được lãi, để hết chiến thuật "mua để bị lấy"),
+  //    25% còn lại đốt khỏi hệ thống (không trả cho ai). Giá nhà sau
+  //    mua lại = giá cũ +25%, cũng làm tròn về nghìn như
+  //    housePrice/sellRefund.
+  //  - TAKEOVER_SHIELD_MS: nhà vừa bị mua lại được niêm phong 24 giờ,
+  //    trong thời gian đó không ai mua lại được nữa (chống cướp dây
+  //    chuyền). Mua/bán thường không niêm phong.
   var SHOP_TYPES = {
     vitquay: '🦆 Tiệm Vịt Quay',
     che: '🥣 Quán Chè Chợ Lớn',
@@ -63,7 +67,23 @@
   var SHOP_BUFF_MS = 30 * 1000;
   var SHOP_INCOME_ACTIONS = ['an', 'cafe', 'muasam'];
   var TAKEOVER_RATE = 0.25;
-  var TAKEOVER_PAYOUT_RATE = 0.15;
+  var TAKEOVER_PAYOUT_RATE = 0;
+  var TAKEOVER_SHIELD_MS = 24 * 60 * 60 * 1000;
+  // Cân bằng tiền v1.9 (thiết kế v2 giai đoạn 1):
+  //  - ACTION_COSTS: ăn/uống/mua sắm có giá, chào/chụp/check-in/đổi buổi
+  //    miễn phí. Ăn tại quán của người khác: chủ nhận SHOP_INCOME trong
+  //    số tiền khách trả, phần còn lại đốt; ăn ngoài đường: toàn bộ đốt;
+  //    ăn tại quán nhà mình: miễn phí (chủ không tự trả tiền cho mình).
+  //  - CHECKIN_TIEN chỉ thưởng 1 lần/ngày/landmark/người (xem
+  //    applyCheckinMoney): lần sau trong ngày chỉ +điểm, không +tiền.
+  //  - SHIPPER_DAILY_FULL: 5 đơn/ngày thưởng đầy đủ, từ đơn thứ 6 chỉ
+  //    +điểm (SHIPPER_DIEM), không +tiền (xem applyShipperPayout).
+  //    P2 sẽ nâng SHIPPER_DIEM lên 20 khi điểm thành tiền tệ uy tín
+  //    lưu bền; P1 để 10 vì điểm vẫn chỉ sống trong RAM phiên chơi.
+  var ACTION_COSTS = { an: 3000, cafe: 2000, mua: 5000, muasam: 4000 };
+  var ACTION_COST_NAMES = { an: 'ăn hủ tiếu', cafe: 'uống cà phê vợt', mua: 'mua lồng đèn', muasam: 'mua sắm' };
+  var SHIPPER_DAILY_FULL = 5;
+  var SHIPPER_DIEM = 10;
   // Shipper Chợ Lớn & Đoàn Lân (v1.5):
   //  - Đổi đơn vị: 1 đơn vị game ≈ 1 / SCALE_DEFAULT mét (≈ 14,35m).
   //    Nhiệm vụ shipper chọn điểm cách người chơi 150–400m thật, tức
@@ -194,6 +214,54 @@
   function canGrantShopIncome(lastAt, now) {
     if (!isFiniteNumber(lastAt)) return true;
     return (now - lastAt) >= SHOP_INCOME_COOLDOWN_MS;
+  }
+  // Ngày Berlin (Europe/Berlin) dạng YYYY-MM-DD cho các giới hạn theo
+  // ngày (check-in, shipper). Dùng Intl để tự xử CET (+1) / CEST (+2);
+  // nếu Intl trả về định dạng lạ thì rơi về ngày UTC (không bao giờ
+  // throw — luật ngày không được làm sập giao dịch).
+  function berlinDayKey(nowMs) {
+    try {
+      var s = new Date(nowMs).toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' });
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    } catch (e) {}
+    return new Date(nowMs).toISOString().slice(0, 10);
+  }
+  function actionCost(type) {
+    return ACTION_COSTS[type] || 0;
+  }
+  function actionCostName(type) {
+    return ACTION_COST_NAMES[type] || type;
+  }
+  function isShielded(shieldUntil, nowMs) {
+    return (Number(shieldUntil) || 0) > (Number(nowMs) || 0);
+  }
+  function shieldRemainingHours(shieldUntil, nowMs) {
+    var left = (Number(shieldUntil) || 0) - (Number(nowMs) || 0);
+    if (left <= 0) return 0;
+    return Math.ceil(left / (60 * 60 * 1000));
+  }
+  // Tiền check-in theo ngày: record là object { tên landmark: 'YYYY-MM-DD' }
+  // (tối đa 11 key, không phình). Trả về tiền thưởng (CHECKIN_TIEN hoặc 0)
+  // và ghi mốc ngày khi có thưởng. Hàm thuần theo dayKey truyền vào nên
+  // test được mà không cần giả lập đồng hồ. Caller phải đảm bảo record
+  // đã là object thuộc về ví (không truyền undefined — nếu không mốc
+  // ngày sẽ ghi vào object tạm rồi mất).
+  function applyCheckinMoney(record, landmarkName, dayKey) {
+    var rec = record && typeof record === 'object' ? record : {};
+    if (rec[landmarkName] === dayKey) return 0;
+    rec[landmarkName] = dayKey;
+    return CHECKIN_TIEN;
+  }
+  // Thưởng shipper theo ngày: record là { day, count } (số đơn đã nhận
+  // tiền trong ngày). Trả về { money, capped } và cập nhật count khi có
+  // thưởng. Đơn vượt trần vẫn hoàn thành bình thường, chỉ không +tiền.
+  // Caller phải đảm bảo record đã là object thuộc về ví (như trên).
+  function applyShipperPayout(record, dayKey, reward) {
+    var rec = record && typeof record === 'object' ? record : {};
+    if (rec.day !== dayKey) { rec.day = dayKey; rec.count = 0; }
+    if ((Number(rec.count) || 0) >= SHIPPER_DAILY_FULL) return { money: 0, capped: true };
+    rec.count = (Number(rec.count) || 0) + 1;
+    return { money: reward, capped: false };
   }
   function rankLandlords(roomPlayers, economyPlayers, houses) {
     var byOwner = {};
@@ -556,6 +624,9 @@
         if (h.paid !== undefined && h.paid !== null && (!isFiniteNumber(h.paid) || h.paid < 0)) {
           errors.push('Sổ nhà ' + k + ' có tiền gốc không hợp lệ.');
         }
+        if (h.shieldUntil !== undefined && h.shieldUntil !== null && (!isFiniteNumber(h.shieldUntil) || h.shieldUntil < 0)) {
+          errors.push('Sổ nhà ' + k + ' có mốc niêm phong không hợp lệ.');
+        }
       });
     }
     if (data.incomeCooldown !== undefined && (typeof data.incomeCooldown !== 'object' || data.incomeCooldown === null || Array.isArray(data.incomeCooldown))) {
@@ -592,6 +663,11 @@
     SHOP_INCOME_ACTIONS: SHOP_INCOME_ACTIONS,
     TAKEOVER_RATE: TAKEOVER_RATE,
     TAKEOVER_PAYOUT_RATE: TAKEOVER_PAYOUT_RATE,
+    TAKEOVER_SHIELD_MS: TAKEOVER_SHIELD_MS,
+    ACTION_COSTS: ACTION_COSTS,
+    ACTION_COST_NAMES: ACTION_COST_NAMES,
+    SHIPPER_DAILY_FULL: SHIPPER_DAILY_FULL,
+    SHIPPER_DIEM: SHIPPER_DIEM,
     SHIPPER_MIN_M: SHIPPER_MIN_M,
     SHIPPER_MAX_M: SHIPPER_MAX_M,
     SHIPPER_TIME_MS: SHIPPER_TIME_MS,
@@ -634,6 +710,13 @@
     takeoverPayout: takeoverPayout,
     shopLabel: shopLabel,
     canGrantShopIncome: canGrantShopIncome,
+    berlinDayKey: berlinDayKey,
+    actionCost: actionCost,
+    actionCostName: actionCostName,
+    isShielded: isShielded,
+    shieldRemainingHours: shieldRemainingHours,
+    applyCheckinMoney: applyCheckinMoney,
+    applyShipperPayout: applyShipperPayout,
     rankLandlords: rankLandlords,
     unitsToMeters: unitsToMeters,
     metersToUnits: metersToUnits,

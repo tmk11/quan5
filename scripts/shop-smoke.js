@@ -1,8 +1,8 @@
 // Test tích hợp Shophouse & Takeover (v1.4): chạy server thật trong thư
 // mục tạm (không chạm economy.json thật), rồi gọi API thật qua HTTP để
 // kiểm tra toàn bộ luồng: mua nhà → chọn biển → khách ghé ăn (doanh thu
-// + buff + feed) → cooldown doanh thu → mua lại (+25%, chủ cũ +15%, đốt
-// 10%) → bảng Top Địa Chủ → mua trùng / mua lại sai → race 2 người mua
+// + buff + feed) → cooldown doanh thu → mua lại (+25%, chủ cũ nhận đúng tiền gốc, đốt
+// 25%) → bảng Top Địa Chủ → mua trùng / mua lại sai → race 2 người mua
 // cùng lúc và 2 người mua lại cùng lúc (chỉ 1 người thắng).
 // Chạy bằng: node scripts/shop-smoke.js
 // Thoát 0 khi mọi kiểm tra pass, thoát 1 và in rõ kiểm tra nào fail.
@@ -165,7 +165,7 @@ async function main() {
     const ownerAfter = st.json.players.find((p) => p.name === 'ChuQuan');
     assert(ownerAfter.tien === 100000 - cheapPrice + 2000, 'sau các lần không tính tiền, chủ vẫn chỉ có ' + (100000 - cheapPrice + 2000) + ', nhận ' + ownerAfter.tien);
 
-    // Mua lại: giá +25%, chủ cũ +15%, biển giữ nguyên, nhà chính đổi chủ.
+    // Mua lại: giá +25%, chủ cũ nhận đúng tiền gốc (v1.9), biển giữ nguyên, nhà chính đổi chủ.
     currentStep = 'mua lại';
     const newPrice = S.takeoverPrice(cheapPrice);
     const payout = S.takeoverPayout(cheapPrice);
@@ -268,7 +268,7 @@ async function main() {
     const takeWinner = takeA.status === 200 ? 'TakeA' : 'TakeB';
     assert(st.json.houses[target.id].ownerName === takeWinner, 'chủ nhà race mua lại phải là người thắng');
 
-    console.log('SHOP SMOKE PASS: mua → biển → doanh thu → cooldown → mua lại → bảng → race đều đúng, nhà test=' + cheap.id + ', giá=' + cheapPrice + ', giá mua lại=' + newPrice + ', tiền lời chủ cũ=' + payout);
+    console.log('SHOP SMOKE PASS: mua → biển → doanh thu → cooldown → mua lại → bảng → race đều đúng, nhà test=' + cheap.id + ', giá=' + cheapPrice + ', giá mua lại=' + newPrice + ', tiền trả chủ cũ=' + payout);
   } finally {
     if (child) {
       const exited = new Promise((resolve) => {

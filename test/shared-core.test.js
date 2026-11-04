@@ -99,15 +99,69 @@ test('validateEconomy: ví âm tiền và sổ nhà thiếu owner bị bắt', (
   assert.equal(S.validateEconomy(fromJson).ok, false);
 });
 
-test('shophouse v1.4: giá mua lại, tiền lời chủ cũ, đốt 10%', () => {
+test('shophouse v1.4/v1.9: giá mua lại, chủ cũ nhận đúng tiền gốc, đốt 25%', () => {
   assert.equal(S.takeoverPrice(42000), 53000);
   assert.equal(S.takeoverPrice(56000), 70000);
-  assert.equal(S.takeoverPayout(42000), 48000);
-  // 56.000đ × 1,15 = 64.400đ, làm tròn về nghìn thành 64.000đ.
-  assert.equal(S.takeoverPayout(56000), 64000);
-  // Mua lại 42.000đ: người mua trả 53.000đ, chủ cũ nhận 48.000đ, đốt 5.000đ
-  // (10% lý thuyết là 4.200đ, chênh 800đ do làm tròn về nghìn hai đầu).
-  assert.equal(S.takeoverPrice(42000) - S.takeoverPayout(42000), 5000);
+  // v1.9: không còn +15% lời — chủ cũ nhận đúng tiền gốc lúc mua.
+  assert.equal(S.takeoverPayout(42000), 42000);
+  assert.equal(S.takeoverPayout(56000), 56000);
+  // Mua lại 42.000đ: người mua trả 53.000đ, chủ cũ nhận 42.000đ, đốt 11.000đ.
+  assert.equal(S.takeoverPrice(42000) - S.takeoverPayout(42000), 11000);
+});
+
+test('cân bằng v1.9: ngày Berlin (CET/CEST)', () => {
+  assert.equal(S.berlinDayKey(Date.parse('2026-01-15T23:30:00Z')), '2026-01-16');
+  assert.equal(S.berlinDayKey(Date.parse('2026-07-15T22:30:00Z')), '2026-07-16');
+  assert.equal(S.berlinDayKey(Date.parse('2026-07-15T10:00:00Z')), '2026-07-15');
+});
+
+test('cân bằng v1.9: giá hành động', () => {
+  assert.equal(S.actionCost('an'), 3000);
+  assert.equal(S.actionCost('cafe'), 2000);
+  assert.equal(S.actionCost('mua'), 5000);
+  assert.equal(S.actionCost('muasam'), 4000);
+  assert.equal(S.actionCost('chao'), 0);
+  assert.equal(S.actionCost('chup'), 0);
+  assert.equal(S.actionCost('checkin'), 0);
+  assert.equal(S.actionCost('buoi'), 0);
+  assert.equal(S.actionCostName('an'), 'ăn hủ tiếu');
+  assert.equal(S.actionCostName('cafe'), 'uống cà phê vợt');
+});
+
+test('cân bằng v1.9: niêm phong takeover', () => {
+  const now = Date.now();
+  assert.equal(S.isShielded(now + 3600000, now), true);
+  assert.equal(S.isShielded(now - 1000, now), false);
+  assert.equal(S.isShielded(0, now), false);
+  assert.equal(S.isShielded(undefined, now), false);
+  assert.equal(S.shieldRemainingHours(now + 3600000, now), 1);
+  assert.equal(S.shieldRemainingHours(now + 3600001, now), 2);
+  assert.equal(S.shieldRemainingHours(now - 1, now), 0);
+  assert.equal(S.TAKEOVER_SHIELD_MS, 24 * 60 * 60 * 1000);
+});
+
+test('cân bằng v1.9: tiền check-in 1 lần/ngày/landmark', () => {
+  const rec = {};
+  assert.equal(S.applyCheckinMoney(rec, 'Chợ An Đông', '2026-11-05'), 5000);
+  assert.equal(S.applyCheckinMoney(rec, 'Chợ An Đông', '2026-11-05'), 0);
+  assert.equal(S.applyCheckinMoney(rec, 'Chợ Bình Tây', '2026-11-05'), 5000);
+  assert.equal(S.applyCheckinMoney(rec, 'Chợ An Đông', '2026-11-06'), 5000);
+  assert.deepEqual(rec, { 'Chợ An Đông': '2026-11-06', 'Chợ Bình Tây': '2026-11-05' });
+});
+
+test('cân bằng v1.9: trần shipper 5 đơn/ngày', () => {
+  const rec = { day: '', count: 0 };
+  for (let i = 0; i < 5; i++) {
+    const r = S.applyShipperPayout(rec, '2026-11-05', 12000);
+    assert.equal(r.money, 12000);
+    assert.equal(r.capped, false);
+  }
+  const capped = S.applyShipperPayout(rec, '2026-11-05', 12000);
+  assert.equal(capped.money, 0);
+  assert.equal(capped.capped, true);
+  const next = S.applyShipperPayout(rec, '2026-11-06', 12000);
+  assert.equal(next.money, 12000);
+  assert.equal(next.capped, false);
 });
 
 test('shophouse v1.4: biển hiệu và fallback quán khi chưa chọn', () => {
