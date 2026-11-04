@@ -66,10 +66,13 @@ function requireBodyObject(body) {
   return requireOrThrow(S.validateBodyObject(body));
 }
 function requireHouseAction(raw) {
-  if (raw !== 'buy' && raw !== 'sell' && raw !== 'sethome') {
-    throw badRequest('Hành động nhà không hợp lệ: chỉ nhận buy, sell, sethome.');
+  if (raw !== 'buy' && raw !== 'sell' && raw !== 'sethome' && raw !== 'takeover' && raw !== 'shop') {
+    throw badRequest('Hành động nhà không hợp lệ: chỉ nhận buy, sell, sethome, takeover, shop.');
   }
   return raw;
+}
+function requireShopType(raw) {
+  return requireOrThrow(S.validateShopType(raw));
 }
 function requireNonEmptyString(raw, label) {
   if (typeof raw !== 'string' || raw.trim().length === 0) {
@@ -92,5 +95,6 @@ module.exports = {
   requireCoordinate,
   requireBodyObject,
   requireHouseAction,
+  requireShopType,
   requireNonEmptyString
 };

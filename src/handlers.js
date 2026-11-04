@@ -105,7 +105,8 @@ async function handleJoin(req, res, ctx) {
       diem: 0,
       checkin: 0,
       deviceId,
-      lastSeen: Date.now()
+      lastSeen: Date.now(),
+      buffUntil: 0
     };
     room.players.set(player.id, player);
     ctx.roomStore.touch(room);
@@ -213,7 +214,103 @@ async function handleAction(req, res, ctx) {
   if (type === 'buoi') {
     room.buoi = buoiValue;
   }
+  // Kinh doanh Shophouse: khách (không phải chủ) đứng trong bán kính giao
+  // dịch nhà (boxDistance từ mép nhà, cùng hàm với mua/bán) và bấm Ăn /
+  // Cà phê / Mua sắm thì luôn được buff tốc độ 30 giây; tiền doanh thu
+  // 2.000đ cho chủ nhà thì chỉ tính 1 lần / 60 giây / khách / nhà (chống
+  // farm bằng cách bấm liên tục, cooldown lưu bền trong economy.json nên
+  // vào lại phòng cũng không reset). Nhà nào gần nhất trong số nhà của
+  // người khác được chọn (nhà của chính khách thì bỏ qua, không tự in tiền).
+  const now = Date.now();
+  let shopIncome = null;
+  let grantBuff = false;
+  if (S.SHOP_INCOME_ACTIONS.indexOf(type) !== -1) {
+    let best = null, bestD = Infinity;
+    for (const id of Object.keys(ctx.economyStore.houses)) {
+      const rec = ctx.economyStore.houses[id];
+      if (!rec || rec.owner === player.deviceId) continue;
+      const found = ctx.mapStore.findHouse(id);
+      if (!found) continue;
+      const d = S.boxDistance(player.x, player.z, found.building);
+      if (d <= S.HOUSE_SERVER_MAX_DISTANCE && d < bestD) {
+        bestD = d;
+        best = { id, rec };
+      }
+    }
+    if (best) {
+      grantBuff = true;
+      const key = player.deviceId + ':' + best.id;
+      if (S.canGrantShopIncome(ctx.economyStore.incomeCooldown[key], now)) {
+        shopIncome = {
+          houseId: best.id,
+          owner: best.rec.owner,
+          ownerName: best.rec.ownerName || '',
+          shopType: best.rec.shopType || null,
+          amount: S.SHOP_INCOME,
+          cooldownKey: key
+        };
+      }
+    }
+  }
+  if (shopIncome) {
+    // Giao dịch có tiền: snapshot + lưu đồng bộ như check-in, lưu hỏng
+    // thì rollback toàn bộ (điểm, buff, tiền chủ, mốc cooldown) và trả lỗi.
+    const snap = ctx.economyStore.snapshot();
+    const oldDiem = player.diem;
+    const oldBuff = player.buffUntil || 0;
+    try {
+      player.diem += spec.diem || 0;
+      player.buffUntil = now + S.SHOP_BUFF_MS;
+      player.lastSeen = now;
+      let visitorEcon = ctx.economyStore.players[player.deviceId];
+      if (!visitorEcon) {
+        visitorEcon = ctx.economyStore.getOrCreatePlayer(player.deviceId, player.name).record;
+      }
+      let ownerEcon = ctx.economyStore.players[shopIncome.owner];
+      if (!ownerEcon) {
+        ownerEcon = ctx.economyStore.getOrCreatePlayer(shopIncome.owner, shopIncome.ownerName).record;
+      }
+      ownerEcon.tien = (Number(ownerEcon.tien) || 0) + S.SHOP_INCOME;
+      ctx.economyStore.incomeCooldown[shopIncome.cooldownKey] = now;
+      ctx.economyStore.save();
+      ctx.roomStore.pushEvent(room, {
+        playerId: player.id,
+        name: player.name,
+        type,
+        message: player.name + ' ' + spec.message
+      });
+      ctx.roomStore.pushEvent(room, {
+        playerId: player.id,
+        name: player.name,
+        type: 'shop',
+        message: player.name + ' vừa ghé ' + S.shopLabel(shopIncome.shopType) + ' của ' + shopIncome.ownerName + ' ủng hộ ' + S.fmtMoney(S.SHOP_INCOME) + '!'
+      });
+      sendJson(res, 200, {
+        ok: true,
+        diem: player.diem,
+        checkin: player.checkin,
+        buoi: room.buoi,
+        tien: visitorEcon.tien,
+        buffUntil: player.buffUntil,
+        shopIncome: {
+          houseId: shopIncome.houseId,
+          ownerName: shopIncome.ownerName,
+          shopLabel: S.shopLabel(shopIncome.shopType),
+          amount: S.SHOP_INCOME
+        }
+      });
+    } catch (e) {
+      ctx.economyStore.restore(snap);
+      player.diem = oldDiem;
+      player.buffUntil = oldBuff;
+      throw e;
+    }
+    return;
+  }
   player.diem += spec.diem || 0;
+  if (grantBuff) {
+    player.buffUntil = now + S.SHOP_BUFF_MS;
+  }
   player.lastSeen = Date.now();
   ctx.roomStore.pushEvent(room, {
     playerId: player.id,
@@ -239,7 +336,8 @@ async function handleAction(req, res, ctx) {
     diem: player.diem,
     checkin: player.checkin,
     buoi: room.buoi,
-    tien: econ.tien
+    tien: econ.tien,
+    buffUntil: player.buffUntil || 0
   });
 }
 
@@ -249,6 +347,10 @@ async function handleHouse(req, res, ctx) {
   const roomCode = V.requireRoomCode(body.room);
   const action = V.requireHouseAction(body.action);
   const houseId = V.requireHouseId(body.houseId);
+  let shopType = null;
+  if (action === 'shop') {
+    shopType = V.requireShopType(body.shopType);
+  }
   const { room, player } = getSession(ctx.roomStore, roomCode, body.playerId);
   ctx.actionLimiter.checkAction(player.id);
 
@@ -293,7 +395,9 @@ async function handleHouse(req, res, ctx) {
       ctx.economyStore.houses[houseId] = {
         owner: player.deviceId,
         ownerName: player.name,
-        price: found.price
+        price: found.price,
+        paid: found.price,
+        shopType: null
       };
       ctx.economyStore.save();
       ctx.roomStore.pushEvent(room, {
@@ -302,7 +406,72 @@ async function handleHouse(req, res, ctx) {
         type: 'house',
         message: player.name + ' đã mua ' + label + ' (' + S.fmtMoney(found.price) + ') và dọn vào ở'
       });
-      sendJson(res, 200, { ok: true, tien: econ.tien, home: houseId, houseId, price: found.price });
+      sendJson(res, 200, { ok: true, tien: econ.tien, home: houseId, houseId, price: found.price, shopType: null });
+      return;
+    }
+    if (action === 'takeover') {
+      // Mua lại (thâu tóm): chỉ nhà đã có chủ của người khác mới mua lại
+      // được. Người mua trả giá hiện tại +25%, chủ cũ nhận lại tiền gốc
+      // lúc mua +15% lời (trả thẳng vào ví economy.json nên offline cũng
+      // nhận được), 10% còn lại đốt khỏi hệ thống (không trả cho ai).
+      // Biển hiệu giữ nguyên của chủ cũ, chủ mới đổi miễn phí sau nếu muốn.
+      // Chống race: toàn bộ khối kiểm tra → đổi → lưu là đồng bộ, không
+      // có await ở giữa, nên hai request cùng lúc không thể cùng đọc giá
+      // cũ rồi cùng trả success — request thứ hai chạy sau sẽ thấy giá
+      // mới (tăng 25%) và chủ mới, và thường sẽ rớt vì không đủ tiền cho
+      // giá mới hoặc vì nhà đã đổi chủ.
+      const rec = ctx.economyStore.houses[houseId];
+      if (!rec) {
+        throw badRequest('Nhà này chưa có chủ, bấm Mua nhà thay vì Mua lại.');
+      }
+      if (rec.owner === player.deviceId) {
+        throw badRequest('Đây là nhà của bạn, không mua lại chính mình được.');
+      }
+      const newPrice = S.takeoverPrice(rec.price);
+      if ((Number(econ.tien) || 0) < newPrice) {
+        throw badRequest(
+          'Không đủ tiền mua lại. Giá mua lại là ' + S.fmtMoney(newPrice) + ' (giá hiện tại ' + S.fmtMoney(rec.price) + ' +25%), bạn có ' + S.fmtMoney(econ.tien) + '.'
+        );
+      }
+      const oldOwnerName = rec.ownerName || '';
+      const oldPaid = Number(rec.paid) || rec.price;
+      const payout = S.takeoverPayout(oldPaid);
+      const keptShop = rec.shopType || null;
+      econ.tien -= newPrice;
+      econ.home = houseId;
+      let oldEcon = ctx.economyStore.players[rec.owner];
+      if (!oldEcon) {
+        oldEcon = ctx.economyStore.getOrCreatePlayer(rec.owner, oldOwnerName).record;
+      }
+      oldEcon.tien = (Number(oldEcon.tien) || 0) + payout;
+      if (oldEcon.home === houseId) {
+        oldEcon.home = null;
+      }
+      ctx.economyStore.houses[houseId] = {
+        owner: player.deviceId,
+        ownerName: player.name,
+        price: newPrice,
+        paid: newPrice,
+        shopType: keptShop
+      };
+      ctx.economyStore.save();
+      ctx.roomStore.pushEvent(room, {
+        playerId: player.id,
+        name: player.name,
+        type: 'house',
+        message: player.name + ' đã mua lại ' + label + ' của ' + oldOwnerName + ' với ' + S.fmtMoney(newPrice) + ' (giá tăng 25%)! ' + oldOwnerName + ' nhận lại ' + S.fmtMoney(payout) + ' (gốc + 15% lời).'
+      });
+      sendJson(res, 200, { ok: true, tien: econ.tien, home: houseId, houseId, price: newPrice, payout, oldOwner: oldOwnerName, shopType: keptShop });
+      return;
+    }
+    if (action === 'shop') {
+      const rec = ctx.economyStore.houses[houseId];
+      if (!rec || rec.owner !== player.deviceId) {
+        throw badRequest('Bạn không phải chủ nhà này nên không chọn biển hiệu được.');
+      }
+      rec.shopType = shopType;
+      ctx.economyStore.save();
+      sendJson(res, 200, { ok: true, tien: econ.tien, home: econ.home, houseId, shopType });
       return;
     }
     if (action === 'sell') {
@@ -353,7 +522,7 @@ async function handleState(req, res, ctx, query) {
     console.error('[' + new Date().toISOString() + '] Dọn nhà mồ côi khi state thất bại khi lưu: ' + cleanup.saveError);
   }
   if (!room) {
-    sendJson(res, 200, { players: [], events: [], buoi: 'sang', houses: ctx.economyStore.houses });
+    sendJson(res, 200, { players: [], events: [], buoi: 'sang', houses: ctx.economyStore.houses, leaderboard: [] });
     return;
   }
   ctx.roomStore.prune(room);
@@ -367,7 +536,8 @@ async function handleState(req, res, ctx, query) {
     players,
     events: room.events.slice(-S.MAX_EVENTS),
     buoi: room.buoi,
-    houses: ctx.economyStore.houses
+    houses: ctx.economyStore.houses,
+    leaderboard: S.rankLandlords([...room.players.values()], ctx.economyStore.players, ctx.economyStore.houses)
   });
 }
 

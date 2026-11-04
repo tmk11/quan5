@@ -98,3 +98,65 @@ test('validateEconomy: ví âm tiền và sổ nhà thiếu owner bị bắt', (
   assert.equal(Object.keys(fromJson.players).includes('__proto__'), true);
   assert.equal(S.validateEconomy(fromJson).ok, false);
 });
+
+test('shophouse v1.4: giá mua lại, tiền lời chủ cũ, đốt 10%', () => {
+  assert.equal(S.takeoverPrice(42000), 53000);
+  assert.equal(S.takeoverPrice(56000), 70000);
+  assert.equal(S.takeoverPayout(42000), 48000);
+  // 56.000đ × 1,15 = 64.400đ, làm tròn về nghìn thành 64.000đ.
+  assert.equal(S.takeoverPayout(56000), 64000);
+  // Mua lại 42.000đ: người mua trả 53.000đ, chủ cũ nhận 48.000đ, đốt 5.000đ
+  // (10% lý thuyết là 4.200đ, chênh 800đ do làm tròn về nghìn hai đầu).
+  assert.equal(S.takeoverPrice(42000) - S.takeoverPayout(42000), 5000);
+});
+
+test('shophouse v1.4: biển hiệu và fallback quán khi chưa chọn', () => {
+  assert.equal(S.shopLabel('vitquay'), '🦆 Tiệm Vịt Quay');
+  assert.equal(S.shopLabel('che'), '🥣 Quán Chè Chợ Lớn');
+  assert.equal(S.shopLabel('tiemvang'), '🪙 Tiệm Vàng');
+  assert.equal(S.shopLabel('thuocbac'), '🌿 Tiệm Thuốc Bắc');
+  assert.equal(S.shopLabel(null), 'quán');
+  assert.equal(S.shopLabel('pho'), 'quán');
+  assert.equal(S.validateShopType('vitquay').ok, true);
+  assert.equal(S.validateShopType('pho').ok, false);
+  assert.equal(S.validateShopType(null).ok, false);
+});
+
+test('shophouse v1.4: cooldown doanh thu 60 giây / khách / nhà', () => {
+  assert.equal(S.canGrantShopIncome(undefined, 100000), true);
+  assert.equal(S.canGrantShopIncome(100000, 130000), false);
+  assert.equal(S.canGrantShopIncome(100000, 159999), false);
+  assert.equal(S.canGrantShopIncome(100000, 160000), true);
+  assert.deepEqual(S.SHOP_INCOME_ACTIONS, ['an', 'cafe', 'muasam']);
+  assert.equal(S.SHOP_INCOME, 2000);
+  assert.equal(S.SHOP_BUFF_MS, 30000);
+});
+
+test('shophouse v1.4: bảng Top Địa Chủ chỉ tính người trong phòng, hòa thì tên trước', () => {
+  const room = [
+    { deviceId: 'd1', name: 'ChuQuan' },
+    { deviceId: 'd2', name: 'KhachGhe' },
+    { deviceId: 'd3', name: 'NguoiMuaLai' }
+  ];
+  const players = { d1: { tien: 108000 }, d2: { tien: 100000 }, d3: { tien: 47000 } };
+  const houses = {
+    h1: { owner: 'd3', price: 53000 },
+    // d4 giàu nhất thành phố (999.000đ nhà) nhưng không trong phòng.
+    h2: { owner: 'd4', price: 999000 }
+  };
+  const top = S.rankLandlords(room, players, houses);
+  assert.equal(top.length, 3);
+  assert.equal(top[0].name, 'ChuQuan');
+  assert.equal(top[0].wealth, 108000);
+  // d2 và d3 cùng 100.000đ, tên KhachGhe trước NguoiMuaLai.
+  assert.equal(top[1].name, 'KhachGhe');
+  assert.equal(top[2].name, 'NguoiMuaLai');
+  assert.equal(top[2].houseCount, 1);
+  // d4 giàu nhất thành phố nhưng không trong phòng thì không lên bảng.
+  assert.equal(top.some((r) => r.name === 'NguoiNgoai'), false);
+  // Top 5: 6 người trong phòng thì chỉ lấy 5.
+  const many = Array.from({ length: 6 }, (_, i) => ({ deviceId: 'x' + i, name: 'P' + i }));
+  const manyPlayers = {};
+  many.forEach((p, i) => { manyPlayers[p.deviceId] = { tien: (6 - i) * 1000 }; });
+  assert.equal(S.rankLandlords(many, manyPlayers, {}).length, 5);
+});

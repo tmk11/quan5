@@ -74,6 +74,32 @@ function textSprite(text, scale, bg) {
   sp.scale.set(scale || 8, scale * 96 / 512 || 1.5, 1);
   return sp;
 }
+// Nhãn nhà 2 dòng cho shophouse: dòng 1 là biển hiệu (icon + tên quán),
+// dòng 2 là "Nhà của <chủ>". Canvas cao hơn textSprite 1 dòng (160 thay
+// vì 96) để hai dòng không bị dồn, tỉ lệ sprite giữ đúng tỉ lệ canvas.
+// textSprite cũ không đổi (dùng cho BÁN, tên đường, chữ bay 1 dòng).
+function houseLabelSprite(signText, ownerName) {
+  var cv = document.createElement('canvas');
+  cv.width = 512;
+  cv.height = 160;
+  var ctx = cv.getContext('2d');
+  ctx.fillStyle = 'rgba(30,25,18,0.72)';
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(6, 10, 500, 140, 22); else ctx.rect(6, 10, 500, 140);
+  ctx.fill();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#ffd54f';
+  ctx.font = '700 36px system-ui, sans-serif';
+  ctx.fillText(signText, 256, 52);
+  ctx.fillStyle = '#fff3d6';
+  ctx.font = '700 34px system-ui, sans-serif';
+  ctx.fillText('Nhà của ' + ownerName, 256, 108);
+  var tex = new THREE.CanvasTexture(cv);
+  var sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+  sp.scale.set(6, 6 * 160 / 512, 1);
+  return sp;
+}
 function nameSprite(name) {
   var cv = document.createElement('canvas');
   cv.width = 512;

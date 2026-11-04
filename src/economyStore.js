@@ -39,7 +39,30 @@ class EconomyStore {
     this.tmpPath = path.join(dir, base + '.tmp');
     this.players = Object.create(null);
     this.houses = Object.create(null);
+    this.incomeCooldown = Object.create(null);
     this.lastCleanupMapMtime = -1;
+  }
+
+  // Chuẩn hóa sổ nhà cũ (trước v1.4 chưa có shopType/paid) và mốc cooldown:
+  // nhà cũ chưa có biển thì shopType null, tiền gốc mặc định bằng giá hiện
+  // tại (đúng theo bất biến: tiền gốc của chủ hiện tại = giá lúc mua, và
+  // giá hiện tại được đặt bằng đúng số tiền đó ở lần mua/mua lại gần nhất).
+  normalizeEconomy(parsed) {
+    const houses = parsed.houses || {};
+    for (const id of Object.keys(houses)) {
+      const h = houses[id];
+      if (!h || typeof h !== 'object') continue;
+      if (h.shopType === undefined || (h.shopType !== null && !S.SHOP_TYPES[h.shopType])) {
+        h.shopType = null;
+      }
+      if (h.paid === undefined || h.paid === null || !Number.isFinite(h.paid) || h.paid < 0) {
+        h.paid = h.price;
+      }
+    }
+    if (parsed.incomeCooldown === undefined || parsed.incomeCooldown === null || typeof parsed.incomeCooldown !== 'object' || Array.isArray(parsed.incomeCooldown)) {
+      parsed.incomeCooldown = {};
+    }
+    return parsed;
   }
 
   load() {
@@ -59,6 +82,7 @@ class EconomyStore {
       if (e.code === 'ENOENT') {
         this.players = Object.create(null);
         this.houses = Object.create(null);
+        this.incomeCooldown = Object.create(null);
         console.error(
           '[' + new Date().toISOString() + '] Chưa có file ' + this.economyPath +
           ', bắt đầu với sổ kinh tế trống.'
@@ -96,14 +120,17 @@ class EconomyStore {
       }
       this.players = toNullProto(parsed.players || {});
       this.houses = toNullProto(parsed.houses || {});
+      this.incomeCooldown = toNullProto(this.normalizeEconomy(parsed).incomeCooldown || {});
       return {
         players: Object.keys(this.players).length,
         houses: Object.keys(this.houses).length,
         restoredFromBackup: true
       };
     }
+    parsed = this.normalizeEconomy(parsed);
     this.players = toNullProto(parsed.players || {});
     this.houses = toNullProto(parsed.houses || {});
+    this.incomeCooldown = toNullProto(parsed.incomeCooldown || {});
     return {
       players: Object.keys(this.players).length,
       houses: Object.keys(this.houses).length,
@@ -114,16 +141,27 @@ class EconomyStore {
   snapshot() {
     return {
       players: cloneJson(this.players),
-      houses: cloneJson(this.houses)
+      houses: cloneJson(this.houses),
+      incomeCooldown: cloneJson(this.incomeCooldown)
     };
   }
   restore(snap) {
     this.players = toNullProto(snap.players);
     this.houses = toNullProto(snap.houses);
+    this.incomeCooldown = toNullProto(snap.incomeCooldown || {});
   }
 
   save() {
-    const payload = JSON.stringify({ players: this.players, houses: this.houses });
+    // Dọn mốc cooldown đã hết hạn trước khi ghi, để map không phình vô
+    // hạn theo số lượt ghé quán (mốc hết hạn thì lần ghé sau được tính
+    // tiền lại anyway, xóa đi không đổi luật, chỉ gọn file).
+    const now = Date.now();
+    for (const key of Object.keys(this.incomeCooldown)) {
+      if (!Number.isFinite(this.incomeCooldown[key]) || now - this.incomeCooldown[key] > S.SHOP_INCOME_COOLDOWN_MS) {
+        delete this.incomeCooldown[key];
+      }
+    }
+    const payload = JSON.stringify({ players: this.players, houses: this.houses, incomeCooldown: this.incomeCooldown });
     try {
       // Xoay backup: bak -> bak.1, file hiện tại -> bak, rồi mới ghi mới.
       if (fs.existsSync(this.bakPath)) {

@@ -32,6 +32,38 @@
   var START_TIEN = 100000;
   var CHECKIN_TIEN = 5000;
   var SELL_RATE = 0.8;
+  // Kinh doanh Shophouse & Thâu tóm (v1.4):
+  //  - SHOP_TYPES: 4 biển hiệu chủ nhà được chọn, đổi miễn phí khi còn
+  //    là chủ. shopType null = chưa chọn biển (nhà vẫn có chủ, vẫn nhận
+  //    doanh thu, chỉ chưa hiện biển trên nhãn 3D và feed dùng chữ "quán").
+  //  - SHOP_INCOME: doanh thu mỗi lần khách ghé quán và bấm Ăn/Cà phê/
+  //    Mua sắm trong bán kính giao dịch nhà (HOUSE_SERVER_MAX_DISTANCE,
+  //    tính từ mép nhà bằng boxDistance, cùng hàm với mua/bán — không
+  //    thêm luật hình học mới). Khách khác chủ mới được tính tiền, khách
+  //    tự ghé nhà mình thì không tự in tiền.
+  //  - SHOP_INCOME_COOLDOWN_MS: chống farm — mỗi khách chỉ tạo doanh thu
+  //    cho một nhà tối đa 1 lần / 60 giây (lưu bền trong economy.json nên
+  //    vào lại phòng cũng không reset). Buff tốc độ thì không bị cooldown
+  //    này chặn: ghé quán là được buff, tiền thì 60 giây mới tính 1 lần.
+  //  - SHOP_BUFF_RATE / SHOP_BUFF_MS: buff tốc độ chạy của khách.
+  //  - TAKEOVER_RATE / TAKEOVER_PAYOUT_RATE: mua lại = giá hiện tại +25%,
+  //    chủ cũ nhận lại tiền gốc lúc mua +15% lời, 10% còn lại đốt khỏi
+  //    hệ thống (25 - 15 = 10, chênh lệch làm tròn tối đa 1.000đ vì giá
+  //    và tiền lời đều làm tròn về nghìn). Giá nhà sau mua lại = giá cũ
+  //    +25%, cũng làm tròn về nghìn như housePrice/sellRefund.
+  var SHOP_TYPES = {
+    vitquay: '🦆 Tiệm Vịt Quay',
+    che: '🥣 Quán Chè Chợ Lớn',
+    tiemvang: '🪙 Tiệm Vàng',
+    thuocbac: '🌿 Tiệm Thuốc Bắc'
+  };
+  var SHOP_INCOME = 2000;
+  var SHOP_INCOME_COOLDOWN_MS = 60 * 1000;
+  var SHOP_BUFF_RATE = 0.15;
+  var SHOP_BUFF_MS = 30 * 1000;
+  var SHOP_INCOME_ACTIONS = ['an', 'cafe', 'muasam'];
+  var TAKEOVER_RATE = 0.25;
+  var TAKEOVER_PAYOUT_RATE = 0.15;
   var CHECKIN_CLIENT_MAX_DISTANCE = 22;
   var CHECKIN_SERVER_MAX_DISTANCE = 30;
   var HOUSE_CLIENT_MAX_DISTANCE = 4;
@@ -124,6 +156,49 @@
   function sellRefund(price) {
     return Math.round((Number(price) || 0) * SELL_RATE / 1000) * 1000;
   }
+  function takeoverPrice(price) {
+    return Math.round((Number(price) || 0) * (1 + TAKEOVER_RATE) / 1000) * 1000;
+  }
+  function takeoverPayout(paid) {
+    return Math.round((Number(paid) || 0) * (1 + TAKEOVER_PAYOUT_RATE) / 1000) * 1000;
+  }
+  function shopLabel(shopType) {
+    return SHOP_TYPES[shopType] || 'quán';
+  }
+  function canGrantShopIncome(lastAt, now) {
+    if (!isFiniteNumber(lastAt)) return true;
+    return (now - lastAt) >= SHOP_INCOME_COOLDOWN_MS;
+  }
+  // Bảng Top Địa Chủ: xếp hạng người chơi ĐANG TRONG PHÒNG (session) theo
+  // tổng tài sản = tiền mặt + tổng giá nhà đang sở hữu (kinh tế thì toàn
+  // thành phố, nhưng bảng chỉ so trong phòng để chơi cùng nhau mới có ý
+  // nghĩa). Hòa tài sản thì tên trước thắng (xếp ổn định, không ngẫu nhiên).
+  function rankLandlords(roomPlayers, economyPlayers, houses) {
+    var byOwner = {};
+    Object.keys(houses || {}).forEach(function (id) {
+      var h = houses[id];
+      if (!h || typeof h.owner !== 'string') return;
+      if (!byOwner[h.owner]) byOwner[h.owner] = { wealth: 0, count: 0 };
+      byOwner[h.owner].wealth += Number(h.price) || 0;
+      byOwner[h.owner].count += 1;
+    });
+    var rows = (roomPlayers || []).map(function (p) {
+      var econ = economyPlayers ? economyPlayers[p.deviceId] : null;
+      var tien = econ ? (Number(econ.tien) || 0) : 0;
+      var own = byOwner[p.deviceId] || { wealth: 0, count: 0 };
+      return {
+        name: p.name || '',
+        tien: tien,
+        houseCount: own.count,
+        wealth: tien + own.wealth
+      };
+    });
+    rows.sort(function (a, b) {
+      if (b.wealth !== a.wealth) return b.wealth - a.wealth;
+      return a.name < b.name ? -1 : (a.name > b.name ? 1 : 0);
+    });
+    return rows.slice(0, 5);
+  }
   function fmtMoney(n) {
     var v = Math.round(Number(n) || 0);
     try {
@@ -212,6 +287,12 @@
   function validateHouseId(raw) {
     if (typeof raw !== 'string' || !HOUSE_ID_RE.test(raw)) {
       return fail('Mã nhà không hợp lệ.');
+    }
+    return ok(raw);
+  }
+  function validateShopType(raw) {
+    if (typeof raw !== 'string' || !SHOP_TYPES[raw]) {
+      return fail('Biển hiệu không hợp lệ: chỉ nhận vịt quay, chè, tiệm vàng, thuốc bắc.');
     }
     return ok(raw);
   }
@@ -375,6 +456,21 @@
         if (!isFiniteNumber(h.price) || h.price < 0) {
           errors.push('Sổ nhà ' + k + ' có giá không hợp lệ.');
         }
+        if (h.shopType !== undefined && h.shopType !== null && !SHOP_TYPES[h.shopType]) {
+          errors.push('Sổ nhà ' + k + ' có biển hiệu không hợp lệ.');
+        }
+        if (h.paid !== undefined && h.paid !== null && (!isFiniteNumber(h.paid) || h.paid < 0)) {
+          errors.push('Sổ nhà ' + k + ' có tiền gốc không hợp lệ.');
+        }
+      });
+    }
+    if (data.incomeCooldown !== undefined && (typeof data.incomeCooldown !== 'object' || data.incomeCooldown === null || Array.isArray(data.incomeCooldown))) {
+      errors.push('Dữ liệu kinh tế có incomeCooldown nhưng không phải là object.');
+    } else if (data.incomeCooldown) {
+      Object.keys(data.incomeCooldown).forEach(function (k) {
+        if (!isFiniteNumber(data.incomeCooldown[k]) || data.incomeCooldown[k] < 0) {
+          errors.push('Dữ liệu kinh tế có mốc cooldown doanh thu không hợp lệ: ' + k + '.');
+        }
       });
     }
     return { ok: errors.length === 0, errors: errors };
@@ -394,6 +490,14 @@
     START_TIEN: START_TIEN,
     CHECKIN_TIEN: CHECKIN_TIEN,
     SELL_RATE: SELL_RATE,
+    SHOP_TYPES: SHOP_TYPES,
+    SHOP_INCOME: SHOP_INCOME,
+    SHOP_INCOME_COOLDOWN_MS: SHOP_INCOME_COOLDOWN_MS,
+    SHOP_BUFF_RATE: SHOP_BUFF_RATE,
+    SHOP_BUFF_MS: SHOP_BUFF_MS,
+    SHOP_INCOME_ACTIONS: SHOP_INCOME_ACTIONS,
+    TAKEOVER_RATE: TAKEOVER_RATE,
+    TAKEOVER_PAYOUT_RATE: TAKEOVER_PAYOUT_RATE,
     CHECKIN_CLIENT_MAX_DISTANCE: CHECKIN_CLIENT_MAX_DISTANCE,
     CHECKIN_SERVER_MAX_DISTANCE: CHECKIN_SERVER_MAX_DISTANCE,
     HOUSE_CLIENT_MAX_DISTANCE: HOUSE_CLIENT_MAX_DISTANCE,
@@ -421,6 +525,11 @@
     roadWidthFromMeters: roadWidthFromMeters,
     housePrice: housePrice,
     sellRefund: sellRefund,
+    takeoverPrice: takeoverPrice,
+    takeoverPayout: takeoverPayout,
+    shopLabel: shopLabel,
+    canGrantShopIncome: canGrantShopIncome,
+    rankLandlords: rankLandlords,
     fmtMoney: fmtMoney,
     escapeHtml: escapeHtml,
     hashStr: hashStr,
@@ -430,6 +539,7 @@
     validateDeviceId: validateDeviceId,
     validatePlayerId: validatePlayerId,
     validateHouseId: validateHouseId,
+    validateShopType: validateShopType,
     validateActionType: validateActionType,
     validateBuoiValue: validateBuoiValue,
     validatePose: validatePose,

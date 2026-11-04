@@ -87,7 +87,8 @@ class RoomStore {
       diem: p.diem,
       checkin: p.checkin,
       tien: rec ? rec.tien : 0,
-      home: rec ? rec.home : null
+      home: rec ? rec.home : null,
+      buffUntil: p.buffUntil || 0
     };
   }
   summary() {

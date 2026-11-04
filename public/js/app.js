@@ -145,6 +145,7 @@ var deviceId = (function () {
   }
 })();
 var myTien = 0, myHome = null, lastHouses = {}, lastHousesJson = '';
+var myBuffUntil = 0, buffShown = false, lastLeaderboardJson = '';
 var myPos = { x: 25, z: -10, rot: 0 }, pose = 'dung', poseUntil = 0;
 var camYaw = 0, keys = {}, joy = { x: 0, y: 0 };
 var people = {};
@@ -231,6 +232,37 @@ document.getElementById('feedBody').addEventListener('click', function (e) {
   var cta = e.target.closest('[data-feed-cta]');
   if (cta) { var chao = document.querySelector('#quickPanel button[data-action="chao"]'); if (chao) chao.click(); }
 });
+function renderLeaderboard(rows) {
+  var body = document.getElementById('leaderBody');
+  if (!body) return;
+  if (!rows || !rows.length) {
+    body.innerHTML = '<div class="leader-empty">Chưa có ai trong phòng.</div>';
+    return;
+  }
+  body.innerHTML = rows.map(function (r, i) {
+    var medal = i === 0 ? '🥇' : (i === 1 ? '🥈' : (i === 2 ? '🥉' : (i + 1) + '.'));
+    return '<div class="leader-row"><span class="leader-rank">' + medal + '</span><span class="leader-name">' + Quan5Shared.escapeHtml(r.name || '') + '</span><span class="leader-wealth">' + fmtMoney(r.wealth) + (r.houseCount ? ' (' + r.houseCount + ' nhà)' : '') + '</span></div>';
+  }).join('');
+}
+document.getElementById('leaderToggle').addEventListener('click', function () {
+  var panel = document.getElementById('leaderboard');
+  var collapsed = panel.classList.toggle('collapsed');
+  var btn = document.getElementById('leaderToggle');
+  btn.textContent = collapsed ? '▴' : '▾';
+  btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+});
+// Điện thoại hẹp: bảng xếp hạng mặc định thu gọn để không đè feed bên
+// phải (màn 360px thì hai panel trái/phải vừa khít, màn nhỏ hơn sẽ đè
+// nhau); người chơi bấm 🏆 để mở khi cần. Desktop mặc định mở.
+if (window.innerWidth < 640) {
+  var lbPanel = document.getElementById('leaderboard');
+  var lbBtn = document.getElementById('leaderToggle');
+  if (lbPanel && lbBtn) {
+    lbPanel.classList.add('collapsed');
+    lbBtn.textContent = '▴';
+    lbBtn.setAttribute('aria-expanded', 'false');
+  }
+}
 document.getElementById('feedToggle').addEventListener('click', function () {
   var feed = document.getElementById('feed');
   var collapsed = feed.classList.toggle('collapsed');
@@ -489,16 +521,19 @@ function rebuildHouseLabels() {
   Object.keys(lastHouses).forEach(function (id) {
     var b = byId[id], rec = lastHouses[id];
     if (!b || !rec) return;
-    var sp = textSprite('Nhà của ' + (rec.ownerName || ''), 6);
+    var sign = rec.shopType ? Quan5Shared.SHOP_TYPES[rec.shopType] : null;
+    var sp = sign ? houseLabelSprite(sign, rec.ownerName || '') : textSprite('Nhà của ' + (rec.ownerName || ''), 6);
     sp.position.set(b.x, b.h + 1.5, b.z);
     scene.add(sp);
     houseLabels[id] = sp;
   });
 }
-function houseAction(btn, action, houseId) {
+function houseAction(btn, action, houseId, shopType) {
   if (!playerId || !btn || btn.disabled) return;
   setBusy(btn, true);
-  postJson('api/house', { room: room, playerId: playerId, action: action, houseId: houseId }).then(function (j) {
+  var body = { room: room, playerId: playerId, action: action, houseId: houseId };
+  if (shopType) body.shopType = shopType;
+  postJson('api/house', body).then(function (j) {
     houseError = null;
     if (typeof j.tien === 'number') { myTien = j.tien; document.getElementById('tien').textContent = fmtMoney(myTien); }
     if ('home' in j) { myHome = j.home; updateHomeLabel(); }
@@ -508,13 +543,19 @@ function houseAction(btn, action, houseId) {
       if (action === 'buy' && typeof j.price === 'number') {
         spawnFloatingText(myGroup.position, '-' + fmtMoney(j.price) + ' 🏠');
         spawnBurst(myGroup.position, 0xf9a825);
+      } else if (action === 'takeover' && typeof j.price === 'number') {
+        spawnFloatingText(myGroup.position, '-' + fmtMoney(j.price) + ' 🏠 Mua lại!');
+        spawnBurst(myGroup.position, 0xf9a825);
       } else if (action === 'sell' && typeof j.refund === 'number') {
         spawnFloatingText(myGroup.position, '+' + fmtMoney(j.refund) + ' 🏠');
         spawnBurst(myGroup.position, 0x66bb6a);
+      } else if (action === 'shop' && j.shopType && Quan5Shared.SHOP_TYPES[j.shopType]) {
+        spawnFloatingText(myGroup.position, '✨ ' + Quan5Shared.SHOP_TYPES[j.shopType]);
+        spawnBurst(myGroup.position, 0xffd54f);
       }
     }
   }).catch(function (e) {
-    houseError = { msg: e.message || 'Không thực hiện được.', action: action, houseId: houseId };
+    houseError = { msg: e.message || 'Không thực hiện được.', action: action, houseId: houseId, shopType: shopType || null };
     lastHouseRowKey = '';
     showErrorToast(houseError.msg);
   }).finally(function () { setBusy(btn, false); });
@@ -524,9 +565,11 @@ function updateHouseUI() {
   var buyBtn = document.getElementById('buyHouseBtn'), sellBtn = document.getElementById('sellHouseBtn'), homeBtn = document.getElementById('homeHouseBtn');
   var row = document.getElementById('houseRow');
   var ctxHouse = document.getElementById('ctxHouse');
+  var shopRow = document.getElementById('shopRow');
   buyBtn.style.display = 'none';
   sellBtn.style.display = 'none';
   homeBtn.style.display = 'none';
+  if (shopRow) shopRow.style.display = 'none';
   // Không còn hàng hướng dẫn "đi lại gần nhà" cố định: popup nhà chỉ
   // hiện khi thực sự gần một ngôi nhà, còn không thì ẩn hẳn để không
   // chiếm chỗ. Vòng sáng + biển BÁN dưới đất cũng tắt theo.
@@ -563,15 +606,27 @@ function updateHouseUI() {
       rb.type = 'button';
       rb.textContent = 'Thử lại';
       rb.addEventListener('click', function () {
-        var btnByAction = { buy: buyBtn, sell: sellBtn, sethome: homeBtn }[houseError.action];
+        if (houseError.action === 'shop') {
+          var pb = houseError.shopType ? document.querySelector('#shopRow button[data-shop="' + houseError.shopType + '"]') : null;
+          if (pb) houseAction(pb, 'shop', b.id, houseError.shopType);
+          else showErrorToast('Chọn lại biển hiệu trong bảng chọn.');
+          return;
+        }
+        var btnByAction = { buy: buyBtn, takeover: buyBtn, sell: sellBtn, sethome: homeBtn }[houseError.action];
         if (btnByAction) houseAction(btnByAction, houseError.action, houseError.houseId);
       });
       row.appendChild(rb);
     }
     // Vẫn hiện nút của giao dịch lỗi để Thử lại bấm đúng nút đó.
+    // Mua lại dùng chung nút Mua (buyBtn) vì cùng là nút mua, chỉ khác
+    // hành động; chọn biển dùng nút chọn biển tương ứng trong shopRow.
     if (houseError.action === 'buy') { buyBtn.style.display = ''; buyBtn.textContent = '🏠 Mua: ' + houseDisplayName(b) + ' — ' + fmtMoney(housePrice(b)) + ' (bạn có ' + fmtMoney(myTien) + ')'; buyBtn.onclick = function () { houseAction(buyBtn, 'buy', b.id); }; }
+    else if (houseError.action === 'takeover') { buyBtn.style.display = ''; buyBtn.textContent = '🏠 Mua lại (+25%): ' + fmtMoney(Quan5Shared.takeoverPrice(rec ? rec.price : 0)) + ' (bạn có ' + fmtMoney(myTien) + ')'; buyBtn.onclick = function () { if (!confirm('Mua lại ' + houseDisplayName(b) + ' với ' + fmtMoney(Quan5Shared.takeoverPrice(rec ? rec.price : 0)) + '?')) return; houseAction(buyBtn, 'takeover', b.id); }; }
     else if (houseError.action === 'sell') { sellBtn.style.display = ''; sellBtn.textContent = '🏠 Bán nhà (nhận lại ' + fmtMoney(Quan5Shared.sellRefund(rec ? rec.price : 0)) + ')'; sellBtn.onclick = function () { if (!confirm('Bán ' + houseDisplayName(b) + ' và nhận lại 80% giá mua?')) return; houseAction(sellBtn, 'sell', b.id); }; }
     else if (houseError.action === 'sethome') { homeBtn.style.display = ''; homeBtn.textContent = '🏠 Đặt làm nhà chính'; homeBtn.onclick = function () { houseAction(homeBtn, 'sethome', b.id); }; }
+    else if (houseError.action === 'shop') {
+      if (shopRow) shopRow.style.display = '';
+    }
     return;
   }
   if (!rec) {
@@ -586,11 +641,12 @@ function updateHouseUI() {
     buyBtn.textContent = '🏠 Mua: ' + houseDisplayName(b) + ' — ' + fmtMoney(price) + ' (bạn có ' + fmtMoney(myTien) + ')';
     buyBtn.onclick = function () { houseAction(buyBtn, 'buy', b.id); };
   } else if (rec.owner === deviceId) {
-    var key2 = 'own:' + b.id + ':' + rec.price + ':' + myHome;
+    var key2 = 'own:' + b.id + ':' + rec.price + ':' + myHome + ':' + (rec.shopType || '');
     if (row && lastHouseRowKey !== key2) {
       lastHouseRowKey = key2;
       row.className = 'house-data';
-      row.innerHTML = '<span class="house-name">🏠 Nhà của bạn: ' + Quan5Shared.escapeHtml(houseDisplayName(b)) + '</span> — bán lại <span class="house-price">' + fmtMoney(Quan5Shared.sellRefund(rec.price)) + '</span>';
+      var signText = rec.shopType ? Quan5Shared.SHOP_TYPES[rec.shopType] : 'chưa chọn biển hiệu';
+      row.innerHTML = '<span class="house-name">🏠 Nhà của bạn: ' + Quan5Shared.escapeHtml(houseDisplayName(b)) + '</span> — biển hiệu: <span class="house-price">' + Quan5Shared.escapeHtml(signText) + '</span> — bán lại <span class="house-price">' + fmtMoney(Quan5Shared.sellRefund(rec.price)) + '</span>';
     }
     sellBtn.style.display = '';
     sellBtn.textContent = '🏠 Bán nhà (nhận lại ' + fmtMoney(Quan5Shared.sellRefund(rec.price)) + ')';
@@ -603,13 +659,37 @@ function updateHouseUI() {
       homeBtn.textContent = '🏠 Đặt làm nhà chính';
       homeBtn.onclick = function () { houseAction(homeBtn, 'sethome', b.id); };
     }
+    // Bảng chọn biển hiệu: 4 nút tĩnh trong HTML, chỉ đổi trạng thái
+    // chọn và gán onclick mỗi tick (không tạo lại nút, nên tick 400ms
+    // không phá nút đang bấm). Đổi biển miễn phí, đổi xong nhãn 3D và
+    // feed lần ghé sau dùng biển mới ngay.
+    if (shopRow) {
+      shopRow.style.display = '';
+      var shopBtns = shopRow.querySelectorAll('button[data-shop]');
+      for (var i = 0; i < shopBtns.length; i++) {
+        (function (sb) {
+          var st = sb.getAttribute('data-shop');
+          sb.classList.toggle('sel', rec.shopType === st);
+          sb.onclick = function () { houseAction(sb, 'shop', b.id, st); };
+        })(shopBtns[i]);
+      }
+    }
   } else {
-    var key3 = 'other:' + b.id + ':' + (rec.ownerName || '');
+    var newPrice = Quan5Shared.takeoverPrice(rec.price);
+    var payout = Quan5Shared.takeoverPayout(rec.paid || rec.price);
+    var key3 = 'other:' + b.id + ':' + (rec.ownerName || '') + ':' + rec.price + ':' + (rec.shopType || '');
     if (row && lastHouseRowKey !== key3) {
       lastHouseRowKey = key3;
       row.className = 'house-data';
-      row.innerHTML = '<span class="house-name">🏠 Nhà của ' + Quan5Shared.escapeHtml(rec.ownerName || '') + ': ' + Quan5Shared.escapeHtml(houseDisplayName(b)) + '</span> — đã có chủ, không mua được.';
+      var otherSign = rec.shopType ? ' — ' + Quan5Shared.escapeHtml(Quan5Shared.SHOP_TYPES[rec.shopType]) : '';
+      row.innerHTML = '<span class="house-name">🏠 Nhà của ' + Quan5Shared.escapeHtml(rec.ownerName || '') + ': ' + Quan5Shared.escapeHtml(houseDisplayName(b)) + '</span>' + otherSign + ' — mua lại <span class="house-price">' + fmtMoney(newPrice) + '</span> (+25% so với ' + fmtMoney(rec.price) + ')';
     }
+    buyBtn.style.display = '';
+    buyBtn.textContent = '🏠 Mua lại (+25%): ' + fmtMoney(newPrice) + ' (bạn có ' + fmtMoney(myTien) + ')';
+    buyBtn.onclick = function () {
+      if (!confirm('Mua lại ' + houseDisplayName(b) + ' của ' + (rec.ownerName || '') + ' với ' + fmtMoney(newPrice) + '? Chủ cũ nhận lại ' + fmtMoney(payout) + ' (gốc + 15% lời).')) return;
+      houseAction(buyBtn, 'takeover', b.id);
+    };
   }
 }
 function updateHomeLabel() {
@@ -712,7 +792,18 @@ function doAction(btn, type) {
   // Chống bấm đúp: khóa nút cho tới khi server trả lời, server còn
   // chặn thêm bằng cooldown 1 giây, nên bấm nhanh cũng không gửi trùng.
   setBusy(btn, true);
-  postJson('api/action', { room: room, playerId: playerId, type: type, value: value }).then(function () {
+  postJson('api/action', { room: room, playerId: playerId, type: type, value: value }).then(function (j) {
+    j = j || {};
+    // Buff tốc độ: server trả buffUntil tuyệt đối. Chỉ hiện chữ bay khi
+    // buff vừa được cấp mới trên hành động này (trước đó chưa có buff),
+    // còn buff đang chạy mà bấm tiếp thì chỉ gia hạn âm thầm, không spam.
+    if (typeof j.buffUntil === 'number' && j.buffUntil > Date.now() && !(myBuffUntil > Date.now())) {
+      if (myGroup) spawnFloatingText(myGroup.position, '⚡ Tốc độ +15% (30s)');
+    }
+    if (typeof j.buffUntil === 'number') myBuffUntil = j.buffUntil;
+    if (j.shopIncome && myGroup) {
+      spawnFloatingText(myGroup.position, '💰 Ủng hộ ' + j.shopIncome.ownerName + ' ' + fmtMoney(j.shopIncome.amount));
+    }
     if (!myGroup) return;
     if (type === 'checkin') {
       spawnFloatingText(myGroup.position, '+' + Quan5Shared.ACTIONS.checkin.diem + '⭐ +' + fmtMoney(Quan5Shared.CHECKIN_TIEN));
@@ -882,8 +973,11 @@ function animate() {
       var mx2 = rx * str + fx * fwd, mz2 = rz * str + fz * fwd, len = Math.hypot(mx2, mz2);
       mx2 /= len;
       mz2 /= len;
-      var nx = Math.max(-140, Math.min(140, myPos.x + mx2 * 9 * dt));
-      var nz = Math.max(-75, Math.min(75, myPos.z + mz2 * 9 * dt));
+      // Buff tốc độ shophouse: +15% trong 30 giây sau khi ghé quán, tốc
+      // độ gốc 9 không đổi khi không có buff.
+      var speed = 9 * (myBuffUntil > Date.now() ? 1.15 : 1);
+      var nx = Math.max(-140, Math.min(140, myPos.x + mx2 * speed * dt));
+      var nz = Math.max(-75, Math.min(75, myPos.z + mz2 * speed * dt));
       var stuck = blockedAt(myPos.x, myPos.z);
       if (!blockedAt(nx, myPos.z) || stuck) myPos.x = nx;
       if (!blockedAt(myPos.x, nz) || stuck) myPos.z = nz;
@@ -897,6 +991,14 @@ function animate() {
     var camDist = innerWidth < innerHeight ? 13 : 10;
     camera.position.set(myPos.x + Math.sin(camYaw) * camDist, 6.5, myPos.z + Math.cos(camYaw) * camDist);
     camera.lookAt(myPos.x, 1.6, myPos.z);
+    // Huy hiệu buff tốc độ trên top bar: chỉ đổi display khi trạng thái
+    // đổi, không gán lại mỗi frame để khỏi layout lại vô ích.
+    var buffActive = myBuffUntil > Date.now();
+    if (buffActive !== buffShown) {
+      buffShown = buffActive;
+      var buffEl = document.getElementById('buffLabel');
+      if (buffEl) buffEl.style.display = buffActive ? '' : 'none';
+    }
   }
   Object.keys(people).forEach(function (id) {
     var g = people[id], u = g.userData;
@@ -1007,6 +1109,7 @@ function pollOnce() {
         document.getElementById('checkin').textContent = p.checkin;
         document.getElementById('tien').textContent = fmtMoney(p.tien);
         myTien = p.tien || 0;
+        if (typeof p.buffUntil === 'number') myBuffUntil = p.buffUntil;
         if (p.home !== myHome) { myHome = p.home || null; updateHomeLabel(); }
       } else {
         g.userData.target = { x: p.x, z: p.z, rot: p.rot };
@@ -1024,6 +1127,11 @@ function pollOnce() {
     if (feedJson !== lastFeedJson) {
       lastFeedJson = feedJson;
       renderFeed(st.events || [], 'data');
+    }
+    var lbJson = JSON.stringify(st.leaderboard || []);
+    if (lbJson !== lastLeaderboardJson) {
+      lastLeaderboardJson = lbJson;
+      renderLeaderboard(st.leaderboard || []);
     }
     // Đồng bộ hiệu ứng cho người khác: event mới (sau lần poll đầu,
     // để không nổ tung với 30 event cũ lúc mới vào) mà không phải của

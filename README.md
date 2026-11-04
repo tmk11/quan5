@@ -275,3 +275,44 @@ vì server đọc lại theo mtime.
 - `test/`, `scripts/smoke.js` — unit test và smoke test tích hợp.
 - `quan5-online.service` — file systemd.
 - `quan5-snippet.txt` — đoạn cấu hình nginx.
+
+## Kinh doanh Shophouse & Thâu tóm (v1.4, 2026-11-04)
+
+- Biển hiệu: chủ nhà chọn 1 trong 4 biển (🦆 Tiệm Vịt Quay, 🥣 Quán
+  Chè Chợ Lớn, 🪙 Tiệm Vàng, 🌿 Tiệm Thuốc Bắc), đổi miễn phí khi còn là
+  chủ, hiện trên nhãn 3D phía trên dòng "Nhà của <chủ>" (nhà chưa chọn
+  biển thì chỉ hiện dòng chủ như cũ). API nhà mới: `takeover`, `shop`
+  (kèm `shopType`), ngoài `buy`/`sell`/`sethome` cũ.
+- Doanh thu tương tác: khách (không phải chủ) đứng trong bán kính giao
+  dịch nhà (boxDistance từ mép nhà ≤ 6, cùng hàm với mua/bán) và bấm Ăn /
+  Cà phê / Mua sắm thì được buff tốc độ +15% trong 30 giây, chủ nhà nhận
+  +2.000đ, feed phòng đẩy câu "[A] vừa ghé [biển hiệu] của [B] ủng hộ
+  2.000đ!". Doanh thu chỉ tính 1 lần / 60 giây / khách / nhà (chống farm
+  bấm liên tục, mốc lưu bền trong economy.json nên vào lại cũng không
+  reset); buff thì ghé là có, không bị cooldown tiền chặn. Hành động Mua
+  lồng đèn, Chào, Chụp ảnh không tính tiền; tự ăn ở quán mình cũng không.
+- Mua lại (thâu tóm): nhà đã có chủ thì nút Mua thành "Mua lại (+25%)".
+  Người mua trả giá hiện tại +25% (làm tròn về nghìn), chủ cũ nhận lại
+  tiền gốc lúc mua +15% lời (trả thẳng vào ví economy.json nên offline
+  cũng nhận được, nhà chính cũ bị xóa nếu đó là nhà chính), 10% còn lại
+  đốt khỏi hệ thống (chênh lệch làm tròn tối đa 1.000đ). Mua lại giữ
+  biển hiệu cũ, chủ mới đổi miễn phí sau nếu muốn; mua lại cũng đặt nhà
+  đó làm nhà chính như mua thường. Sổ nhà lưu thêm `paid` (tiền gốc của
+  chủ hiện tại, bằng giá lúc mua) và `shopType`; sổ cũ tải lên được
+  chuẩn hóa (thiếu thì shopType null, paid = giá hiện tại).
+- Bảng Top Địa Chủ: HUD góc trên trái (điện thoại mặc định thu gọn để
+  không đè feed), xếp Top 5 người ĐANG TRONG PHÒNG theo tiền mặt + tổng
+  giá nhà sở hữu (kinh tế thì toàn thành phố, nhưng bảng chỉ so trong
+  phòng; hòa tài sản thì tên trước thắng). Server tính ở GET /api/state
+  (trường `leaderboard`), client chỉ vẽ lại khi dữ liệu đổi.
+- Chống race: không thêm mutex — toàn bộ khối kiểm tra → đổi → lưu của
+  mỗi giao dịch nhà/hành động có tiền đều đồng bộ, không có await ở
+  giữa, nên trên server Node đơn luồng hai request cùng lúc không thể
+  cùng đọc giá cũ rồi cùng trả success; request thứ hai chạy sau sẽ thấy
+  giá/chủ mới. Test tích hợp `scripts/shop-smoke.js` chứng minh bằng 2
+  request mua và 2 request mua lại gửi đúng cùng lúc (chỉ 1 thắng).
+- Không đổi: hình học đường/nhà OSM, va chạm (boxDistance, blockedAt),
+  không chat tự do (chỉ preset + feed), và đồng bộ phòng vẫn qua HTTP
+  polling (GET /api/state mỗi 400ms) như cũ — không chuyển sang WebSocket
+  (server hiện tại không có WebSocket, đổi protocol là việc khác, không
+  nằm trong bản nâng cấp kinh tế này).

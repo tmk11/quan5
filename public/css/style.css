@@ -158,3 +158,30 @@ button.is-busy::after{content:'';display:inline-block;width:14px;height:14px;mar
 .card{padding:20px 16px}
 .card h1{font-size:26px}
 }
+/* Bảng Top Địa Chủ (v1.4): góc trên trái, dưới street pill và dưới vùng
+   banner lỗi kết nối (pollError ở top 92px, cao ~50px) nên bắt đầu từ
+   150px để không bị đè khi banner hiện. Thu gọn được bằng nút ▾/▴. */
+#leaderboard{top:150px;left:10px;width:220px;padding:0;overflow:hidden;pointer-events:auto}
+.leader-head{display:flex;justify-content:space-between;align-items:center;padding:10px 12px 8px;border-bottom:1px solid var(--line);font-size:var(--font-sm)}
+.leader-head button{background:var(--accent-soft);color:#5b4632;box-shadow:none;padding:4px 10px;min-height:32px;font-size:var(--font-sm)}
+#leaderBody{padding:8px 12px 10px;font-size:var(--font-sm);line-height:1.45}
+#leaderboard.collapsed #leaderBody{display:none}
+#leaderboard.collapsed{padding-bottom:0}
+.leader-row{display:flex;gap:6px;margin:4px 0;align-items:baseline}
+.leader-rank{flex-shrink:0;min-width:22px}
+.leader-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}
+.leader-wealth{white-space:nowrap;color:var(--accent-dark);font-weight:800}
+.leader-empty{color:var(--ink-soft);text-align:center;padding:6px 0}
+/* Bảng chọn biển hiệu shophouse (v1.4): 4 nút trong popup nhà, nút đang
+   chọn viền đậm + nền vàng nhạt để nhìn là biết biển hiện tại. */
+#shopRow{margin-top:8px;padding-top:8px;border-top:1px dashed var(--line-strong)}
+.shop-label{font-size:var(--font-sm);font-weight:700;margin-bottom:6px}
+.shop-btns{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+.shop-btns button{flex:1 1 45%;background:#fff7e8;color:#5b3a1e;border:2px solid var(--line);box-shadow:var(--shadow-sm);font-size:var(--font-sm);padding:10px 6px;white-space:normal}
+.shop-btns button.sel{border-color:var(--accent-dark);background:#ffedb8}
+/* Huy hiệu buff tốc độ trên top bar: chỉ hiện 30 giây sau khi ghé quán. */
+#buffLabel{color:#b45309;font-weight:800}
+@media (max-width:640px){
+#leaderboard{left:8px;width:170px}
+#leaderBody{font-size:var(--font-xs)}
+}

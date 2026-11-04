@@ -16,7 +16,7 @@
 <p id="loadStatus">Đang tải bản đồ thật từ OpenStreetMap…</p>
 <button type="button" id="retryMapBtn">Thử tải lại bản đồ</button>
 </div>
-<p>Đi dạo Chợ Lớn cùng nhau, trên đúng lưới đường thật của Quận 5 cũ (ranh OSM relation 3820432): nhà 3D chỉ trên nền đất vàng, không dựng ra đường — đường cong, chéo và giao nhau đúng như ngoài đời, kể cả hẻm và lối đi không tên. Không có chat tự do — chỉ chào hỏi, ăn uống, mua sắm và check-in có sẵn. <b>Mới: dùng tiền trong game để mua nhà và vào ở</b> — bắt đầu với 100.000đ, check-in +5.000đ, đi lại gần một ngôi nhà rồi bấm Mua nhà; nhà đã mua sẽ hiện bảng tên chủ, lần sau vào lại sẽ spawn ngay ngoài nhà chính của bạn.</p>
+<p>Đi dạo Chợ Lớn cùng nhau, trên đúng lưới đường thật của Quận 5 cũ (ranh OSM relation 3820432): nhà 3D chỉ trên nền đất vàng, không dựng ra đường — đường cong, chéo và giao nhau đúng như ngoài đời, kể cả hẻm và lối đi không tên. Không có chat tự do — chỉ chào hỏi, ăn uống, mua sắm và check-in có sẵn. <b>Mới: kinh doanh shophouse</b> — mua nhà rồi chọn biển hiệu (Vịt Quay, Chè, Tiệm Vàng, Thuốc Bắc), khách ghé quán ăn/mua sắm thì bạn nhận 2.000đ và khách được buff tốc độ, nhà đã có chủ thì mua lại được với +25% giá.</p>
 <input id="roomInput" placeholder="Mã phòng (để trống = thành phố chung QUAN5)" maxlength="12" style="text-transform:uppercase">
 <div class="row"><input id="nameInput" placeholder="Tên của bạn (để trống sẽ đặt tên Chợ Lớn)" maxlength="24"><button type="button" class="secondary" id="randomNameBtn">🎲 Tên hay</button></div>
 <div style="text-align:left;font-size:13px;margin:8px 0 2px;font-weight:700">Màu áo</div>
@@ -43,9 +43,11 @@
 <span class="top-stat">👥 <strong id="count">0</strong></span>
 <span class="top-stat">🌅 <strong id="buoiLabel">Sáng</strong></span>
 <span class="top-stat hide-mobile">🏠 <strong id="homeLabel">Chưa có</strong></span>
+<span class="top-stat" id="buffLabel" style="display:none">⚡ +15% tốc độ</span>
 </div>
 </div>
 <div id="streetPill">📍 <span id="streetLabel">Quận 5</span></div>
+<div class="panel" id="leaderboard"><div class="leader-head"><b>🏆 Top Địa Chủ Quận 5</b><button type="button" id="leaderToggle" aria-expanded="true" aria-label="Thu gọn bảng xếp hạng">▾</button></div><div id="leaderBody"><div class="leader-empty">Đang tải bảng xếp hạng…</div></div></div>
 <div class="panel" id="minimapWrap" role="button" tabindex="0" aria-label="Mở bản đồ lớn">🗺️ Bản đồ Quận 5<canvas id="minimap" width="140" height="75"></canvas><span class="minimap-hint">Chạm để phóng to</span></div>
 <div class="panel" id="feed"><div class="feed-head"><b>📣 Hoạt động</b><button type="button" id="feedToggle" aria-expanded="true" aria-label="Thu gọn hoạt động">▾</button></div><div id="feedBody"><div class="skeleton-line" style="width:95%"></div><div class="skeleton-line" style="width:80%"></div><div class="skeleton-line" style="width:88%"></div></div></div>
 <div id="pollError"><span id="pollErrorText">Mất kết nối tới máy chủ — dữ liệu có thể đã cũ.</span><button type="button" id="pollRetryBtn">Thử lại ngay</button></div>
@@ -61,6 +63,15 @@
 <button type="button" id="buyHouseBtn" style="display:none">🏠 Mua nhà</button>
 <button type="button" id="sellHouseBtn" style="display:none">🏠 Bán nhà</button>
 <button type="button" id="homeHouseBtn" style="display:none">🏠 Đặt làm nhà chính</button>
+</div>
+<div id="shopRow" style="display:none">
+<div class="shop-label">🏪 Chọn biển hiệu cho quán của bạn (đổi miễn phí):</div>
+<div class="shop-btns">
+<button type="button" data-shop="vitquay">🦆 Tiệm Vịt Quay</button>
+<button type="button" data-shop="che">🥣 Quán Chè Chợ Lớn</button>
+<button type="button" data-shop="tiemvang">🪙 Tiệm Vàng</button>
+<button type="button" data-shop="thuocbac">🌿 Tiệm Thuốc Bắc</button>
+</div>
 </div>
 </div>
 </div>

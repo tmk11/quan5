@@ -90,3 +90,42 @@ test('economy: cleanupOrphans chỉ chạy khi bản đồ đổi, hoàn đủ t
   const result2 = store.cleanupOrphans(map, 12345);
   assert.equal(result2.changed, false);
 });
+
+test('economy v1.4: snapshot/restore gồm cả mốc cooldown doanh thu', () => {
+  const dir = tmpDir();
+  const store = new EconomyStore(path.join(dir, 'economy.json'));
+  store.load();
+  store.incomeCooldown['dev-a:h1'] = 100000;
+  const snap = store.snapshot();
+  store.incomeCooldown['dev-a:h1'] = 200000;
+  store.incomeCooldown['dev-b:h2'] = 300000;
+  store.restore(snap);
+  assert.equal(store.incomeCooldown['dev-a:h1'], 100000);
+  assert.equal(store.incomeCooldown['dev-b:h2'], undefined);
+});
+
+test('economy v1.4: lưu dọn mốc cooldown hết hạn, giữ mốc còn hạn', () => {
+  const dir = tmpDir();
+  const store = new EconomyStore(path.join(dir, 'economy.json'));
+  store.load();
+  const now = Date.now();
+  store.incomeCooldown['dev-a:h1'] = now - 120000;
+  store.incomeCooldown['dev-b:h2'] = now;
+  store.save();
+  const saved = JSON.parse(fs.readFileSync(path.join(dir, 'economy.json'), 'utf8'));
+  assert.equal(saved.incomeCooldown['dev-a:h1'], undefined);
+  assert.equal(saved.incomeCooldown['dev-b:h2'], now);
+});
+
+test('economy v1.4: tải sổ nhà cũ (chưa có shopType/paid) thì chuẩn hóa', () => {
+  const dir = tmpDir();
+  fs.writeFileSync(path.join(dir, 'economy.json'), JSON.stringify({
+    players: { 'dev-old': { tien: 58000, home: 'h106.000005_10.000005', name: 'ChuCu' } },
+    houses: { 'h106.000005_10.000005': { owner: 'dev-old', ownerName: 'ChuCu', price: 42000 } }
+  }));
+  const store = new EconomyStore(path.join(dir, 'economy.json'));
+  store.load();
+  const h = store.houses['h106.000005_10.000005'];
+  assert.equal(h.shopType, null);
+  assert.equal(h.paid, 42000);
+});
