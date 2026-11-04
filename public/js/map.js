@@ -206,28 +206,46 @@ function buildShophouseDetails(list) {
   }
 }
 function buildStreetProps() {
-  // Cây ven đường lớn: mỗi đoạn đường rộng (w >= 3,5) cứ 25 đơn vị một
-  // cây, lệch sang hai bên xen kẽ, chỉ đặt khi trong ranh, không chồng
-  // nhà/kênh và không nằm trên lòng đường (kể cả đường giao nhau).
-  // Tối đa 120 cây để không nặng máy yếu.
+  // Cây ven đường lớn và cột đèn đường: đi dọc cả tuyến đường
+  // (polyline), cứ 25m cây / 30m đèn một cái, lệch sang hai bên xen kẽ,
+  // chỉ đặt khi trong ranh, không chồng nhà/kênh và không nằm trên lòng
+  // đường. Lỗi cũ: đặt cây theo từng đoạn ngắn giữa hai điểm OSM (đa số
+  // dưới 25 đơn vị nên steps = 0 và gần như không có cây nào).
+  // Tối đa 120 cây, 100 đèn để không nặng máy yếu.
   lanternMat = new THREE.MeshStandardMaterial({ color: 0xd32f2f, emissive: 0xff2211, emissiveIntensity: 0.15, roughness: 0.5 });
   lampMat = new THREE.MeshStandardMaterial({ color: 0xfff2cc, emissive: 0xffcc66, emissiveIntensity: 0.05, roughness: 0.6 });
-  var treePts = [];
-  ROAD_SEGMENTS.forEach(function (s) {
-    if (s.w < 3.5 || treePts.length >= 120) return;
-    var len = Math.hypot(s.x2 - s.x1, s.z2 - s.z1);
-    var steps = Math.floor(len / 25);
-    for (var k = 0; k < steps && treePts.length < 120; k++) {
-      var t = (k + 0.5) / steps;
-      var cx = s.x1 + (s.x2 - s.x1) * t, cz = s.z1 + (s.z2 - s.z1) * t;
-      var dx = s.x2 - s.x1, dz = s.z2 - s.z1, ll = Math.hypot(dx, dz) || 1;
-      var side = (k % 2 === 0 ? 1 : -1) * (s.w / 2 + 1.4);
-      var px = -dz / ll * side, pz = dx / ll * side;
-      var x = cx + px, z = cz + pz;
-      if (!pointInPoly(x, z, BOUNDARY)) continue;
-      if (onRoad(x, z)) continue;
-      if (collides(x, z)) continue;
-      treePts.push({ x: x, z: z });
+  var treePts = [], lampPts = [];
+  (MAP.roads || []).forEach(function (r) {
+    var w = roadWidthFromMeters(r.width_m);
+    if (w < 3.5) return;
+    var accTree = 0, accLamp = 0, sideTree = 1, sideLamp = -1;
+    for (var i = 0; i + 1 < r.pts.length; i++) {
+      var x1 = r.pts[i][0], z1 = r.pts[i][1], x2 = r.pts[i + 1][0], z2 = r.pts[i + 1][1];
+      var segLen = Math.hypot(x2 - x1, z2 - z1);
+      if (segLen === 0) continue;
+      var dx = (x2 - x1) / segLen, dz = (z2 - z1) / segLen;
+      var travTree = 0;
+      while (treePts.length < 120 && accTree + (segLen - travTree) >= 25) {
+        var needTree = 25 - accTree;
+        var tx = x1 + dx * (travTree + needTree), tz = z1 + dz * (travTree + needTree);
+        var sideT = sideTree * (w / 2 + 1.4); sideTree = -sideTree;
+        var pxT = -dz * sideT, pzT = dx * sideT;
+        var cxT = tx + pxT, czT = tz + pzT;
+        if (pointInPoly(cxT, czT, BOUNDARY) && !onRoad(cxT, czT) && !collides(cxT, czT)) treePts.push({ x: cxT, z: czT });
+        travTree += needTree; accTree = 0;
+      }
+      accTree += segLen - travTree;
+      var travLamp = 0;
+      while (lampPts.length < 100 && accLamp + (segLen - travLamp) >= 30) {
+        var needLamp = 30 - accLamp;
+        var lx = x1 + dx * (travLamp + needLamp), lz = z1 + dz * (travLamp + needLamp);
+        var sideL = sideLamp * (w / 2 + 0.8); sideLamp = -sideLamp;
+        var pxL = -dz * sideL, pzL = dx * sideL;
+        var cxL = lx + pxL, czL = lz + pzL;
+        if (pointInPoly(cxL, czL, BOUNDARY) && !onRoad(cxL, czL) && !collides(cxL, czL)) lampPts.push({ x: cxL, z: czL });
+        travLamp += needLamp; accLamp = 0;
+      }
+      accLamp += segLen - travLamp;
     }
   });
   if (treePts.length) {
@@ -253,6 +271,23 @@ function buildStreetProps() {
     canopyInst.castShadow = true;
     scene.add(trunkInst);
     scene.add(canopyInst);
+  }
+  if (lampPts.length) {
+    var lampPoleInst = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.06, 0.06, 3.2, 6), new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.8 }), lampPts.length);
+    var lampGlobeInst = new THREE.InstancedMesh(new THREE.SphereGeometry(0.18, 10, 8), lampMat, lampPts.length);
+    var dummyLamp = new THREE.Object3D();
+    lampPts.forEach(function (p, i) {
+      dummyLamp.position.set(p.x, 1.6, p.z);
+      dummyLamp.rotation.set(0, 0, 0);
+      dummyLamp.scale.set(1, 1, 1);
+      dummyLamp.updateMatrix();
+      lampPoleInst.setMatrixAt(i, dummyLamp.matrix);
+      dummyLamp.position.set(p.x, 3.3, p.z);
+      dummyLamp.updateMatrix();
+      lampGlobeInst.setMatrixAt(i, dummyLamp.matrix);
+    });
+    scene.add(lampPoleInst);
+    scene.add(lampGlobeInst);
   }
   // Lồng đèn, xe đẩy, quán cà phê vợt và pin landmark. Lưu ý thật:
   // đây là đạo cụ trang trí đặt cạnh landmark (chợ, phố lồng đèn),

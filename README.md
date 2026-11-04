@@ -106,6 +106,13 @@ khỏi OSM một chút ở phố hẹp.
   +5.000đ, +điểm, -/+tiền mua bán) và hạt nổ cho cả hành động của mình
   lẫn của người khác (qua event poll, bỏ qua event cũ lúc mới vào).
 - Không đổi luật chơi, không đổi API (chỉ mở rộng pose validate).
+  Sửa lỗi v1.3 phát hiện qua kiểm tra trình duyệt ngày 2026-11-04:
+  popup ngữ cảnh không hiện do đặt style.display = '' trong khi CSS
+  #ctxPopup có display:none (đã sửa thành 'block' tường minh, cùng lỗi
+  ở nút Thử lại bản đồ), cây ven đường gần như không có do đặt theo
+  từng đoạn OSM ngắn (đã sửa thành đi dọc cả tuyến, 25 đơn vị một cây),
+  và cột đèn đường đã dựng thật (đi dọc tuyến lớn, 30 đơn vị một cột,
+  bóng đèn phát sáng về đêm) thay vì chỉ có vật liệu chưa dùng.
   Kiểm tra visual cuối cùng vẫn là điện thoại của Boss.
 
 ## Nâng cấp UI/UX v1.2 (2026-11-04) — 4 trạng thái, design system, micro-interactions

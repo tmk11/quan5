@@ -191,7 +191,7 @@ function setMapState(state, msg) {
     if (state === 'success') loadEl.classList.add('state-success');
     if (state === 'error') loadEl.classList.add('state-error');
   }
-  if (retryBtn) retryBtn.style.display = state === 'error' ? '' : 'none';
+  if (retryBtn) retryBtn.style.display = state === 'error' ? 'block' : 'none';
   // Trong lúc tải bản đồ, khóa cả form để người chơi không bấm Vào khi
   // bản đồ chưa sẵn (trước đây chỉ khóa nút Vào, còn ô nhập vẫn gõ được).
   // Lỗi thì mở lại ô nhập để sửa mã phòng/tên, nhưng nút Vào vẫn khóa
@@ -678,7 +678,10 @@ function updateNear() {
   var ctxHouse = document.getElementById('ctxHouse');
   var houseNear = !!(ctxHouse && ctxHouse.style.display !== 'none');
   var popup = document.getElementById('ctxPopup');
-  if (popup) popup.style.display = (landmarkNear || houseNear) ? '' : 'none';
+  // Lỗi đã sửa 2026-11-04: trước đây đặt style.display = '' để hiện
+  // popup, nhưng CSS #ctxPopup có display:none nên '' chỉ quay về none
+  // và popup không bao giờ hiện. Phải đặt 'block' tường minh.
+  if (popup) popup.style.display = (landmarkNear || houseNear) ? 'block' : 'none';
 }
 // Một hàm duy nhất cho mọi nút hành động (Quick Dock + popup check-in),
 // để logic khoảng cách, tư thế và hiệu ứng không bị nhân đôi. Tư thế

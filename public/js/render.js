@@ -40,7 +40,7 @@ if (RENDER_OK) {
   }
   var retryEl = document.getElementById('retryMapBtn');
   if (retryEl) {
-    retryEl.style.display = '';
+    retryEl.style.display = 'block';
     retryEl.textContent = 'Thử tải lại trang';
     retryEl.onclick = function () { location.reload(); };
   }
