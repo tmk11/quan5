@@ -929,7 +929,7 @@ function animate() {
   landmarkPins.forEach(function (entry) {
     var s = Math.sin(t * 2 + entry.phase);
     entry.pin.position.y = s * 0.3;
-    var rs = 3 * (1 + s * 0.08);
+    var rs = (entry.ringBase || 3) * (1 + s * 0.08);
     entry.ring.scale.set(rs, rs, rs);
   });
   if (houseRing && houseRing.visible && houseRingBase) {

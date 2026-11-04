@@ -217,7 +217,7 @@ function buildStreetProps() {
   var treePts = [], lampPts = [];
   (MAP.roads || []).forEach(function (r) {
     var w = roadWidthFromMeters(r.width_m);
-    if (w < 3.5) return;
+    if (w < 2.5) return;
     var accTree = 0, accLamp = 0, sideTree = 1, sideLamp = -1;
     for (var i = 0; i + 1 < r.pts.length; i++) {
       var x1 = r.pts[i][0], z1 = r.pts[i][1], x2 = r.pts[i + 1][0], z2 = r.pts[i + 1][1];
@@ -439,6 +439,11 @@ function buildStreetProps() {
   });
   // Pin landmark: chóp + bóng bay lơ lửng và vòng sáng dưới đất, để
   // nhìn thấy điểm check-in từ xa. Pin nhấp nhô và vòng pulse ở app.js.
+  // Vòng sáng KHÔNG đặt đúng tâm landmark: tâm chợ thường nằm gọn trong
+  // một nhà cao nên vòng dưới đất bị nhà che mất (đã kiểm chứng ở An
+  // Đông: nhà gần nhất cao 5,4 phủ kín tâm). Vòng đặt ở điểm đường gần
+  // nhất trong 12 đơn vị (trên đường trống, nhìn thấy được), nếu không
+  // có đường gần thì mới đặt ở tâm với bán kính lớn hơn.
   LANDMARKS.forEach(function (L, idx) {
     var isMarket2 = L.name && L.name.indexOf('Chợ') !== -1;
     var pinColor = isMarket2 ? 0xe53935 : 0xf9a825;
@@ -453,12 +458,19 @@ function buildStreetProps() {
     pin.add(ball);
     pin.position.set(L.x, 0, L.z);
     scene.add(pin);
+    var bestD = 1e9, bestX = L.x, bestZ = L.z;
+    ROAD_SEGMENTS.forEach(function (s) {
+      var rr = distToSeg(L.x, L.z, s.x1, s.z1, s.x2, s.z2);
+      if (rr.d < bestD) { bestD = rr.d; bestX = rr.x; bestZ = rr.z; }
+    });
+    var ringScale = 5.5, ringX = L.x, ringZ = L.z;
+    if (bestD < 12) { ringScale = 4; ringX = bestX; ringZ = bestZ; }
     var ring = new THREE.Mesh(new THREE.RingGeometry(0.85, 1.0, 32), new THREE.MeshBasicMaterial({ color: 0xf9a825, transparent: true, opacity: 0.8, side: THREE.DoubleSide }));
     ring.rotation.x = -Math.PI / 2;
-    ring.position.set(L.x, 0.12, L.z);
-    ring.scale.set(3, 3, 3);
+    ring.position.set(ringX, 0.15, ringZ);
+    ring.scale.set(ringScale, ringScale, ringScale);
     scene.add(ring);
-    landmarkPins.push({ pin: pin, ring: ring, phase: idx * 0.7 });
+    landmarkPins.push({ pin: pin, ring: ring, ringBase: ringScale, phase: idx * 0.7 });
   });
 }
 function buildMap() {

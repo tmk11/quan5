@@ -113,6 +113,11 @@ khỏi OSM một chút ở phố hẹp.
   từng đoạn OSM ngắn (đã sửa thành đi dọc cả tuyến, 25 đơn vị một cây),
   và cột đèn đường đã dựng thật (đi dọc tuyến lớn, 30 đơn vị một cột,
   bóng đèn phát sáng về đêm) thay vì chỉ có vật liệu chưa dùng.
+  Sửa tiếp sau kiểm tra lần 2: ngưỡng cây/đèn hạ từ 3,5 xuống 2,5 vì
+  đường gần spawn (An Dương Vương, Hùng Vương) chỉ rộng 2,62 trong
+  game nên ngưỡng cũ loại gần hết đại lộ; vòng sáng landmark dời ra
+  điểm đường gần nhất (tâm chợ An Đông nằm gọn trong nhà cao 5,4 nên
+  vòng cũ bị nhà che mất).
   Kiểm tra visual cuối cùng vẫn là điện thoại của Boss.
 
 ## Nâng cấp UI/UX v1.2 (2026-11-04) — 4 trạng thái, design system, micro-interactions
