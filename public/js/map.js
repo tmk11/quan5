@@ -206,27 +206,30 @@ function buildShophouseDetails(list) {
   }
 }
 function buildStreetProps() {
-  // Cây ven đường lớn và cột đèn đường: đi dọc cả tuyến đường
-  // (polyline), cứ 25m cây / 30m đèn một cái, lệch sang hai bên xen kẽ.
-  // Luật đặt đã sửa sau kiểm tra lần 3: mô phỏng cho thấy luật cũ
-  // (không được chồng nhà chút nào) chỉ đặt được 5 cây / 4 đèn cả bản
-  // đồ, vì nhà phố Chợ Lớn xây sát vỉa hè nên cây nào cũng bị tính là
-  // chồng nhà. Luật mới: chỉ loại điểm nằm SÂU trong nhà (cách tường
-  // gần nhất hơn 0,3 đơn vị), điểm ở mép tường/vỉa hè vẫn được (thân cây
-  // sát tường, tán phủ lên mặt tiền là cảnh phố bình thường), vẫn loại
-  // điểm trên lòng đường, ngoài ranh và gần kênh. Ứng viên thu đủ rồi
-  // mới lấy đều khắp bản đồ về mức trần (120 cây, 100 đèn), thay vì
-  // lấy 120 cái đầu tiên theo thứ tự đường trong file (sẽ dồn một góc).
+  // Cây ven đường lớn và cột đèn đường, bản sửa 4 (đã mô phỏng trước
+  // bằng dữ liệu thật): luật lệch cố định một mức chỉ tìm được 5 cây /
+  // 4 đèn cả bản đồ vì nhà phố bám sát đường tới 99% điểm ven đường.
+  // Luật mới: đi dọc tuyến với bước nhỏ (cây 10 đơn vị, đèn 30 đơn vị),
+  // mỗi điểm thử nhiều mức lệch (cây 0,35/1,0/1,8/2,5; đèn 0,35/0,8/1,4)
+  // ở cả hai bên, lấy điểm đầu tiên trống thật (trong ranh, không trên
+  // lòng đường, không trong footprint nhà, không gần kênh). Mô phỏng:
+  // 62 cây (9 cây trong vòng 40 quanh spawn) và 8 đèn đường. Đèn quảng
+  // trường chợ thêm 16 đèn (vòng bán kính 10/13 quanh mỗi landmark tên
+  // có 'Chợ', tối đa 4 đèn/chợ, tay đèn hướng vào chợ) vì quảng trường
+  // là đất trống chắc chắn nhìn thấy — riêng An Đông có 4 đèn, gần nhất
+  // cách spawn 4,8 đơn vị. Tổng đèn 24, dưới mức trần 100. Công viên chỉ
+  // cho thêm 1 cây / 4 đèn trong mô phỏng nên không làm riêng cho gọn.
   lanternMat = new THREE.MeshStandardMaterial({ color: 0xd32f2f, emissive: 0xff2211, emissiveIntensity: 0.15, roughness: 0.5 });
   lampMat = new THREE.MeshStandardMaterial({ color: 0xfff2cc, emissive: 0xffcc66, emissiveIntensity: 0.05, roughness: 0.6 });
-  function deepInsideBuilding(x, z) {
-    for (var i = 0; i < BOXES.length; i++) {
-      var b = BOXES[i];
-      var dx = x - b.x, dz = z - b.z, c = Math.cos(b.rot || 0), s = Math.sin(b.rot || 0);
-      var lx = dx * c - dz * s, lz = dx * s + dz * c;
-      if (Math.abs(lx) < b.hw && Math.abs(lz) < b.hd) {
-        var edgeDist = Math.min(b.hw - Math.abs(lx), b.hd - Math.abs(lz));
-        if (edgeDist > 0.3) return true;
+  function insideBuilding(x, z, margin) {
+    var cx = Math.floor(x / 12), cz = Math.floor(z / 12);
+    for (var dx = -1; dx <= 1; dx++) for (var dz = -1; dz <= 1; dz++) {
+      var list = GRID[(cx + dx) + ',' + (cz + dz)] || [];
+      for (var i = 0; i < list.length; i++) {
+        var b = list[i];
+        var ddx = x - b.x, ddz = z - b.z, c = Math.cos(b.rot || 0), s = Math.sin(b.rot || 0);
+        var lx = ddx * c - ddz * s, lz = ddx * s + ddz * c;
+        if (Math.abs(lx) < b.hw + margin && Math.abs(lz) < b.hd + margin) return true;
       }
     }
     return false;
@@ -237,6 +240,21 @@ function buildStreetProps() {
       if (distToSeg(x, z, wseg.x1, wseg.z1, wseg.x2, wseg.z2).d < 2.5) return true;
     }
     return false;
+  }
+  function openGround(x, z) {
+    return pointInPoly(x, z, BOUNDARY) && !onRoad(x, z) && !insideBuilding(x, z, 0) && !nearWater(x, z);
+  }
+  function findRoadside(tx, tz, dx, dz, gw, offsets, side) {
+    var sides = [side, -side];
+    for (var si = 0; si < sides.length; si++) {
+      for (var oi = 0; oi < offsets.length; oi++) {
+        var s = sides[si] * (gw / 2 + offsets[oi]);
+        var px = -dz * s, pz = dx * s;
+        var cx = tx + px, cz = tz + pz;
+        if (openGround(cx, cz)) return { x: cx, z: cz, armRot: Math.atan2(pz, -px) };
+      }
+    }
+    return null;
   }
   function sampleEvenly(arr, cap) {
     if (arr.length <= cap) return arr;
@@ -255,35 +273,42 @@ function buildStreetProps() {
       if (segLen === 0) continue;
       var dx = (x2 - x1) / segLen, dz = (z2 - z1) / segLen;
       var travTree = 0;
-      while (accTree + (segLen - travTree) >= 25) {
-        var needTree = 25 - accTree;
+      while (accTree + (segLen - travTree) >= 10) {
+        var needTree = 10 - accTree;
         var tx = x1 + dx * (travTree + needTree), tz = z1 + dz * (travTree + needTree);
-        var sideT = sideTree * (w / 2 + 1.4); sideTree = -sideTree;
-        var pxT = -dz * sideT, pzT = dx * sideT;
-        var cxT = tx + pxT, czT = tz + pzT;
-        if (pointInPoly(cxT, czT, BOUNDARY) && !onRoad(cxT, czT) && !deepInsideBuilding(cxT, czT) && !nearWater(cxT, czT)) treeCandidates.push({ x: cxT, z: czT });
-        travTree += needTree; accTree = 0;
+        var foundT = findRoadside(tx, tz, dx, dz, w, [0.35, 1.0, 1.8, 2.5], sideTree);
+        if (foundT) treeCandidates.push({ x: foundT.x, z: foundT.z });
+        sideTree = -sideTree; travTree += needTree; accTree = 0;
       }
       accTree += segLen - travTree;
       var travLamp = 0;
       while (accLamp + (segLen - travLamp) >= 30) {
         var needLamp = 30 - accLamp;
         var lx = x1 + dx * (travLamp + needLamp), lz = z1 + dz * (travLamp + needLamp);
-        var sideL = sideLamp * (w / 2 + 0.8); sideLamp = -sideLamp;
-        var pxL = -dz * sideL, pzL = dx * sideL;
-        var cxL = lx + pxL, czL = lz + pzL;
-        if (pointInPoly(cxL, czL, BOUNDARY) && !onRoad(cxL, czL) && !deepInsideBuilding(cxL, czL) && !nearWater(cxL, czL)) {
-          var offLen = Math.hypot(pxL, pzL) || 1;
-          var dirX = -pxL / offLen, dirZ = -pzL / offLen;
-          lampCandidates.push({ x: cxL, z: czL, armRot: Math.atan2(-dirZ, dirX) });
-        }
-        travLamp += needLamp; accLamp = 0;
+        var foundL = findRoadside(lx, lz, dx, dz, w, [0.35, 0.8, 1.4], sideLamp);
+        if (foundL) lampCandidates.push({ x: foundL.x, z: foundL.z, armRot: foundL.armRot });
+        sideLamp = -sideLamp; travLamp += needLamp; accLamp = 0;
       }
       accLamp += segLen - travLamp;
     }
   });
   var treePts = sampleEvenly(treeCandidates, 120);
   var lampPts = sampleEvenly(lampCandidates, 100);
+  (MAP.landmarks || []).forEach(function (L) {
+    if (!L.name || L.name.indexOf('Chợ') === -1) return;
+    var count = 0;
+    [10, 13].forEach(function (rad) {
+      for (var k = 0; k < 8 && count < 4; k++) {
+        var ang = k * Math.PI / 4;
+        var x = L.x + Math.cos(ang) * rad, z = L.z + Math.sin(ang) * rad;
+        if (openGround(x, z)) {
+          var dirX = (L.x - x) / rad, dirZ = (L.z - z) / rad;
+          lampPts.push({ x: x, z: z, armRot: Math.atan2(-dirZ, dirX) });
+          count++;
+        }
+      }
+    });
+  });
   if (treePts.length) {
     var trunkInst = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.12, 0.18, 1.4, 6), new THREE.MeshStandardMaterial({ color: 0x6b4a2a, roughness: 0.95 }), treePts.length);
     var canopyInst = new THREE.InstancedMesh(new THREE.SphereGeometry(1.0, 8, 6), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 }), treePts.length);
@@ -517,7 +542,7 @@ function buildStreetProps() {
     if (bestD < 12) { ringScale = 4; ringX = bestX; ringZ = bestZ; }
     var ring = new THREE.Mesh(new THREE.RingGeometry(0.85, 1.0, 32), new THREE.MeshBasicMaterial({ color: 0xf9a825, transparent: true, opacity: 0.8, side: THREE.DoubleSide }));
     ring.rotation.x = -Math.PI / 2;
-    ring.position.set(ringX, 0.15, ringZ);
+    ring.position.set(ringX, 0.20, ringZ);
     ring.scale.set(ringScale, ringScale, ringScale);
     scene.add(ring);
     landmarkPins.push({ pin: pin, ring: ring, ringBase: ringScale, phase: idx * 0.7 });
@@ -589,8 +614,8 @@ function buildMap() {
     }
   });
   mergedQuads(roadSegs, 0x3a3f44, 0.06);
-  if (sidewalkSegs.length) mergedQuads(sidewalkSegs, 0xb8b0a0, 0.05);
-  if (dashSegs.length) mergedQuads(dashSegs, 0xf5f0dc, 0.09);
+  if (sidewalkSegs.length) mergedQuads(sidewalkSegs, 0xb8b0a0, 0.10);
+  if (dashSegs.length) mergedQuads(dashSegs, 0xf5f0dc, 0.12);
   // Quảng trường chợ: nền gạch nung dưới mỗi chợ, để chợ tách biệt
   // khỏi nền đất vàng chung. Dùng mergedQuads với một đoạn dài 18,
   // rộng 14 đặt tại tâm landmark chợ.
@@ -600,7 +625,7 @@ function buildMap() {
       plazaSegs.push({ x1: L.x - 9, z1: L.z, x2: L.x + 9, z2: L.z, w: 14 });
     }
   });
-  if (plazaSegs.length) mergedQuads(plazaSegs, 0xc98a5a, 0.045);
+  if (plazaSegs.length) mergedQuads(plazaSegs, 0xc98a5a, 0.08);
   roadSegs.forEach(addRoadToGrid);
   // Nhà trên nền vàng: chỉ những nhà đã qua lọc ở build_map — footprint
   // thật, đã đẩy khỏi hành lang đường, nhà trong công viên và nhà nhỏ vẫn

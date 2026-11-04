@@ -122,6 +122,13 @@ khỏi OSM một chút ở phố hẹp.
   — mô phỏng chỉ đặt được 5 cây / 4 đèn cả bản đồ do nhà phố xây sát
   vỉa hè; luật mới chỉ loại điểm nằm sâu trong nhà hơn 0,3 đơn vị, lấy
   đều khắp bản đồ về mức trần, đèn thêm tay vươn ra đường để nhận ra.
+  Sửa tiếp sau kiểm tra lần 4 (vẫn chỉ 1 cây, chưa thấy đèn): luật
+  "sâu trong nhà" vẫn loại gần hết vì điểm ven đường nằm trong nhà
+  tới 0,9 đơn vị, không phải 0,3 — mô phỏng luật tìm điểm trống nhiều
+  mức lệch cho 62 cây / 8 đèn đường, cộng 16 đèn quảng trường chợ
+  (vòng 10/13 quanh chợ, tay hướng vào chợ), tổng 24 đèn; đồng thời
+  tách các lớp mặt đất (vỉa hè 0,10, vạch 0,12, quảng trường 0,08, vòng
+  0,20) để hết loang lổ do z-fighting giữa các lớp cách nhau 0,005.
   Kiểm tra visual cuối cùng vẫn là điện thoại của Boss.
 
 ## Nâng cấp UI/UX v1.2 (2026-11-04) — 4 trạng thái, design system, micro-interactions

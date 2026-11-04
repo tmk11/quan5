@@ -542,7 +542,7 @@ function updateHouseUI() {
   // nhà của mình, xám = nhà người khác. Biển BÁN chỉ hiện khi chưa có chủ.
   if (houseRing) {
     houseRingBase = Math.max(b.hw, b.hd) + 1.2;
-    houseRing.position.set(b.x, 0.14, b.z);
+    houseRing.position.set(b.x, 0.20, b.z);
     houseRing.scale.set(houseRingBase, houseRingBase, houseRingBase);
     houseRing.material.color.set(!rec ? 0xf9a825 : (rec.owner === deviceId ? 0x2e7d32 : 0x8a7a66));
     houseRing.visible = true;
