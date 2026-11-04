@@ -38,6 +38,32 @@ function econHome(econStore, deviceId) {
   const rec = deviceId ? econStore.players[deviceId] : null;
   return rec ? rec.home : null;
 }
+// Nhà gửi xuống client cho NPC (v1.7): bản sao mới của từng record, kèm
+// màu áo chủ (từ ví, mặc định cam khi ví cũ chưa có) và chủ có đang
+// online trong phòng này không (so deviceId với phiên trong phòng).
+// KHÔNG sửa record gốc: state trả thẳng economyStore.houses từ trước
+// nên gán thêm trường vào đó sẽ lọt vào economy.json ở lần lưu sau.
+// Client không bao giờ thấy deviceId của người khác qua hai trường này:
+// ownerOnline chỉ là boolean, ownerRobe chỉ là màu áo (vốn đã hiện công
+// khai trên nhân vật lúc chủ online).
+function enrichHousesForState(houses, players, roomPlayers) {
+  const online = new Set();
+  if (roomPlayers) {
+    for (const p of roomPlayers) {
+      if (p.deviceId) online.add(p.deviceId);
+    }
+  }
+  const out = {};
+  for (const id of Object.keys(houses || {})) {
+    const rec = houses[id];
+    const ownerRec = rec && players ? players[rec.owner] : null;
+    out[id] = Object.assign({}, rec, {
+      ownerRobe: ownerRec && typeof ownerRec.robe === 'string' && ownerRec.robe ? ownerRec.robe : '#e0651f',
+      ownerOnline: !!(rec && online.has(rec.owner))
+    });
+  }
+  return out;
+}
 
 async function handleHealth(req, res, ctx) {
   let mapSummary;
@@ -82,7 +108,7 @@ async function handleJoin(req, res, ctx) {
   const snap = ctx.economyStore.snapshot();
   let econ;
   try {
-    const created = ctx.economyStore.getOrCreatePlayer(deviceId, name);
+    const created = ctx.economyStore.getOrCreatePlayer(deviceId, name, robe);
     econ = created.record;
     let spawn = { x: S.SPAWN.x, z: S.SPAWN.z };
     if (econ.home) {
@@ -731,7 +757,7 @@ async function handleState(req, res, ctx, query) {
     console.error('[' + new Date().toISOString() + '] Dọn nhà mồ côi khi state thất bại khi lưu: ' + cleanup.saveError);
   }
   if (!room) {
-    sendJson(res, 200, { players: [], events: [], buoi: 'sang', houses: ctx.economyStore.houses, leaderboard: [], lion: null, envelopes: [] });
+    sendJson(res, 200, { players: [], events: [], buoi: 'sang', houses: enrichHousesForState(ctx.economyStore.houses, ctx.economyStore.players, null), leaderboard: [], lion: null, envelopes: [] });
     return;
   }
   ctx.roomStore.prune(room);
@@ -748,7 +774,7 @@ async function handleState(req, res, ctx, query) {
     players,
     events: room.events.slice(-S.MAX_EVENTS),
     buoi: room.buoi,
-    houses: ctx.economyStore.houses,
+    houses: enrichHousesForState(ctx.economyStore.houses, ctx.economyStore.players, room.players.values()),
     leaderboard: S.rankLandlords([...room.players.values()], ctx.economyStore.players, ctx.economyStore.houses),
     lion: lionState.lion,
     envelopes: lionState.envelopes

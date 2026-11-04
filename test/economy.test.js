@@ -129,3 +129,34 @@ test('economy v1.4: tải sổ nhà cũ (chưa có shopType/paid) thì chuẩn h
   assert.equal(h.shopType, null);
   assert.equal(h.paid, 42000);
 });
+
+test('economy v1.7: màu áo lưu theo ví, join đổi màu thì NPC mặc màu mới, ví cũ thiếu robe thì chuẩn hóa về cam mặc định', () => {
+  const dir = tmpDir();
+  const store = new EconomyStore(path.join(dir, 'economy.json'));
+  store.load();
+  const rec = store.getOrCreatePlayer('dev-robe-1', 'ChuNha', '#1565c0').record;
+  assert.equal(rec.robe, '#1565c0');
+  store.save();
+  // Tải lại: robe còn nguyên sau khi lưu.
+  const store2 = new EconomyStore(path.join(dir, 'economy.json'));
+  store2.load();
+  assert.equal(store2.players['dev-robe-1'].robe, '#1565c0');
+  // Join lại với màu khác + tên mới: cả hai đều cập nhật (không rớt robe khi đổi tên).
+  const again = store2.getOrCreatePlayer('dev-robe-1', 'ChuNhaMoi', '#d32f2f');
+  assert.equal(again.record.robe, '#d32f2f');
+  assert.equal(again.record.name, 'ChuNhaMoi');
+  assert.equal(again.nameChanged, true);
+  // Đường gọi phục hồi không truyền robe thì giữ màu cũ.
+  const kept = store2.getOrCreatePlayer('dev-robe-1', 'ChuNhaMoi');
+  assert.equal(kept.record.robe, '#d32f2f');
+  // Ví cũ (trước v1.7) không có robe: chuẩn hóa về cam mặc định, không fail.
+  const dir2 = tmpDir();
+  fs.writeFileSync(path.join(dir2, 'economy.json'), JSON.stringify({
+    players: { 'dev-old-robe': { tien: 90000, home: null, name: 'Cu' }, 'dev-bad-robe': { tien: 90000, home: null, name: 'Xau', robe: 'khong-phai-mau' } },
+    houses: {}
+  }));
+  const store3 = new EconomyStore(path.join(dir2, 'economy.json'));
+  store3.load();
+  assert.equal(store3.players['dev-old-robe'].robe, '#e0651f');
+  assert.equal(store3.players['dev-bad-robe'].robe, '#e0651f');
+});

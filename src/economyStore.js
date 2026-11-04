@@ -59,6 +59,17 @@ class EconomyStore {
         h.paid = h.price;
       }
     }
+    // Màu áo (v1.7): ví cũ chưa có robe thì mặc định cam #e0651f (màu
+    // mặc định lúc join). Chỉ chuẩn hóa khi thiếu/sai định dạng, không
+    // fail startup vì một trường trang trí — cùng triết lý như shopType.
+    const players = parsed.players || {};
+    for (const id of Object.keys(players)) {
+      const p = players[id];
+      if (!p || typeof p !== 'object') continue;
+      if (!S.validateColor(p.robe).ok) {
+        p.robe = '#e0651f';
+      }
+    }
     if (parsed.incomeCooldown === undefined || parsed.incomeCooldown === null || typeof parsed.incomeCooldown !== 'object' || Array.isArray(parsed.incomeCooldown)) {
       parsed.incomeCooldown = {};
     }
@@ -189,12 +200,19 @@ class EconomyStore {
     }
   }
 
-  getOrCreatePlayer(deviceId, name) {
+  getOrCreatePlayer(deviceId, name, robe) {
     let rec = this.players[deviceId];
     if (!rec) {
-      rec = { tien: S.START_TIEN, home: null, name: name || null };
+      rec = { tien: S.START_TIEN, home: null, name: name || null, robe: robe || '#e0651f' };
       this.players[deviceId] = rec;
       return { record: rec, created: true };
+    }
+    // Màu áo (v1.7, NPC chủ offline): join luôn gửi màu đã validate
+    // #RRGGBB nên cập nhật thẳng để NPC mặc đúng màu mới nhất; các
+    // đường gọi phục hồi (không truyền robe) thì giữ màu cũ. Cập nhật
+    // robe trước rồi mới xét đổi tên để cả hai đổi cùng lúc đều ăn.
+    if (robe && rec.robe !== robe) {
+      rec.robe = robe;
     }
     if (name && rec.name !== name) {
       rec.name = name;

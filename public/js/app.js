@@ -157,6 +157,16 @@ var deviceId = (function () {
   }
 })();
 var myTien = 0, myHome = null, lastHouses = {}, lastHousesJson = '';
+// NPC cư dân bất đồng bộ (v1.7): nhà có chủ nhưng chủ offline trong
+// phòng thì dựng một nhân vật đứng trước hiên, mặc đúng màu áo chủ.
+// Bán kính chào: task ghi 5m, nhưng mọi bán kính khác trong game đều
+// tính bằng đơn vị game (nhà 4, giao hàng 6, nhặt lì xì 3); 5m thật chỉ
+// bằng 0,35 đơn vị — đứng sát rạt lên người NPC mới kích hoạt được —
+// nên 5 đơn vị là cách đọc chơi được, và NPC_GREETING_RADIUS ghi rõ
+// đơn vị này để lần sau không nhầm với mét thật.
+var npcGroups = {};
+var NPC_GREETING_RADIUS = 5;
+var NPC_GREETINGS = ['Chào hàng xóm!', 'Ghé quán ủng hộ nha!', 'Đi dạo Chợ Lớn vui vẻ!', 'Mua gì không bạn ơi!', 'Nhà mình mở cửa nè!', 'Chợ Lớn đông vui quá!'];
 var myBuffUntil = 0, buffShown = false, lastLeaderboardJson = '';
 var myPos = { x: 25, z: -10, rot: 0 }, pose = 'dung', poseUntil = 0;
 var camYaw = 0, keys = {}, joy = { x: 0, y: 0 };
@@ -637,6 +647,9 @@ function handleSessionExpired(msg) {
   });
   lastLion = null;
   lastEnvelopes = [];
+  // NPC (v1.7): hết phiên thì dọn luôn, tránh NPC mồ côi đứng lại khi
+  // người chơi vào lại (poll sau join sẽ dựng lại đúng theo state mới).
+  clearNPCs();
   closeMapModal();
   closeSoHong();
   lastHouses = {};
@@ -1264,6 +1277,85 @@ function updateSoHongBtn() {
   var popup = document.getElementById('ctxPopup');
   if (popup) popup.classList.toggle('ctx-sohong', owned);
 }
+// NPC cư dân bất đồng bộ (v1.7). Vị trí hiên: cùng thứ tự offset và
+// cùng quy ước xoay như homeSpawn phía server (trước → sau → trái →
+// phải), nhưng kiểm tra thêm không đè lên nhà hàng xóm (nhà san sát
+// nhau rất dễ rơi vào nhà bên); nếu cả 4 hướng đều kẹt thì fallback
+// về điểm đường gần nhà nhất (luôn đi được và nhìn thấy, như visit).
+function npcSpawnPosition(b) {
+  var cos = Math.cos(b.rot || 0), sin = Math.sin(b.rot || 0);
+  var offsets = [[0, (b.hd || 0) + 2], [0, -((b.hd || 0) + 2)], [(b.hw || 0) + 2, 0], [-((b.hw || 0) + 2), 0]];
+  for (var i = 0; i < offsets.length; i++) {
+    var x = b.x + offsets[i][0] * cos + offsets[i][1] * sin;
+    var z = b.z - offsets[i][0] * sin + offsets[i][1] * cos;
+    if (x < -140 || x > 140 || z < -75 || z > 75) continue;
+    var clear = true;
+    if (MAP && MAP.buildings) {
+      for (var j = 0; j < MAP.buildings.length; j++) {
+        var o = MAP.buildings[j];
+        if (o.id === b.id) continue;
+        if (boxDistanceShared(x, z, o) <= 0.5) { clear = false; break; }
+      }
+    }
+    if (clear) return { x: x, z: z };
+  }
+  var best = null, bestD = 1e9;
+  (ROAD_SEGMENTS || []).forEach(function (s) {
+    var r = distToSeg(b.x, b.z, s.x1, s.z1, s.x2, s.z2);
+    if (r.d < bestD) { bestD = r.d; best = r; }
+  });
+  if (best) return { x: best.x, z: best.z };
+  return { x: Math.max(-140, Math.min(140, b.x)), z: Math.max(-75, Math.min(75, b.z)) };
+}
+function removeNpc(id) {
+  var g = npcGroups[id];
+  if (!g) return;
+  var u = g.userData && g.userData.npc;
+  if (u && u.bubble) {
+    if (scene) scene.remove(u.bubble);
+    disposeObject(u.bubble);
+  }
+  if (scene) scene.remove(g);
+  disposeObject(g);
+  delete npcGroups[id];
+}
+function clearNPCs() {
+  Object.keys(npcGroups).forEach(removeNpc);
+}
+function updateNPCs() {
+  if (!RENDER_OK || !scene) return;
+  var byId = {};
+  if (MAP && MAP.buildings) MAP.buildings.forEach(function (b) { byId[b.id] = b; });
+  var keep = {};
+  Object.keys(lastHouses).forEach(function (id) {
+    var rec = lastHouses[id];
+    // Chủ đang online trong phòng thì người thật đã đứng đó, không
+    // dựng NPC trùng. Chủ offline (hoặc ở phòng khác) thì mới dựng.
+    if (!rec || rec.ownerOnline) return;
+    var b = byId[id];
+    if (!b) return;
+    keep[id] = true;
+    var wantRobe = rec.ownerRobe || '#e0651f';
+    var wantName = rec.ownerName || '';
+    var g = npcGroups[id];
+    // Chủ đổi tên/màu áo rồi offline lại: dựng lại cho đúng (hiếm, rẻ).
+    if (g && g.userData.npc && (g.userData.npc.robe !== wantRobe || g.userData.npc.name !== wantName)) {
+      removeNpc(id);
+      g = null;
+    }
+    if (!g) {
+      var pos = npcSpawnPosition(b);
+      g = makePerson(wantName, wantRobe, '#ffe0bd');
+      g.position.set(pos.x, 0, pos.z);
+      // makePerson đã gán userData (inner/pose/nameSprite); chỉ thêm
+      // nhánh npc, không ghi đè userData sẵn có.
+      g.userData.npc = { houseId: id, robe: wantRobe, name: wantName, bubble: null, wasNear: false, targetRot: 0 };
+      scene.add(g);
+      npcGroups[id] = g;
+    }
+  });
+  Object.keys(npcGroups).forEach(function (id) { if (!keep[id]) removeNpc(id); });
+}
 document.getElementById('shipperBtn').addEventListener('click', function () {
   doShipper('take', document.getElementById('shipperBtn'));
 });
@@ -1456,6 +1548,34 @@ function animate() {
       var buffEl = document.getElementById('buffLabel');
       if (buffEl) buffEl.style.display = buffActive ? '' : 'none';
     }
+    // NPC cư dân bất đồng bộ (v1.7): trong tầm chào thì quay mặt về
+    // phía mình (lerp góc như người chơi thật) và hiện bong bóng chào;
+    // câu chào chỉ chọn ngẫu nhiên lúc bước vào tầm (không đổi mỗi
+    // frame để khỏi nhấp nháy), ra khỏi tầm thì bong bóng biến mất.
+    // Bong bóng là hiển thị cục bộ của từng client, không đồng bộ qua
+    // server nên không tốn thêm gói tin poll.
+    Object.keys(npcGroups).forEach(function (id) {
+      var g = npcGroups[id];
+      var u = g.userData.npc;
+      if (!u) return;
+      var d = Math.hypot(myPos.x - g.position.x, myPos.z - g.position.z);
+      var near = d <= NPC_GREETING_RADIUS;
+      if (near && !u.wasNear) {
+        if (u.bubble) { scene.remove(u.bubble); disposeObject(u.bubble); }
+        var text = NPC_GREETINGS[Math.floor(Math.random() * NPC_GREETINGS.length)];
+        u.bubble = textSprite(text, 2.5);
+        u.bubble.position.set(g.position.x, 4.6, g.position.z);
+        scene.add(u.bubble);
+        u.wasNear = true;
+      } else if (!near && u.wasNear) {
+        if (u.bubble) { scene.remove(u.bubble); disposeObject(u.bubble); u.bubble = null; }
+        u.wasNear = false;
+      }
+      if (near) {
+        u.targetRot = Math.atan2(myPos.x - g.position.x, myPos.z - g.position.z);
+        g.rotation.y += wrapAngle(u.targetRot - g.rotation.y) * (1 - Math.exp(-dt * 12));
+      }
+    });
   }
   Object.keys(people).forEach(function (id) {
     var g = people[id], u = g.userData;
@@ -1635,6 +1755,9 @@ function pollOnce() {
     // lastHouses và myHome đã tươi ở điểm này (vòng lastPlayers vừa
     // chạy xong), nên đếm đúng ngay poll đầu sau khi mua/bán.
     updateSoHongBtn();
+    // NPC cư dân bất đồng bộ (v1.7): dựng/xóa theo ownerOnline mới nhất
+    // trong lastHouses; chạy mỗi poll nhưng chỉ tạo/xóa khi tập hợp đổi.
+    updateNPCs();
     var feedJson = JSON.stringify(st.events || []);
     if (feedJson !== lastFeedJson) {
       lastFeedJson = feedJson;

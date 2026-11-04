@@ -278,6 +278,42 @@ vì server đọc lại theo mtime.
 
 ## Sổ Hồng Quận 5 & Deep Link ghé thăm (v1.6, 2026-11-04)
 
+## Cư dân bất đồng bộ — NPC chủ nhà offline (v1.7, 2026-11-04, đã build + test local, CHƯA deploy vì check v1.6 đang chạy)
+
+- Server: ví trong economy.json nay lưu thêm `robe` (màu áo lúc join,
+  đã validate #RRGGBB; join đổi màu thì ví cập nhật màu mới nhất; ví
+  cũ thiếu robe được chuẩn hóa về cam mặc định #e0651f khi tải, không
+  fail startup vì một trường trang trí). State trả kèm mỗi nhà hai
+  trường mới, tính trên bản sao (không ghi vào sổ đĩa): `ownerRobe`
+  (màu áo chủ) và `ownerOnline` (chủ có phiên trong phòng này không,
+  so deviceId với phiên trong phòng — client không bao giờ thấy
+  deviceId của người khác qua hai trường này).
+- Client: nhà có chủ nhưng chủ offline trong phòng thì dựng một NPC
+  (tái dùng nhân vật chibi, tên + màu áo đúng của chủ, da mặc định)
+  đứng trước hiên: cùng thứ tự offset và quy ước xoay như homeSpawn
+  phía server, nhưng kiểm tra thêm không đè lên nhà hàng xóm, kẹt cả
+  4 hướng thì fallback về điểm đường gần nhà nhất. Chủ vào lại phòng
+  thì NPC biến mất (người thật đã đứng đó); chủ rời phòng (prune
+  ~25s) thì NPC hiện lại; bán nhà thì NPC biến mất.
+- Chào hỏi: người chơi trong 5 đơn vị game của NPC thì NPC quay mặt
+  về phía người đó (lerp góc như người chơi thật) và hiện bong bóng
+  chào chọn ngẫu nhiên mỗi lần bước vào tầm (không đổi mỗi frame):
+  "Chào hàng xóm!", "Ghé quán ủng hộ nha!", "Đi dạo Chợ Lớn vui
+  vẻ!", "Mua gì không bạn ơi!", "Nhà mình mở cửa nè!", "Chợ Lớn
+  đông vui quá!". Bong bóng là hiển thị cục bộ từng client, không
+  đồng bộ qua server nên không tốn thêm gói tin poll.
+- Lưu ý đơn vị: task ghi bán kính 5m, nhưng mọi bán kính khác trong
+  game đều tính bằng đơn vị game (nhà 4, giao hàng 6, nhặt lì xì 3);
+  5m thật chỉ bằng 0,35 đơn vị — đứng sát rạt lên người NPC mới kích
+  hoạt được — nên 5 đơn vị là cách đọc chơi được.
+- Test: unit 35/35 (thêm test robe: lưu/tải lại, đổi màu + đổi tên
+  cùng lúc, gọi phục hồi không truyền robe thì giữ màu cũ, ví cũ
+  chuẩn hóa về cam); scripts/npc-smoke.js PASS (online true + robe
+  xanh, offline sau 30s false + robe còn nguyên, restart vẫn nguyên,
+  record nhà trên đĩa không lọt ownerRobe/ownerOnline); hồi quy
+  shop/event/sohong smoke đều PASS. Render NPC 3D + bong bóng cần
+  browser check sau deploy (check v1.6 đang chạy nên chưa deploy v1.7).
+
 - Sửa nhầm lẫn từ browser check v1.5 (popup nhà vẫn chỉ thấy landmark):
   chẩn đoán "hai phần popup chồng nhau" ở v1.5 là sai — code ưu tiên
   nhà đã đúng và đã lên live. Bằng chứng: điểm spawn cách nhà gần nhất
