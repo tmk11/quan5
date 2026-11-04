@@ -96,7 +96,8 @@ async function main() {
 
     const health = await waitHealth();
     console.log('health ok, version=' + health.version);
-    assert(health.version === '1.4.0', 'version phải là 1.4.0, nhận ' + health.version);
+    const expectedVersion = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
+    assert(health.version === expectedVersion, 'version phải là ' + expectedVersion + ', nhận ' + health.version);
     const S = require(path.join(ROOT, 'public', 'js', 'shared-core.js'));
     const mapRes = await get('/quan5-map.json');
     assert(mapRes.status === 200, 'GET /quan5-map.json phải 200');

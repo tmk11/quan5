@@ -71,6 +71,12 @@ function requireHouseAction(raw) {
   }
   return raw;
 }
+function requireShipperAction(raw) {
+  if (raw !== 'take' && raw !== 'cancel') {
+    throw badRequest('Hành động shipper không hợp lệ: chỉ nhận take, cancel.');
+  }
+  return raw;
+}
 function requireShopType(raw) {
   return requireOrThrow(S.validateShopType(raw));
 }
@@ -95,6 +101,7 @@ module.exports = {
   requireCoordinate,
   requireBodyObject,
   requireHouseAction,
+  requireShipperAction,
   requireShopType,
   requireNonEmptyString
 };

@@ -25,6 +25,21 @@ function readPort() {
   return n;
 }
 
+function readLionIntervalMs() {
+  const raw = process.env.LION_INTERVAL_MS;
+  if (raw === undefined || raw === '') {
+    return S.LION_SPAWN_INTERVAL_MS;
+  }
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1000) {
+    throw new Error(
+      'Biến môi trường LION_INTERVAL_MS không hợp lệ: "' + raw + '". ' +
+      'LION_INTERVAL_MS phải là số nguyên mili giây từ 1000 trở lên, hoặc bỏ trống để dùng 600000 (10 phút).'
+    );
+  }
+  return n;
+}
+
 module.exports = {
   ROOT_DIR,
   PUBLIC_DIR,
@@ -32,6 +47,7 @@ module.exports = {
   ECONOMY_PATH,
   HOST,
   readPort,
+  readLionIntervalMs,
   // Re-export các hằng số dùng chung để handler chỉ import từ một nơi.
   BOUNDS: S.BOUNDS,
   SPAWN: S.SPAWN,

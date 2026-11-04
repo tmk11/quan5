@@ -48,6 +48,7 @@
 </div>
 <div id="streetPill">📍 <span id="streetLabel">Quận 5</span></div>
 <div class="panel" id="leaderboard"><div class="leader-head"><b>🏆 Top Địa Chủ Quận 5</b><button type="button" id="leaderToggle" aria-expanded="true" aria-label="Thu gọn bảng xếp hạng">▾</button></div><div id="leaderBody"><div class="leader-empty">Đang tải bảng xếp hạng…</div></div></div>
+<div class="panel" id="shipperPanel" style="display:none"><div class="shipper-head"><b>📦 Đơn giao hàng</b><span id="shipperTimer">⏱ 60s</span></div><div id="shipperTarget" class="shipper-target"></div><div class="shipper-foot"><span id="shipperReward"></span><button type="button" id="shipperCancelBtn">Hủy đơn</button></div></div>
 <div class="panel" id="minimapWrap" role="button" tabindex="0" aria-label="Mở bản đồ lớn">🗺️ Bản đồ Quận 5<canvas id="minimap" width="140" height="75"></canvas><span class="minimap-hint">Chạm để phóng to</span></div>
 <div class="panel" id="feed"><div class="feed-head"><b>📣 Hoạt động</b><button type="button" id="feedToggle" aria-expanded="true" aria-label="Thu gọn hoạt động">▾</button></div><div id="feedBody"><div class="skeleton-line" style="width:95%"></div><div class="skeleton-line" style="width:80%"></div><div class="skeleton-line" style="width:88%"></div></div></div>
 <div id="pollError"><span id="pollErrorText">Mất kết nối tới máy chủ — dữ liệu có thể đã cũ.</span><button type="button" id="pollRetryBtn">Thử lại ngay</button></div>
@@ -86,13 +87,14 @@
 <button type="button" class="buoi" id="buoiBtn">🌅 Đổi buổi</button>
 </div>
 <button type="button" id="quickToggle" aria-expanded="false" aria-label="Mở thao tác nhanh">⚡ Thao tác</button>
+<button type="button" id="shipperBtn">📦 Nhận đơn giao hàng</button>
 </div>
 <div id="joy"><div id="knob"></div></div>
 <div id="mapModal" style="display:none" role="dialog" aria-modal="true" aria-label="Bản đồ Quận 5 lớn">
 <div class="map-modal-panel">
 <div class="map-modal-head"><b>🗺️ Bản đồ Quận 5 (thật)</b><button type="button" id="mapModalClose" aria-label="Đóng bản đồ">✕</button></div>
 <canvas id="bigMap" width="600" height="320"></canvas>
-<p class="map-modal-note">Chấm vàng là bạn, chấm xanh là người chơi khác, chấm đỏ là landmark. Chạm ngoài khung hoặc nút ✕ để đóng.</p>
+<p class="map-modal-note">Chấm vàng là bạn, chấm xanh là người chơi khác, chấm đỏ là landmark, chấm vàng lớn là Đoàn Lân, chấm đỏ nhỏ là bao lì xì, đường đứt nét là hướng tới điểm giao hàng.</p>
 </div>
 </div>
 <div id="toast" role="status" aria-live="polite"></div>

@@ -162,6 +162,19 @@ button.is-busy::after{content:'';display:inline-block;width:14px;height:14px;mar
    banner lỗi kết nối (pollError ở top 92px, cao ~50px) nên bắt đầu từ
    150px để không bị đè khi banner hiện. Thu gọn được bằng nút ▾/▴. */
 #leaderboard{top:150px;left:10px;width:220px;padding:0;overflow:hidden;pointer-events:auto}
+/* Shipper (v1.5): panel tạm thời, chỉ hiện khi đang có đơn (tối đa 60s).
+   Đặt ở cột trái dưới bảng Top (bảng cao nhất ~160px, kết thúc ~310px)
+   nên top 320px không đè bảng, và trên joystick (góc dưới trái) ở cả
+   màn hình dọc; màn hình ngang vốn đã chật thì panel 60s này chấp nhận
+   được vì nó tự ẩn khi hết đơn. */
+#shipperPanel{top:320px;left:10px;width:220px;padding:10px 12px;pointer-events:auto}
+.shipper-head{display:flex;justify-content:space-between;align-items:center;font-size:var(--font-sm)}
+#shipperTimer{font-weight:800}
+#shipperTimer.urgent{color:#b91c1c}
+.shipper-target{font-size:var(--font-sm);line-height:1.4;margin:6px 0}
+.shipper-foot{display:flex;justify-content:space-between;align-items:center;font-size:var(--font-sm);font-weight:700}
+#shipperCancelBtn{font-size:var(--font-xs);padding:8px 10px;min-height:36px;background:#fff;border:1px solid var(--line);color:#b91c1c}
+#shipperBtn{border-radius:999px;padding:12px 16px;font-size:14px}
 .leader-head{display:flex;justify-content:space-between;align-items:center;padding:10px 12px 8px;border-bottom:1px solid var(--line);font-size:var(--font-sm)}
 .leader-head button{background:var(--accent-soft);color:#5b4632;box-shadow:none;padding:4px 10px;min-height:32px;font-size:var(--font-sm)}
 #leaderBody{padding:8px 12px 10px;font-size:var(--font-sm);line-height:1.45}

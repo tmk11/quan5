@@ -18,8 +18,9 @@ const { RoomStore } = require('./src/rooms.js');
 const { RateLimiter } = require('./src/rateLimit.js');
 const handlers = require('./src/handlers.js');
 const { serveStatic } = require('./src/static.js');
+const Lion = require('./src/lion.js');
 
-let version = '1.4.0';
+let version = '1.5.0';
 try {
   const pkg = JSON.parse(fs.readFileSync(path.join(config.ROOT_DIR, 'package.json'), 'utf8'));
   if (pkg && typeof pkg.version === 'string') {
@@ -99,6 +100,8 @@ const server = http.createServer(async (req, res) => {
       await handlers.handleAction(req, res, ctx);
     } else if (req.method === 'POST' && pathname === '/api/house') {
       await handlers.handleHouse(req, res, ctx);
+    } else if (req.method === 'POST' && pathname === '/api/shipper') {
+      await handlers.handleShipper(req, res, ctx);
     } else if (req.method === 'GET' && pathname === '/api/state') {
       await handlers.handleState(req, res, ctx, url.searchParams);
     } else if (req.method === 'GET' && (
@@ -173,5 +176,25 @@ try {
 server.listen(port, config.HOST, () => {
   console.log('Quan 5 Online dang chay tai http://' + config.HOST + ':' + port + '/');
 });
+
+// Đoàn Lân (v1.5): mỗi khoảng LION_INTERVAL_MS (mặc định 10 phút, chỉnh
+// bằng biến môi trường LION_INTERVAL_MS cho test), xuất hiện một Lân
+// trong mỗi phòng đang có người chơi và chưa có Lân. Lân là thực thể
+// theo phòng (room-scoped) nên người cùng phòng mới tranh nhau nhặt,
+// khác phòng không ảnh hưởng nhau. Callback bọc try/catch để một lần
+// xuất hiện hỏng (ví dụ bản đồ chưa tải) không làm sập tiến trình, và
+// Lân sẽ được thử lại ở chu kỳ sau.
+setInterval(() => {
+  try {
+    const map = mapStore.getMap();
+    const now = Date.now();
+    for (const room of roomStore.rooms.values()) {
+      if (room.players.size === 0 || room.lion) continue;
+      Lion.spawnLion(room, map, now, roomStore);
+    }
+  } catch (e) {
+    console.error('[' + new Date().toISOString() + '] Xuất hiện Đoàn Lân thất bại: ' + e.message);
+  }
+}, config.readLionIntervalMs());
 
 module.exports = { server, ctx };

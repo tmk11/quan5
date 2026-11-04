@@ -160,3 +160,41 @@ test('shophouse v1.4: bảng Top Địa Chủ chỉ tính người trong phòng,
   many.forEach((p, i) => { manyPlayers[p.deviceId] = { tien: (6 - i) * 1000 }; });
   assert.equal(S.rankLandlords(many, manyPlayers, {}).length, 5);
 });
+
+test('shipper: đổi đơn vị mét/game và thưởng theo quãng đường', () => {
+  // 150m ≈ 10,45 đơn vị, 400m ≈ 27,88 đơn vị (SCALE 280/4018).
+  assert.ok(Math.abs(S.metersToUnits(150) - 10.45) < 0.1);
+  assert.ok(Math.abs(S.metersToUnits(400) - 27.88) < 0.1);
+  assert.ok(Math.abs(S.unitsToMeters(S.metersToUnits(250)) - 250) < 0.01);
+  // Thưởng: 300m → 8.000đ, 800m → 15.000đ, giữa làm tròn về nghìn
+  // (550m: 11.500 → 12.000đ vì Math.round làm tròn nửa lên; 400m:
+  // 9.400 → 9.000đ), ngắn hơn 300m vẫn 8.000đ, dài hơn 800m vẫn 15.000đ.
+  assert.equal(S.shipperReward(300), 8000);
+  assert.equal(S.shipperReward(800), 15000);
+  assert.equal(S.shipperReward(550), 12000);
+  assert.equal(S.shipperReward(400), 9000);
+  assert.equal(S.shipperReward(150), 8000);
+  assert.equal(S.shipperReward(1200), 15000);
+});
+
+test('lion: vị trí dọc tuyến, độ dài tuyến, lì xì xác định theo seed', () => {
+  const route = [[0, 0], [10, 0], [10, 10]];
+  assert.equal(S.routeLength(route), 20);
+  // Tốc độ 3 đơn vị/giây: 1 giây → (3, 0); 4 giây (12 đơn vị) → (10, 2).
+  assert.deepEqual(S.lionPositionAt(route, 1000), { x: 3, z: 0 });
+  assert.deepEqual(S.lionPositionAt(route, 4000), { x: 10, z: 2 });
+  // Đi hết tuyến (20 đơn vị = 6.667 giây) thì null (Lân rời đi).
+  assert.equal(S.lionPositionAt(route, 7000), null);
+  assert.equal(S.lionPositionAt([[0, 0]], 1000), null);
+  // Cùng seed + đợt rơi thì cùng số lượng và vị trí, khác đợt thì khác.
+  const a = S.lionDropEnvelopes('R-1', 0, { x: 15, z: 0 });
+  const b = S.lionDropEnvelopes('R-1', 0, { x: 15, z: 0 });
+  assert.deepEqual(a, b);
+  assert.ok(a.length >= 1 && a.length <= 3);
+  a.forEach((e) => {
+    assert.ok(Math.abs(e.x - 15) <= 1.5);
+    assert.ok(Math.abs(e.z - 0) <= 1.5);
+  });
+  const c = S.lionDropEnvelopes('R-1', 1, { x: 15, z: 0 });
+  assert.notDeepEqual(a.map((e) => e.id), c.map((e) => e.id));
+});

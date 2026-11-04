@@ -20,7 +20,9 @@ class RoomStore {
         players: new Map(),
         events: [],
         buoi: 'sang',
-        lastActiveAt: Date.now()
+        lastActiveAt: Date.now(),
+        lion: null,
+        claimedEnvelopes: Object.create(null)
       };
       this.rooms.set(code, room);
     }
@@ -88,7 +90,8 @@ class RoomStore {
       checkin: p.checkin,
       tien: rec ? rec.tien : 0,
       home: rec ? rec.home : null,
-      buffUntil: p.buffUntil || 0
+      buffUntil: p.buffUntil || 0,
+      mission: p.mission || null
     };
   }
   summary() {

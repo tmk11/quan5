@@ -276,6 +276,64 @@ vì server đọc lại theo mtime.
 - `quan5-online.service` — file systemd.
 - `quan5-snippet.txt` — đoạn cấu hình nginx.
 
+## Shipper Chợ Lớn & Đoàn Lân (v1.5, 2026-11-04)
+
+- Sửa popup ngữ cảnh (phát hiện từ browser check 1.4): trước đây khi
+  đứng sát nhà gần landmark thì popup hiện cả hai phần chồng lên nhau
+  (landmark ở trên, nhà ở dưới) nên người kiểm tra chỉ thấy landmark
+  và tưởng popup nhà không hiện, không thấy nút Mua/Mua lại dù vòng
+  sáng nhà đã hiện. Nay ưu tiên nhà: đứng sát nhà (≤ 4 đơn vị) thì
+  popup chỉ hiện phần nhà (ẩn phần landmark), lùi ra khỏi nhà (vẫn
+  trong 22 đơn vị của landmark) thì popup landmark hiện lại. Các div
+  popup cũng đổi từ display '' sang 'block' tường minh (cùng lỗi cũ
+  của #ctxPopup ở v1.3) để không phụ thuộc CSS mặc định.
+- Shipper: nút "📦 Nhận đơn giao hàng" ở góc dưới phải (luôn hiện,
+  không giấu trong panel Thao tác). Server chọn ngẫu nhiên điểm lấy và
+  điểm giao khác nhau từ landmark + nhà cách người chơi 150–400m thật
+  (10,5–27,9 đơn vị game, tính theo khoảng cách tâm điểm; nhà hiển thị
+  tên đường gần nhất, ví dụ "Nhà trên đường An Dương Vương" khi không
+  có tên riêng). Hạn 60 giây, thưởng theo tổng quãng đường lúc nhận đơn
+  (người chơi → điểm lấy + điểm lấy → điểm giao, đổi ra mét thật):
+  300m → 8.000đ, 800m → 15.000đ, nội suy tuyến tính, làm tròn về nghìn,
+  chặn hai đầu. Tới nơi trong 6 đơn vị (nhà: boxDistance từ mép nhà,
+  landmark: khoảng cách tâm) thì chuyển phase lấy → giao (heartbeat
+  trả `missionEvent`), giao xong cộng tiền + feed `shipper`. Hết giờ
+  hoặc điểm giao không còn trên bản đồ thì đơn tự hủy (không phạt).
+  Nhiệm vụ là RAM theo session (vào lại phòng là mất đơn đang dở,
+  giống điểm/check-in), không lưu economy trừ lúc trả thưởng.
+  Client: panel đơn ở cột trái dưới bảng Top (tên điểm, thưởng, đếm
+  ngược từng giây, đỏ khi còn ≤ 10s, nút Hủy đơn), mũi tên dưới chân
+  chỉ về điểm hiện tại (vàng: lấy hàng, xanh lá: giao hàng, ẩn khi
+  đứng sát tâm điểm), đường đứt nét trên minimap và bản đồ lớn.
+  API mới: POST /api/shipper {action: take|cancel}, chung cooldown
+  1 giây với preset action để chống bấm đúp.
+- Đoàn Lân: mỗi 10 phút (mặc định, chỉnh bằng LION_INTERVAL_MS cho
+  test), server xuất hiện một Lân trong mỗi phòng đang có người chơi
+  và chưa có Lân. Lân đi dọc tuyến đường lớn (nối các đoạn OSM có
+  major=true, 295 đoạn, tới ~300 đơn vị hoặc cụt đường) với tốc độ
+  3 đơn vị/giây (chậm hơn người chơi 9, để đuổi kịp), thông báo vào
+  feed và hiện chấm vàng lớn trên minimap/bản đồ lớn + mô hình 3D
+  (thân đỏ, đầu vàng, nhãn "🦁 Đoàn Lân", nhún nhẹ khi di chuyển,
+  mặt quay theo hướng đi). Mỗi 5 giây Lân rơi 1–3 bao lì xì quanh
+  chân (lệch ±1,5 đơn vị), tồn tại 20 giây, ai chạy tới trong 3 đơn vị
+  thì nhặt trước được (heartbeat kiểm tra tự động, không cần bấm nút):
+  quay số server-side 3.000–10.000đ bước 1.000đ, cộng thẳng vào ví,
+  lì xì biến mất với mọi người, feed `lion` kèm số tiền để người khác
+  thấy chữ bay. Lân rời đi khi hết tuyến (feed báo một lần), lì xì
+  sót lại vẫn nhặt được tới khi hết hạn, rồi Lân mới xóa hẳn để chu
+  kỳ sau xuất hiện Lân mới.
+- Đồng bộ: vẫn HTTP polling như cũ, KHÔNG WebSocket (server hiện tại
+  không có WebSocket; yêu cầu "tối ưu gói tin WebSocket" được đáp bằng
+  gói state gọn nhẹ sẵn có: Lân chỉ gửi tọa độ, lì xì chỉ gửi
+  id/tọa độ/hạn — không gửi giá trị tiền trước (giá trị chỉ quay lúc
+  nhặt), không gửi tuyến đường hay hiệu ứng; chữ bay, hạt, nhún lân
+  đều render phía client). Vị trí Lân và lì xì suy ra xác định từ
+  (thời điểm xuất hiện, tuyến, seed) bằng PRNG mulberry32 trong
+  shared-core, nên mọi poll đều thấy cùng một bộ lì xì, không nhấp
+  nháy do random lại. Race nhặt: id đã nhặt lưu trong phòng, request
+  thứ hai tới cùng lì xì sẽ thấy nó đã biến mất.
+- Không đổi: hình học đường/nhà OSM, va chạm, không chat tự do.
+
 ## Kinh doanh Shophouse & Thâu tóm (v1.4, 2026-11-04)
 
 - Biển hiệu: chủ nhà chọn 1 trong 4 biển (🦆 Tiệm Vịt Quay, 🥣 Quán

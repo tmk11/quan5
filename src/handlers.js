@@ -5,6 +5,7 @@
 const crypto = require('crypto');
 const S = require('../public/js/shared-core.js');
 const V = require('./validate.js');
+const Lion = require('./lion.js');
 const { AppError, badRequest } = require('./errors.js');
 const { sendJson } = require('./httpUtil.js');
 
@@ -106,7 +107,8 @@ async function handleJoin(req, res, ctx) {
       checkin: 0,
       deviceId,
       lastSeen: Date.now(),
-      buffUntil: 0
+      buffUntil: 0,
+      mission: null
     };
     room.players.set(player.id, player);
     ctx.roomStore.touch(room);
@@ -138,9 +140,179 @@ async function handleHeartbeat(req, res, ctx) {
   if (pose !== null) {
     player.pose = pose;
   }
+  const now = Date.now();
+  player.lastSeen = now;
+  ctx.roomStore.touch(room);
+  // Shipper + Đoàn Lân (v1.5) được kiểm tra ở đây vì heartbeat là nơi
+  // duy nhất server nhận vị trí mới mỗi 400ms, kể cả khi đứng yên
+  // (poll vẫn gửi heartbeat). Nhiệm vụ và lì xì đều là RAM/session nên
+  // không cần lưu economy trừ khi có tiền (giao hàng xong, nhặt lì xì).
+  Lion.updateLionLifecycle(room, now, ctx.roomStore);
+  let missionEvent = null;
+  if (player.mission) {
+    if (now > player.mission.deadlineAt) {
+      player.mission = null;
+      missionEvent = { type: 'expired' };
+    } else {
+      const target = player.mission.phase === 'pickup' ? player.mission.pickup : player.mission.delivery;
+      let arrived = false;
+      let invalid = false;
+      if (target.kind === 'house') {
+        const found = ctx.mapStore.findHouse(target.id);
+        if (!found) {
+          invalid = true;
+        } else {
+          arrived = S.boxDistance(player.x, player.z, found.building) <= S.SHIPPER_ARRIVAL_RADIUS;
+        }
+      } else {
+        arrived = Math.hypot(player.x - target.x, player.z - target.z) <= S.SHIPPER_ARRIVAL_RADIUS;
+      }
+      if (invalid) {
+        player.mission = null;
+        missionEvent = { type: 'invalid' };
+      } else if (arrived) {
+        if (player.mission.phase === 'pickup') {
+          player.mission.phase = 'delivery';
+          missionEvent = { type: 'pickedup', deliveryName: player.mission.delivery.name };
+        } else {
+          const reward = player.mission.reward;
+          const deliveryName = player.mission.delivery.name;
+          const snap = ctx.economyStore.snapshot();
+          try {
+            let econ = ctx.economyStore.players[player.deviceId];
+            if (!econ) {
+              econ = ctx.economyStore.getOrCreatePlayer(player.deviceId, player.name).record;
+            }
+            econ.tien = (Number(econ.tien) || 0) + reward;
+            ctx.economyStore.save();
+            player.mission = null;
+            missionEvent = { type: 'delivered', reward, deliveryName };
+            ctx.roomStore.pushEvent(room, {
+              playerId: player.id,
+              name: player.name,
+              type: 'shipper',
+              message: player.name + ' đã giao hàng tới ' + deliveryName + ' (+' + S.fmtMoney(reward) + ')!'
+            });
+          } catch (e) {
+            // Lưu hỏng thì giữ nguyên nhiệm vụ để tick sau thử lại (người
+            // chơi vẫn đứng ở điểm giao), heartbeat vẫn thành công cho vị
+            // trí, chỉ log lỗi tiền, không hiện banner mất kết nối oan.
+            ctx.economyStore.restore(snap);
+            console.error('[' + new Date().toISOString() + '] Trả thưởng shipper thất bại khi lưu: ' + e.message);
+          }
+        }
+      }
+    }
+  }
+  // Nhặt lì xì tự động khi chạm vào (ai tới trước thì được, id đã nhặt
+  // thì không còn trong state cho người khác). Lưu hỏng thì gỡ id khỏi
+  // tập đã nhặt để tick sau thử lại, heartbeat vẫn thành công.
+  let lionPickup = null;
+  const env = Lion.findPickupEnvelope(room, player.x, player.z, now);
+  if (env) {
+    const amount = Lion.rollEnvelopeValue();
+    const snap = ctx.economyStore.snapshot();
+    try {
+      if (!room.claimedEnvelopes) room.claimedEnvelopes = Object.create(null);
+      room.claimedEnvelopes[env.id] = true;
+      let econ = ctx.economyStore.players[player.deviceId];
+      if (!econ) {
+        econ = ctx.economyStore.getOrCreatePlayer(player.deviceId, player.name).record;
+      }
+      econ.tien = (Number(econ.tien) || 0) + amount;
+      ctx.economyStore.save();
+      lionPickup = { amount, envelopeId: env.id };
+      ctx.roomStore.pushEvent(room, {
+        playerId: player.id,
+        name: player.name,
+        type: 'lion',
+        message: player.name + ' đã nhặt bao lì xì (+' + S.fmtMoney(amount) + ')!',
+        value: amount
+      });
+    } catch (e) {
+      ctx.economyStore.restore(snap);
+      if (room.claimedEnvelopes) delete room.claimedEnvelopes[env.id];
+      console.error('[' + new Date().toISOString() + '] Trả tiền lì xì thất bại khi lưu: ' + e.message);
+    }
+  }
+  sendJson(res, 200, { ok: true, missionEvent, lionPickup });
+}
+
+function houseNameForMission(map, b) {
+  if (b.name) return b.name;
+  let best = null, bestD = Infinity;
+  for (const r of map.roads) {
+    if (!r.name) continue;
+    for (let i = 0; i < r.pts.length - 1; i++) {
+      const seg = S.distToSeg(b.x, b.z, r.pts[i][0], r.pts[i][1], r.pts[i + 1][0], r.pts[i + 1][1]);
+      if (seg.d < bestD) {
+        bestD = seg.d;
+        best = r.name;
+      }
+    }
+  }
+  if (best && bestD <= 20) return 'Nhà trên đường ' + best;
+  return 'Ngôi nhà';
+}
+
+async function handleShipper(req, res, ctx) {
+  const { readBody } = ctx.httpUtil;
+  const body = V.requireBodyObject(await readBody(req));
+  const roomCode = V.requireRoomCode(body.room);
+  const action = V.requireShipperAction(body.action);
+  const { room, player } = getSession(ctx.roomStore, roomCode, body.playerId);
+  ctx.actionLimiter.checkAction(player.id);
   player.lastSeen = Date.now();
   ctx.roomStore.touch(room);
-  sendJson(res, 200, { ok: true });
+  if (action === 'cancel') {
+    if (!player.mission) {
+      throw badRequest('Bạn không có đơn giao hàng nào để hủy.');
+    }
+    player.mission = null;
+    sendJson(res, 200, { ok: true, mission: null });
+    return;
+  }
+  if (player.mission) {
+    throw badRequest('Bạn đang có đơn giao hàng rồi, giao xong hoặc hủy rồi mới nhận đơn mới được.');
+  }
+  const map = ctx.mapStore.getMap();
+  const minU = S.metersToUnits(S.SHIPPER_MIN_M);
+  const maxU = S.metersToUnits(S.SHIPPER_MAX_M);
+  const candidates = [];
+  for (const L of map.landmarks) {
+    const d = Math.hypot(player.x - L.x, player.z - L.z);
+    if (d >= minU && d <= maxU) {
+      candidates.push({ kind: 'landmark', id: L.name, name: L.name, x: L.x, z: L.z, dist: d });
+    }
+  }
+  for (const b of map.buildings) {
+    const d = Math.hypot(player.x - b.x, player.z - b.z);
+    if (d >= minU && d <= maxU) {
+      candidates.push({ kind: 'house', id: b.id, name: houseNameForMission(map, b), x: b.x, z: b.z, dist: d });
+    }
+  }
+  if (candidates.length < 2) {
+    throw badRequest('Quanh bạn không đủ điểm giao trong 150–400m, đi tới khu đông hơn rồi nhận đơn lại.');
+  }
+  const pickup = candidates[Math.floor(Math.random() * candidates.length)];
+  let delivery = null;
+  for (let tries = 0; tries < 10 && !delivery; tries++) {
+    const c = candidates[Math.floor(Math.random() * candidates.length)];
+    if (c.id !== pickup.id) delivery = c;
+  }
+  if (!delivery) {
+    throw badRequest('Không tìm được điểm giao khác điểm lấy, thử nhận đơn lại.');
+  }
+  const totalM = S.unitsToMeters(pickup.dist) + S.unitsToMeters(Math.hypot(delivery.x - pickup.x, delivery.z - pickup.z));
+  const mission = {
+    pickup: { kind: pickup.kind, id: pickup.id, name: pickup.name, x: pickup.x, z: pickup.z },
+    delivery: { kind: delivery.kind, id: delivery.id, name: delivery.name, x: delivery.x, z: delivery.z },
+    reward: S.shipperReward(totalM),
+    deadlineAt: Date.now() + S.SHIPPER_TIME_MS,
+    phase: 'pickup'
+  };
+  player.mission = mission;
+  sendJson(res, 200, { ok: true, mission });
 }
 
 async function handleAction(req, res, ctx) {
@@ -522,7 +694,7 @@ async function handleState(req, res, ctx, query) {
     console.error('[' + new Date().toISOString() + '] Dọn nhà mồ côi khi state thất bại khi lưu: ' + cleanup.saveError);
   }
   if (!room) {
-    sendJson(res, 200, { players: [], events: [], buoi: 'sang', houses: ctx.economyStore.houses, leaderboard: [] });
+    sendJson(res, 200, { players: [], events: [], buoi: 'sang', houses: ctx.economyStore.houses, leaderboard: [], lion: null, envelopes: [] });
     return;
   }
   ctx.roomStore.prune(room);
@@ -532,12 +704,17 @@ async function handleState(req, res, ctx, query) {
     const econ = p.deviceId ? ctx.economyStore.players[p.deviceId] : null;
     players.push(ctx.roomStore.publicPlayer(p, econ));
   }
+  const now = Date.now();
+  Lion.updateLionLifecycle(room, now, ctx.roomStore);
+  const lionState = Lion.computeLionState(room, now);
   sendJson(res, 200, {
     players,
     events: room.events.slice(-S.MAX_EVENTS),
     buoi: room.buoi,
     houses: ctx.economyStore.houses,
-    leaderboard: S.rankLandlords([...room.players.values()], ctx.economyStore.players, ctx.economyStore.houses)
+    leaderboard: S.rankLandlords([...room.players.values()], ctx.economyStore.players, ctx.economyStore.houses),
+    lion: lionState.lion,
+    envelopes: lionState.envelopes
   });
 }
 
@@ -547,6 +724,7 @@ module.exports = {
   handleHeartbeat,
   handleAction,
   handleHouse,
+  handleShipper,
   handleState,
   econTien,
   econHome

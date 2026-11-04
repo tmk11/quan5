@@ -153,6 +153,14 @@ var myGroup = null;
 var buoiOrder = ['sang', 'hoang-hon', 'dem'];
 var lastFeedJson = '';
 var lastPlayers = [];
+// Shipper + Đoàn Lân (v1.5): nhiệm vụ là trạng thái session từ server
+// (state), Lân/lì xì cũng vậy. Client chỉ render, không tự tính tiền
+// hay tự nhận là đã tới nơi — tới nơi hay hết giờ đều do heartbeat
+// của server quyết định, client chỉ hiện kết quả server trả về.
+var myMission = null, lastMissionJson = '', lastMissionSeconds = -1;
+var lastLion = null, lastEnvelopes = [];
+var lionGroup = null, lionTarget = null, envelopeMeshes = {}, envelopeGeo = null, envelopeMat = null;
+var shipperArrow = null, shipperArrowMat = null;
 var clock = (typeof THREE !== 'undefined' && THREE.Clock) ? new THREE.Clock() : null;
 var firstStateDone = false;
 var houseError = null;
@@ -232,6 +240,148 @@ document.getElementById('feedBody').addEventListener('click', function (e) {
   var cta = e.target.closest('[data-feed-cta]');
   if (cta) { var chao = document.querySelector('#quickPanel button[data-action="chao"]'); if (chao) chao.click(); }
 });
+function renderMissionPanel(mission) {
+  var panel = document.getElementById('shipperPanel');
+  var btn = document.getElementById('shipperBtn');
+  if (!panel || !btn) return;
+  if (!mission) {
+    panel.style.display = 'none';
+    btn.disabled = false;
+    btn.textContent = '📦 Nhận đơn giao hàng';
+    lastMissionJson = '';
+    lastMissionSeconds = -1;
+    return;
+  }
+  panel.style.display = 'block';
+  btn.disabled = true;
+  btn.textContent = '📦 Đang giao…';
+  var mj = JSON.stringify(mission);
+  if (mj !== lastMissionJson) {
+    lastMissionJson = mj;
+    var target = mission.phase === 'pickup' ? mission.pickup : mission.delivery;
+    document.getElementById('shipperTarget').textContent =
+      (mission.phase === 'pickup' ? 'Bước 1/2 — 📦 Lấy hàng tại: ' : 'Bước 2/2 — 🚚 Giao tới: ') + target.name;
+    document.getElementById('shipperReward').textContent = 'Thưởng: ' + fmtMoney(mission.reward);
+  }
+  var secs = Math.max(0, Math.ceil((mission.deadlineAt - Date.now()) / 1000));
+  if (secs !== lastMissionSeconds) {
+    lastMissionSeconds = secs;
+    var timer = document.getElementById('shipperTimer');
+    timer.textContent = '⏱ ' + secs + 's';
+    timer.classList.toggle('urgent', secs <= 10);
+  }
+}
+function doShipper(action, btn) {
+  if (!playerId || (btn && btn.disabled)) return;
+  if (btn) setBusy(btn, true);
+  postJson('api/shipper', { room: room, playerId: playerId, action: action }).then(function (j) {
+    j = j || {};
+    myMission = j.mission || null;
+    renderMissionPanel(myMission);
+    if (action === 'take' && j.mission) {
+      showToast('Đã nhận đơn! Lấy hàng tại ' + j.mission.pickup.name + ', thưởng ' + fmtMoney(j.mission.reward) + '.');
+    } else if (action === 'cancel') {
+      showToast('Đã hủy đơn.');
+    }
+  }).catch(function (e) {
+    showErrorToast(e.message || 'Không nhận đơn được.');
+  }).finally(function () { if (btn) setBusy(btn, false); });
+}
+function handleMissionEvent(ev) {
+  if (!ev || !myGroup) return;
+  if (ev.type === 'pickedup') {
+    spawnFloatingText(myGroup.position, '📦 Đã lấy hàng!');
+    showToast('Đã lấy hàng! Giao tới ' + (ev.deliveryName || 'điểm giao') + '.');
+  } else if (ev.type === 'delivered') {
+    spawnFloatingText(myGroup.position, '🎉 +' + fmtMoney(ev.reward || 0));
+    spawnBurst(myGroup.position, 0x2e7d32);
+    showToast('Giao hàng thành công! +' + fmtMoney(ev.reward || 0) + '.');
+  } else if (ev.type === 'expired') {
+    showToast('Hết giờ, đơn đã hủy.');
+  } else if (ev.type === 'invalid') {
+    showToast('Điểm giao không còn trên bản đồ, đơn đã hủy.');
+  }
+}
+function handleLionPickup(pickup) {
+  if (!pickup || !myGroup) return;
+  spawnFloatingText(myGroup.position, '🧧 +' + fmtMoney(pickup.amount || 0));
+  spawnBurst(myGroup.position, 0xc62828);
+}
+function renderLionAndEnvelopes() {
+  if (!RENDER_OK) return;
+  if (!lionGroup) {
+    lionGroup = new THREE.Group();
+    var body = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.7, 0.8), new THREE.MeshLambertMaterial({ color: 0xc62828 }));
+    body.position.y = 0.55;
+    lionGroup.add(body);
+    var head = new THREE.Mesh(new THREE.SphereGeometry(0.55, 16, 12), new THREE.MeshLambertMaterial({ color: 0xf9a825 }));
+    head.position.set(0, 1.25, 0.35);
+    lionGroup.add(head);
+    var label = textSprite('🦁 Đoàn Lân', 4);
+    label.position.y = 2.3;
+    lionGroup.add(label);
+    lionGroup.visible = false;
+    scene.add(lionGroup);
+  }
+  if (lastLion) {
+    lionGroup.visible = true;
+    lionTarget = { x: lastLion.x, z: lastLion.z };
+  } else {
+    lionGroup.visible = false;
+    lionTarget = null;
+  }
+  if (!envelopeGeo) {
+    envelopeGeo = new THREE.BoxGeometry(0.6, 0.4, 0.08);
+    envelopeMat = new THREE.MeshLambertMaterial({ color: 0xc62828 });
+  }
+  var seen = {};
+  (lastEnvelopes || []).forEach(function (env) {
+    seen[env.id] = true;
+    if (!envelopeMeshes[env.id]) {
+      var m = new THREE.Mesh(envelopeGeo, envelopeMat);
+      m.position.set(env.x, 0.2, env.z);
+      scene.add(m);
+      envelopeMeshes[env.id] = m;
+    }
+  });
+  Object.keys(envelopeMeshes).forEach(function (id) {
+    if (!seen[id]) {
+      scene.remove(envelopeMeshes[id]);
+      delete envelopeMeshes[id];
+    }
+  });
+}
+function drawEventOverlays(ctx, mx, mz, s) {
+  // Đường đứt nét tới điểm giao hiện tại (lấy hoặc giao, theo phase),
+  // vẽ trước chấm người chơi để đầu đường không đè chấm.
+  if (myMission) {
+    var target = myMission.phase === 'pickup' ? myMission.pickup : myMission.delivery;
+    ctx.save();
+    ctx.setLineDash([4 * s, 4 * s]);
+    ctx.strokeStyle = myMission.phase === 'pickup' ? '#f9a825' : '#2e7d32';
+    ctx.lineWidth = 1.5 * s;
+    ctx.beginPath();
+    ctx.moveTo(mx(myPos.x), mz(myPos.z));
+    ctx.lineTo(mx(target.x), mz(target.z));
+    ctx.stroke();
+    ctx.restore();
+  }
+  (lastEnvelopes || []).forEach(function (env) {
+    ctx.fillStyle = '#c62828';
+    ctx.beginPath();
+    ctx.arc(mx(env.x), mz(env.z), 2 * s, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  if (lastLion) {
+    ctx.fillStyle = '#f9a825';
+    ctx.beginPath();
+    ctx.arc(mx(lastLion.x), mz(lastLion.z), 5 * s, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#c62828';
+    ctx.lineWidth = 1.5 * s;
+    ctx.stroke();
+  }
+}
 function renderLeaderboard(rows) {
   var body = document.getElementById('leaderBody');
   if (!body) return;
@@ -441,6 +591,7 @@ function drawBigMap() {
     ctx.lineWidth = 2;
     ctx.stroke();
   });
+  drawEventOverlays(ctx, mx, mz, 1.6);
 }
 function openMapModal() {
   var m = document.getElementById('mapModal');
@@ -464,6 +615,16 @@ function handleSessionExpired(msg) {
   renderFeed([], 'loading');
   if (houseRing) houseRing.visible = false;
   if (houseSaleSprite) houseSaleSprite.visible = false;
+  myMission = null;
+  renderMissionPanel(null);
+  if (shipperArrow) shipperArrow.visible = false;
+  if (lionGroup) lionGroup.visible = false;
+  Object.keys(envelopeMeshes).forEach(function (id) {
+    scene.remove(envelopeMeshes[id]);
+    delete envelopeMeshes[id];
+  });
+  lastLion = null;
+  lastEnvelopes = [];
   closeMapModal();
   var popup = document.getElementById('ctxPopup');
   if (popup) popup.style.display = 'none';
@@ -579,7 +740,7 @@ function updateHouseUI() {
     if (houseSaleSprite) houseSaleSprite.visible = false;
     return;
   }
-  if (ctxHouse) ctxHouse.style.display = '';
+  if (ctxHouse) ctxHouse.style.display = 'block';
   var b = nh.b, rec = lastHouses[b.id];
   // Vòng sáng dưới đất quanh nhà đang gần: vàng = rao bán, xanh lá =
   // nhà của mình, xám = nhà người khác. Biển BÁN chỉ hiện khi chưa có chủ.
@@ -625,7 +786,7 @@ function updateHouseUI() {
     else if (houseError.action === 'sell') { sellBtn.style.display = ''; sellBtn.textContent = '🏠 Bán nhà (nhận lại ' + fmtMoney(Quan5Shared.sellRefund(rec ? rec.price : 0)) + ')'; sellBtn.onclick = function () { if (!confirm('Bán ' + houseDisplayName(b) + ' và nhận lại 80% giá mua?')) return; houseAction(sellBtn, 'sell', b.id); }; }
     else if (houseError.action === 'sethome') { homeBtn.style.display = ''; homeBtn.textContent = '🏠 Đặt làm nhà chính'; homeBtn.onclick = function () { houseAction(homeBtn, 'sethome', b.id); }; }
     else if (houseError.action === 'shop') {
-      if (shopRow) shopRow.style.display = '';
+      if (shopRow) shopRow.style.display = 'block';
     }
     return;
   }
@@ -664,7 +825,7 @@ function updateHouseUI() {
     // không phá nút đang bấm). Đổi biển miễn phí, đổi xong nhãn 3D và
     // feed lần ghé sau dùng biển mới ngay.
     if (shopRow) {
-      shopRow.style.display = '';
+      shopRow.style.display = 'block';
       var shopBtns = shopRow.querySelectorAll('button[data-shop]');
       for (var i = 0; i < shopBtns.length; i++) {
         (function (sb) {
@@ -744,7 +905,7 @@ function updateNear() {
   var ctxLandmark = document.getElementById('ctxLandmark');
   var landmarkNear = !!(nl.L && nl.d <= Quan5Shared.CHECKIN_CLIENT_MAX_DISTANCE);
   if (landmarkNear) {
-    ctxLandmark.style.display = '';
+    ctxLandmark.style.display = 'block';
     document.getElementById('ctxLandmarkName').textContent = '📍 ' + nl.L.name;
     document.getElementById('ctxLandmarkDesc').textContent = nl.L.desc || '';
     document.getElementById('ctxCheckinBtn').textContent = '📸 Check-in ' + nl.L.name;
@@ -757,6 +918,14 @@ function updateNear() {
   updateHouseUI();
   var ctxHouse = document.getElementById('ctxHouse');
   var houseNear = !!(ctxHouse && ctxHouse.style.display !== 'none');
+  // Ưu tiên nhà khi đứng sát nhà (≤ 4 đơn vị): popup chỉ hiện phần nhà,
+  // ẩn phần landmark. Trước đây hiện cả hai chồng lên nhau (landmark ở
+  // trên, nhà ở dưới) nên browser check 1.4 đứng sát nhà gần Chợ An
+  // Đông vẫn chỉ thấy landmark ở trên và tưởng popup nhà không hiện,
+  // không thấy nút Mua/Mua lại dù vòng sáng nhà đã hiện. Lùi ra khỏi
+  // nhà (vẫn trong 22 đơn vị của landmark) thì popup landmark hiện lại,
+  // nên cả hai tương tác đều tới được chỉ bằng cách bước tới/lùi vài bước.
+  if (houseNear && ctxLandmark) ctxLandmark.style.display = 'none';
   var popup = document.getElementById('ctxPopup');
   // Lỗi đã sửa 2026-11-04: trước đây đặt style.display = '' để hiện
   // popup, nhưng CSS #ctxPopup có display:none nên '' chỉ quay về none
@@ -836,6 +1005,12 @@ document.getElementById('buoiBtn').addEventListener('click', function () {
   }).catch(function (e) {
     showErrorToast(e.message || 'Không đổi buổi được.');
   }).finally(function () { setBusy(btn, false); });
+});
+document.getElementById('shipperBtn').addEventListener('click', function () {
+  doShipper('take', document.getElementById('shipperBtn'));
+});
+document.getElementById('shipperCancelBtn').addEventListener('click', function () {
+  doShipper('cancel', document.getElementById('shipperCancelBtn'));
 });
 document.getElementById('joinBtn').addEventListener('click', function () {
   if (!MAP) return;
@@ -950,6 +1125,7 @@ function drawMinimap() {
     ctx.lineWidth = 1;
     ctx.stroke();
   });
+  drawEventOverlays(ctx, mx, mz, 1);
 }
 function wrapAngle(a) {
   while (a > Math.PI) a -= Math.PI * 2;
@@ -1038,6 +1214,52 @@ function animate() {
     var hs = houseRingBase * (1 + Math.sin(t * 3) * 0.05);
     houseRing.scale.set(hs, hs, hs);
   }
+  // Mũi tên shipper nằm dưới chân (y 0,21, cùng lớp với vòng nhà để
+  // không bị đường/vỉa hè đè), chỉ về điểm giao hiện tại. Ẩn khi đã
+  // đứng sát tâm điểm (< 0,5 đơn vị) vì hướng lúc đó chỉ còn nhiễu.
+  if (RENDER_OK && myMission && myGroup) {
+    if (!shipperArrow) {
+      var shape = new THREE.Shape();
+      shape.moveTo(-0.15, -0.7);
+      shape.lineTo(0.15, -0.7);
+      shape.lineTo(0.15, 0.1);
+      shape.lineTo(0.4, 0.1);
+      shape.lineTo(0, 0.7);
+      shape.lineTo(-0.4, 0.1);
+      shape.lineTo(-0.15, 0.1);
+      shape.closePath();
+      shipperArrowMat = new THREE.MeshBasicMaterial({ color: 0xf9a825, transparent: true, opacity: 0.9, side: THREE.DoubleSide });
+      shipperArrow = new THREE.Mesh(new THREE.ShapeGeometry(shape), shipperArrowMat);
+      shipperArrow.rotation.x = -Math.PI / 2;
+      scene.add(shipperArrow);
+    }
+    var starget = myMission.phase === 'pickup' ? myMission.pickup : myMission.delivery;
+    var sdx = starget.x - myPos.x, sdz = starget.z - myPos.z;
+    var sdist = Math.hypot(sdx, sdz);
+    if (sdist < 0.5) {
+      shipperArrow.visible = false;
+    } else {
+      shipperArrow.visible = true;
+      shipperArrow.position.set(myPos.x, 0.21, myPos.z);
+      // Mũi tên vẽ hướng +Y trong mặt phẳng Shape, sau rotation.x =
+      // -PI/2 thì +Y thành -Z, nên cần rotation.z = atan2(-dx, -dz)
+      // để đầu mũi tên chỉ đúng về (dx, dz) trên mặt đất.
+      shipperArrow.rotation.z = Math.atan2(-sdx, -sdz);
+      shipperArrowMat.color.set(myMission.phase === 'pickup' ? 0xf9a825 : 0x2e7d32);
+    }
+  } else if (shipperArrow) {
+    shipperArrow.visible = false;
+  }
+  // Đoàn Lân: vị trí server gửi mỗi 400ms, client lerp 0,3 mỗi khung
+  // như người chơi khác để di chuyển mượt, mặt quay theo hướng đi,
+  // thân nhún nhẹ như múa lân (không cần gửi thêm gói tin nào).
+  if (lionGroup && lionGroup.visible && lionTarget) {
+    var ldx = lionTarget.x - lionGroup.position.x, ldz = lionTarget.z - lionGroup.position.z;
+    lionGroup.position.x += ldx * 0.3;
+    lionGroup.position.z += ldz * 0.3;
+    if (Math.hypot(ldx, ldz) > 0.1) lionGroup.rotation.y = Math.atan2(ldx, ldz);
+    lionGroup.position.y = Math.abs(Math.sin(t * 4)) * 0.15;
+  }
   if (dynStreetSprite && dynStreetSprite.visible && Date.now() > streetShowUntil) {
     dynStreetSprite.material.opacity -= dt * 2;
     if (dynStreetSprite.material.opacity <= 0) dynStreetSprite.visible = false;
@@ -1085,7 +1307,10 @@ addEventListener('resize', function () {
 });
 function pollOnce() {
   if (!playerId) return Promise.resolve();
-  return postJson('api/heartbeat', { room: room, playerId: playerId, x: myPos.x, z: myPos.z, rot: myPos.rot, pose: pose }).then(function () {
+  return postJson('api/heartbeat', { room: room, playerId: playerId, x: myPos.x, z: myPos.z, rot: myPos.rot, pose: pose }).then(function (hb) {
+    hb = hb || {};
+    handleMissionEvent(hb.missionEvent);
+    handleLionPickup(hb.lionPickup);
     return getState(room);
   }).then(function (st) {
     showPollError(false);
@@ -1111,6 +1336,8 @@ function pollOnce() {
         myTien = p.tien || 0;
         if (typeof p.buffUntil === 'number') myBuffUntil = p.buffUntil;
         if (p.home !== myHome) { myHome = p.home || null; updateHomeLabel(); }
+        myMission = p.mission || null;
+        renderMissionPanel(myMission);
       } else {
         g.userData.target = { x: p.x, z: p.z, rot: p.rot };
         g.userData.pose = p.pose || 'dung';
@@ -1159,6 +1386,9 @@ function pollOnce() {
             spawnFloatingText(g.position, '🏠 Đã bán nhà!');
             spawnBurst(g.position, 0x66bb6a);
           }
+        } else if (e.type === 'lion' && typeof e.value === 'number') {
+          spawnFloatingText(g.position, '🧧 +' + fmtMoney(e.value));
+          spawnBurst(g.position, 0xc62828);
         } else if (Quan5Shared.ACTIONS[e.type] && Quan5Shared.ACTIONS[e.type].diem > 0) {
           spawnFloatingText(g.position, '+' + Quan5Shared.ACTIONS[e.type].diem + '⭐');
           spawnBurst(g.position, ACTION_BURST_COLORS[e.type] || 0xffffff);
@@ -1166,6 +1396,9 @@ function pollOnce() {
       });
     }
     updateNear();
+    lastLion = st.lion || null;
+    lastEnvelopes = st.envelopes || [];
+    renderLionAndEnvelopes();
     drawMinimap();
     var modal = document.getElementById('mapModal');
     if (modal && modal.classList.contains('open')) drawBigMap();

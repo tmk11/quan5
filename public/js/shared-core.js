@@ -64,6 +64,32 @@
   var SHOP_INCOME_ACTIONS = ['an', 'cafe', 'muasam'];
   var TAKEOVER_RATE = 0.25;
   var TAKEOVER_PAYOUT_RATE = 0.15;
+  // Shipper Chợ Lớn & Đoàn Lân (v1.5):
+  //  - Đổi đơn vị: 1 đơn vị game ≈ 1 / SCALE_DEFAULT mét (≈ 14,35m).
+  //    Nhiệm vụ shipper chọn điểm cách người chơi 150–400m thật, tức
+  //    10,5–27,9 đơn vị game (tính theo khoảng cách tâm điểm, xem handlers).
+  //  - Thưởng shipper theo tổng quãng đường lúc nhận đơn (người chơi →
+  //    điểm lấy + điểm lấy → điểm giao, tính bằng mét thật), nội suy tuyến
+  //    tính từ 300m → 8.000đ tới 800m → 15.000đ, làm tròn về nghìn, chặn
+  //    hai đầu (đơn ngắn hơn 300m vẫn 8.000đ, dài hơn 800m vẫn 15.000đ).
+  //  - Đoàn Lân: tốc độ 3 đơn vị/giây (chậm hơn người chơi 9, để đuổi kịp),
+  //    rơi lì xì mỗi 5 giây, lì xì tồn tại 20 giây, nhặt trong 3 đơn vị
+  //    (rộng hơn tốc độ poll 400ms × 9 đơn vị/giây = 3,6 đơn vị mỗi tick,
+  //    để chạy ngang qua cũng nhặt được, không bị lọt giữa hai tick).
+  //  - Lì xì và vị trí Lân đều suy ra xác định từ (thời điểm xuất hiện,
+  //    tuyến đường, seed): cùng một thời điểm thì mọi request state đều
+  //    thấy cùng một bộ lì xì, không nhấp nháy do random lại mỗi poll.
+  var SHIPPER_MIN_M = 150;
+  var SHIPPER_MAX_M = 400;
+  var SHIPPER_TIME_MS = 60 * 1000;
+  var SHIPPER_REWARD_MIN = 8000;
+  var SHIPPER_REWARD_MAX = 15000;
+  var SHIPPER_ARRIVAL_RADIUS = 6;
+  var LION_SPEED = 3;
+  var LION_DROP_INTERVAL_MS = 5 * 1000;
+  var LION_ENVELOPE_TTL_MS = 20 * 1000;
+  var LION_PICKUP_RADIUS = 3;
+  var LION_SPAWN_INTERVAL_MS = 10 * 60 * 1000;
   var CHECKIN_CLIENT_MAX_DISTANCE = 22;
   var CHECKIN_SERVER_MAX_DISTANCE = 30;
   var HOUSE_CLIENT_MAX_DISTANCE = 4;
@@ -169,10 +195,6 @@
     if (!isFiniteNumber(lastAt)) return true;
     return (now - lastAt) >= SHOP_INCOME_COOLDOWN_MS;
   }
-  // Bảng Top Địa Chủ: xếp hạng người chơi ĐANG TRONG PHÒNG (session) theo
-  // tổng tài sản = tiền mặt + tổng giá nhà đang sở hữu (kinh tế thì toàn
-  // thành phố, nhưng bảng chỉ so trong phòng để chơi cùng nhau mới có ý
-  // nghĩa). Hòa tài sản thì tên trước thắng (xếp ổn định, không ngẫu nhiên).
   function rankLandlords(roomPlayers, economyPlayers, houses) {
     var byOwner = {};
     Object.keys(houses || {}).forEach(function (id) {
@@ -198,6 +220,78 @@
       return a.name < b.name ? -1 : (a.name > b.name ? 1 : 0);
     });
     return rows.slice(0, 5);
+  }
+  function unitsToMeters(units) {
+    return (Number(units) || 0) / SCALE_DEFAULT;
+  }
+  function metersToUnits(meters) {
+    return (Number(meters) || 0) * SCALE_DEFAULT;
+  }
+  function shipperReward(totalMeters) {
+    var m = Number(totalMeters) || 0;
+    var t = (m - 300) / (800 - 300);
+    if (t < 0) t = 0;
+    if (t > 1) t = 1;
+    var r = Math.round((SHIPPER_REWARD_MIN + t * (SHIPPER_REWARD_MAX - SHIPPER_REWARD_MIN)) / 1000) * 1000;
+    return Math.max(SHIPPER_REWARD_MIN, Math.min(SHIPPER_REWARD_MAX, r));
+  }
+  // PRNG xác định mulberry32: cùng seed thì cùng dãy số, để lì xì của
+  // một đợt rơi không đổi giữa các lần poll state (server tính lại mỗi
+  // lần, client nào cũng thấy cùng vị trí, không cần lưu lì xì xuống đĩa).
+  function seededRandom(seedInt) {
+    var a = seedInt >>> 0;
+    return function () {
+      a = (a + 0x6D2B79F5) >>> 0;
+      var t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  // Vị trí Lân tại thời điểm elapsedMs sau khi xuất hiện, đi dọc tuyến
+  // route (mảng [x, z]) với tốc độ LION_SPEED. Trả null khi đã đi hết
+  // tuyến (Lân rời đi, server xóa khỏi phòng).
+  function lionPositionAt(route, elapsedMs) {
+    if (!route || route.length < 2) return null;
+    var dist = (elapsedMs / 1000) * LION_SPEED;
+    for (var i = 0; i < route.length - 1; i++) {
+      var x1 = route[i][0], z1 = route[i][1], x2 = route[i + 1][0], z2 = route[i + 1][1];
+      var seg = Math.hypot(x2 - x1, z2 - z1);
+      if (dist <= seg) {
+        var t = seg === 0 ? 0 : dist / seg;
+        return { x: x1 + (x2 - x1) * t, z: z1 + (z2 - z1) * t };
+      }
+      dist -= seg;
+    }
+    return null;
+  }
+  function routeLength(route) {
+    var total = 0;
+    for (var i = 0; i < (route || []).length - 1; i++) {
+      total += Math.hypot(route[i + 1][0] - route[i][0], route[i + 1][1] - route[i][1]);
+    }
+    return total;
+  }
+  // Lì xì của một đợt rơi (dropIndex đếm từ 0, mỗi 5 giây một đợt): số
+  // lượng 1–3 và độ lệch quanh vị trí Lân lúc rơi đều suy ra từ seed
+  // (seed của Lân + chỉ số đợt), nên mọi poll đều thấy cùng một đợt.
+  function lionDropEnvelopes(lionSeed, dropIndex, lionPos) {
+    var rand = seededRandom(hashStr(lionSeed + ':' + dropIndex));
+    var count = 1 + Math.floor(rand() * 3);
+    var out = [];
+    for (var i = 0; i < count; i++) {
+      out.push({
+        dx: (rand() - 0.5) * 3,
+        dz: (rand() - 0.5) * 3
+      });
+    }
+    return out.map(function (o, i) {
+      return {
+        id: 'lion-' + lionSeed + '-' + dropIndex + '-' + i,
+        x: lionPos.x + o.dx,
+        z: lionPos.z + o.dz
+      };
+    });
   }
   function fmtMoney(n) {
     var v = Math.round(Number(n) || 0);
@@ -498,6 +592,17 @@
     SHOP_INCOME_ACTIONS: SHOP_INCOME_ACTIONS,
     TAKEOVER_RATE: TAKEOVER_RATE,
     TAKEOVER_PAYOUT_RATE: TAKEOVER_PAYOUT_RATE,
+    SHIPPER_MIN_M: SHIPPER_MIN_M,
+    SHIPPER_MAX_M: SHIPPER_MAX_M,
+    SHIPPER_TIME_MS: SHIPPER_TIME_MS,
+    SHIPPER_REWARD_MIN: SHIPPER_REWARD_MIN,
+    SHIPPER_REWARD_MAX: SHIPPER_REWARD_MAX,
+    SHIPPER_ARRIVAL_RADIUS: SHIPPER_ARRIVAL_RADIUS,
+    LION_SPEED: LION_SPEED,
+    LION_DROP_INTERVAL_MS: LION_DROP_INTERVAL_MS,
+    LION_ENVELOPE_TTL_MS: LION_ENVELOPE_TTL_MS,
+    LION_PICKUP_RADIUS: LION_PICKUP_RADIUS,
+    LION_SPAWN_INTERVAL_MS: LION_SPAWN_INTERVAL_MS,
     CHECKIN_CLIENT_MAX_DISTANCE: CHECKIN_CLIENT_MAX_DISTANCE,
     CHECKIN_SERVER_MAX_DISTANCE: CHECKIN_SERVER_MAX_DISTANCE,
     HOUSE_CLIENT_MAX_DISTANCE: HOUSE_CLIENT_MAX_DISTANCE,
@@ -530,6 +635,13 @@
     shopLabel: shopLabel,
     canGrantShopIncome: canGrantShopIncome,
     rankLandlords: rankLandlords,
+    unitsToMeters: unitsToMeters,
+    metersToUnits: metersToUnits,
+    shipperReward: shipperReward,
+    seededRandom: seededRandom,
+    lionPositionAt: lionPositionAt,
+    routeLength: routeLength,
+    lionDropEnvelopes: lionDropEnvelopes,
     fmtMoney: fmtMoney,
     escapeHtml: escapeHtml,
     hashStr: hashStr,
