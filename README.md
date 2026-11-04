@@ -7,18 +7,18 @@ thật của OSM, đã đẩy khỏi hành lang đường, nhà trong công viê
 chồng đường sau khi đẩy đã bị bỏ hẳn, màu nhà trầm đồng tông nền vàng.
 Đường vẽ theo tỉ lệ ×0,25 (sàn 1,8, trần 5,0) — đủ rộng cho nhiều người đi cùng
 nhau (đường 8m rộng 2,0, đường 16m rộng 4,0), vẫn tỉ lệ; công thức này phải khớp
-đúng ở build_map.py và client, nếu không bản lọc và đường vẽ sẽ không đồng ý
+đúng ở build_map.py và shared-core.js, nếu không bản lọc và đường vẽ sẽ không đồng ý
 với nhau về "cái gì là trên đường". Đánh đổi: đường càng rộng thì nhà còn lại
 càng ít (474/2552 với đường ×0,25) — nhà không vừa lô vàng thì bỏ, không vẽ
 lên đường. Va chạm: nhà chặn khi đi ngoài đường; khi đang ở trên đường/cầu
 thì nhà/kênh không chặn.
 
-## Kinh tế nhà ở v1 (2026-11-02 tối)
+## Kinh tế nhà ở v1 (2026-11-02 tối, giữ nguyên luật ở v1.1)
 - Tiền trong game (không phải tiền thật). Người mới bắt đầu với 100.000đ,
   check-in landmark +5.000đ (cộng thêm +10 điểm như cũ).
 - Giá nhà từ diện tích footprint thật: 20.000 + diện tích(m2)×300, làm tròn
   nghìn, sàn 20.000, trần 1.000.000. Nhà phố nhỏ ~45.000đ, khối lớn tới 1.000.000đ.
-- Đi lại gần một ngôi nhà (cách mép nhà < 4) sẽ hiện nút Mua (nếu chưa có chủ),
+- Đi lại gần một ngôi nhà (cách mép nhà < 4 đơn vị game) sẽ hiện nút Mua (nếu chưa có chủ),
   Bán (nếu là của mình, nhận lại 80% giá mua), Đặt làm nhà chính (nếu là của mình).
   Mua nhà xong thì nhà đó thành nhà chính, lần sau vào lại sẽ spawn ngay ngoài
   nhà chính. Nhà đã bán hiện bảng tên "Nhà của <tên>" cho mọi người thấy.
@@ -28,14 +28,21 @@ thì nhà/kênh không chặn.
   Phòng chỉ là kênh chơi riêng, còn nhà và tiền là chung toàn thành phố.
 - Nếu một ngôi nhà bị bỏ khỏi bản đồ trong lần cập nhật sau, chủ được hoàn
   đúng giá đã mua và nhà bị xóa khỏi sổ (không mất tiền oan).
+- Từ v1.1, server kiểm tra khoảng cách thật khi giao dịch: mua/bán/đặt nhà chính
+  yêu cầu người chơi trong 6 đơn vị game từ mép nhà (client hiện nút ở < 4,
+  server cho thêm dung sai do heartbeat 400ms), check-in yêu cầu trong 30 đơn vị
+  game từ landmark (client hiện nút ở < 22). Gọi API trực tiếp từ xa không
+  còn farm được tiền nhà hay tiền check-in.
 
 ## Nguồn bản đồ (OpenStreetMap, ODbL)
 
 - Ranh giới: OSM relation 3820432 (Quận 5), lấy qua Nominatim ngày 2026-11-02.
-- Đường: tất cả way `highway` có tên trong khung Quận 5, cắt đúng ranh (1141 đoạn
-  polyline, 6098 điểm), vẽ theo đúng hình cong / chéo ngoài đời.
-- Nhà: 2552 footprint `building` trong ranh, vẽ bằng InstancedMesh, va chạm theo
-  hộp định hướng của từng nhà.
+- Đường: tất cả way `highway` trong khung Quận 5, cắt đúng ranh, kể cả đường
+  không tên, hẻm và lối đi bộ (1913 đoạn polyline, 9500 điểm). Dải đông nhất
+  (lon 106,678–106,688) có thể thiếu một phần đường không tên do Overpass 502,
+  đường có tên ở đó đã đủ.
+- Nhà: 2552 footprint `building` trong ranh, sau lọc nền vàng còn 474 nhà,
+  vẽ bằng InstancedMesh, va chạm theo hộp định hướng của từng nhà.
 - Kênh / công viên: kênh Tàu Hủ, kênh Bến Nghé, kênh Hàng Bàng và các công viên
   (Văn Lang, Hòa Bình, …) từ OSM.
 - Landmark (tọa độ Nominatim, đã kiểm chứng từng điểm): Chợ Bình Tây
@@ -52,7 +59,7 @@ thì nhà/kênh không chặn.
 Vị trí, hình dạng và thứ tự các đường, nhà, kênh là thật. Bề rộng đường tỉ lệ
 với bề rộng thật: mỗi đoạn đường mang `width_m` từ OSM (tag width, không có
 thì số làn × 3,5m, không có nữa thì mặc định theo loại đường), và trong game
-bề rộng = `width_m × 0,3` (sàn 1,8 để nhân vật đi được, trần 6,5) — nên đường
+bề rộng = `width_m × 0,25` (sàn 1,8 để nhân vật đi được, trần 5,0) — nên đường
 16m rộng gấp đôi đường 8m đúng như ngoài đời. Chiều cao nhà và kích thước
 nhân vật vẫn phóng đại để chơi được. Người chơi cũng không đi ra ngoài
 ranh Quận 5 được, và không đi xuyên qua nhà hay đi xuống kênh được —
@@ -60,9 +67,67 @@ trừ một ngoại lệ có chủ đích để đường nhỏ đi được: kh
 (trong hành lang đường, tính theo bề rộng game), nhà/kênh không chặn nữa,
 vì footprint nhà trên OSM có khi sát tim hẻm chỉ 1–2m ngoài đời; ra khỏi
 đường thì va chạm nhà lại chặn như thường. Ngoài ra `build_map.py` còn
-đẩy nhà lùi khỏi tim đường gần nhất (tối đa 3 đơn vị) để đường vẽ phóng
+đẩy nhà lùi khỏi tim đường gần nhất (tối đa 4 đơn vị) để đường vẽ phóng
 đại không bị nhà chồng lên quá nhiều — vị trí nhà trong game vì vậy lệch
 khỏi OSM một chút ở phố hẹp.
+
+## Refactor v1.1 (2026-11-04) — kiến trúc, logic nghiệp vụ, xử lý lỗi
+
+Không đổi luật chơi, chỉ tách code và siết lỗi. Mọi hàm đều triển khai đủ,
+không có TODO hay dữ liệu giả trong phần đã sửa.
+
+- Nguồn sự thật duy nhất: `public/js/shared-core.js` dùng chung cho server
+  (Node) và client (trình duyệt) — công thức giá nhà, bề rộng đường, giới
+  hạn, hình học, và mọi quy tắc validate. Sửa một nơi là cả hai bên cùng đổi.
+- Server tách thành module một trách nhiệm: `src/errors.js` (lỗi có mã và
+  HTTP status), `src/config.js`, `src/validate.js`, `src/mapStore.js`
+  (đọc bản đồ theo mtime, validate schema, giữ bản cũ nếu file mới hỏng),
+  `src/economyStore.js` (ghi atomic tmp+fsync+rename, xoay backup .bak/.bak.1,
+  snapshot/rollback khi lưu thất bại), `src/rooms.js` (Map, dọn phòng rỗng
+  quá 1 giờ), `src/rateLimit.js`, `src/httpUtil.js`, `src/handlers.js`,
+  `src/static.js` (allowlist file tĩnh, chống thoát khỏi public/).
+  `server.js` chỉ còn khởi động, định tuyến và bắt lỗi toàn cục.
+- Client tách thành: `public/css/style.css`, `public/js/shared-core.js`,
+  `public/js/render.js` (Three.js, sprite, đổi buổi, dispose GPU),
+  `public/js/map.js` (lưới, va chạm, vẽ thế giới, minimap tĩnh),
+  `public/js/net.js` (API có timeout, lỗi có mã), `public/js/app.js`
+  (phiên chơi, UI, vòng lặp game). `public/index.html` chỉ còn khung HTML
+  và các thẻ script theo đúng thứ tự.
+- Validate hai phía, lỗi tường minh: tên người chơi chặn ký tự HTML
+  (`< > & " ' \``) và ký tự điều khiển, mã phòng, màu, deviceId
+  (`__proto__`, `constructor`, `prototype` bị chặn), mã nhà, loại hành động,
+  giá trị buổi, tư thế (chỉ `dung`, `chao`, `chup`), tọa độ phải là số hữu hạn.
+  DeviceId gửi sai định dạng thì server trả 400, không âm thầm cấp ví mới
+  (chỉ khi không gửi deviceId thì server mới cấp mới, để tương thích client cũ).
+  Buổi sai giá trị thì trả 400 và không đẩy event, thay vì đẩy event rồi giữ
+  buổi cũ như trước. Check-in sai landmark thì trả 400 và không cộng tiền,
+  thay vì cộng tiền với địa điểm chung chung như trước.
+- Kinh tế giao dịch an toàn: mua/bán/check-in/đặt nhà chính đều snapshot
+  trước, lưu đĩa xong mới trả success; lưu thất bại thì rollback trong bộ nhớ
+  và trả 500 với lý do rõ ràng. File economy hỏng thì thử backup trước, nếu
+  backup cũng hỏng thì server fail nhanh ở lúc khởi động (giữ file hỏng lại
+  để khôi phục thủ công), không âm thầm bắt đầu từ sổ trống và làm mất tiền.
+  Dọn nhà mồ côi chỉ chạy khi mtime bản đồ đổi, không chạy mỗi lần poll state.
+- Chống spam và chống farm: mỗi người chơi tối đa 60 hành động/phút và tối
+  thiểu 1 giây giữa hai hành động (trả 429 với thời gian chờ), join tối đa
+  10 lần/phút/IP. Feed client escape HTML nên tên người chơi không thể XSS
+  dù server có lọt. Nút Vào khóa trong lúc request để không tạo hai session
+  khi bấm đúp.
+- Xử lý lỗi phía client: API có timeout (POST 10 giây, state 8 giây, bản đồ
+  15 giây), lỗi mạng/timeout hiện toast một lần rồi tự thử lại ở tick sau,
+  không còn `.catch` rỗng làm game đóng băng. Session hết hạn (server prune
+  sau 25 giây không heartbeat) thì hiện lại màn hình vào với lý do rõ ràng.
+  Tải bản đồ fail thì hiện nút Thử lại (tải lại bản đồ, hoặc tải lại trang
+  nếu lỗi là Three.js CDN). Lỗi mua/bán/đặt nhà và hành động hiện toast thay
+  cho alert; riêng xác nhận Bán nhà vẫn giữ confirm để tránh bấm nhầm.
+  Xóa người chơi và nhãn nhà thì dispose geometry/material/texture để không
+  rò rỉ GPU theo thời gian.
+- Giới hạn còn lại (chưa làm ở v1.1, ghi rõ để không hiểu nhầm là đã xong):
+  vẫn chưa có tài khoản/mật khẩu thật (ví theo thiết bị), chưa có WebSocket
+  (vẫn poll 400ms), chưa có cache ETag cho bản đồ (đọc đĩa mỗi request để
+  đảm bảo code mới sau deploy), va chạm kênh vẫn quét tuyến tính, và nội
+  thất nhà / giao dịch người với người vẫn chưa có (vào ở hiện tại là spawn
+  ngoài nhà chính).
 
 ## Cách chơi
 
@@ -73,28 +138,44 @@ khỏi OSM một chút ở phố hẹp.
   đổi buổi sáng / hoàng hôn / đêm.
 - Bản đồ nhỏ (minimap) ở góc phải cho thấy ranh, đường, kênh, landmark và vị trí người chơi.
 
-## Chạy local / trên VPS (không cần npm)
+## Chạy local / trên VPS (không cần npm, chỉ dùng module có sẵn của Node)
 
 ```bash
 node server.js   # mặc định PORT=3102, chỉ bind 127.0.0.1
+npm run check    # kiểm tra cú pháp mọi file JS và build_map.py
+npm test         # 21 unit test: shared-core, economy, rate limit, map
+node scripts/smoke.js  # smoke test tích hợp: chạy server thật trong thư mục
+                       # tạm rồi gọi API thật (join, mua, bán, validate, lỗi)
 ```
 
-Server chỉ dùng module có sẵn của Node. Dữ liệu phòng / người chơi chỉ giữ
-trong RAM, người chơi idle bị gỡ sau ~25 giây.
+Phòng / người chơi chỉ giữ trong RAM, người chơi idle bị gỡ sau ~25 giây.
+Tiền và nhà lưu bền trong `economy.json` (xem phần kinh tế nhà ở).
+Đổi `server.js` thì phải restart service (phòng/người chơi trong RAM sẽ mất,
+tiền/nhà thì không). Đổi `public/` hoặc `quan5-map.json` thì không cần restart
+vì server đọc lại theo mtime.
 
 ## Triển khai nginx (tham khảo)
 
 - Systemd: xem `quan5-online.service` (port 3102, `Restart=always`).
 - Nginx: xem `quan5-snippet.txt` — thêm `location /quan5/` proxy về
   `http://127.0.0.1:3102/`, trang gốc của site không bị thay đổi.
+- Khi deploy, sao lưu `economy.json` trên VPS trước, không bao giờ ghi đè
+  nó bằng file local (local không có file này, và nó chứa tiền/nhà thật
+  của người chơi).
 
 ## Cấu trúc
 
-- `server.js` — API join / heartbeat / action / state, phòng theo mã, phục vụ `quan5-map.json`.
-- `public/index.html` — toàn bộ giao diện 3D (Three.js qua CDN), vẽ bản đồ thật,
-  va chạm nhà / ranh / kênh, minimap, nhân vật chibi.
+- `server.js` — entry point mỏng: khởi động, định tuyến, bắt lỗi toàn cục.
+- `src/` — errors, config, validate, mapStore, economyStore, rooms,
+  rateLimit, httpUtil, handlers, static (xem phần refactor v1.1).
+- `public/js/shared-core.js` — công thức và validate dùng chung server/client.
+- `public/js/render.js`, `public/js/map.js`, `public/js/net.js`,
+  `public/js/app.js` — client theo từng trách nhiệm.
+- `public/css/style.css` — toàn bộ giao diện.
+- `public/index.html` — khung HTML và thứ tự script.
 - `public/quan5-map.json` — bản đồ đã chuyển từ OSM sang tọa độ game
   (được tạo bởi `build_map.py` từ dữ liệu thô trong `osm/`).
 - `build_map.py` — script chuyển OSM → `quan5-map.json` (lọc theo ranh Quận 5).
+- `test/`, `scripts/smoke.js` — unit test và smoke test tích hợp.
 - `quan5-online.service` — file systemd.
 - `quan5-snippet.txt` — đoạn cấu hình nginx.

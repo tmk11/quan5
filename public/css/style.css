@@ -1,0 +1,54 @@
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;background:#ffe8c2;color:#3a2c1e}
+#scene{position:fixed;inset:0}
+#scene canvas{display:block;touch-action:none;overscroll-behavior:none}
+.overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 30%,rgba(255,190,110,.28),rgba(28,20,12,.62));z-index:20;padding:16px}
+.card{background:linear-gradient(180deg,#fffdf6,#fff3dc);border:1px solid #ecd9ac;border-radius:24px;padding:26px 22px;max-width:460px;width:100%;box-shadow:0 18px 50px rgba(60,35,10,.38);text-align:center}
+.card h1{margin:0 0 8px;font-size:30px;color:#a83226}
+.card p{margin:0 0 14px;color:#7a6a52;line-height:1.55}
+.card input{width:100%;padding:12px 13px;border:2px solid #e3cda2;border-radius:13px;font-size:16px;margin:6px 0;background:#fffdf7;color:#3a2c1e;outline:none}
+.card input:focus{border-color:#d97706}
+.row{display:flex;gap:8px}
+.row input{flex:1;min-width:0}
+button{border:0;border-radius:13px;padding:12px 14px;font-size:15px;font-weight:700;cursor:pointer;background:linear-gradient(135deg,#e0651f,#a83226);color:#fff;box-shadow:0 4px 14px rgba(168,50,38,.35)}
+button.secondary{background:#f3e6c8;color:#5b4632;box-shadow:none}
+button:active{transform:scale(.97)}
+button:disabled{opacity:.55;cursor:default}
+#joinBtn{width:100%;margin-top:10px;padding:14px;font-size:17px}
+.note{font-size:13px;color:#8a7a66;margin-top:12px}
+.sw{width:34px;height:34px;border-radius:50%;border:3px solid transparent;cursor:pointer;padding:0;box-shadow:none}
+.sw.sel{border-color:#a83226}
+#hud{position:fixed;inset:0;pointer-events:none;z-index:10;display:none}
+#hud.on{display:block}
+.panel{position:absolute;background:rgba(255,250,238,.94);border:1px solid rgba(236,217,172,.9);border-radius:16px;padding:10px 12px;box-shadow:0 8px 24px rgba(60,35,10,.22)}
+#shareBox{top:10px;left:10px;right:10px;pointer-events:auto}
+#shareBox .row{margin-top:6px}
+#shareBox input{flex:1;min-width:0;padding:9px;border:1px solid #e7d7b8;border-radius:10px;font-size:13px;background:#fffdf7}
+#stats{top:104px;left:10px;font-weight:700;line-height:1.55}
+#minimapWrap{top:104px;right:10px;text-align:center;font-size:12px;font-weight:700}
+#minimapWrap canvas{display:block;margin-top:4px;border-radius:10px;background:#e8e0cc}
+#feed{top:280px;right:10px;width:230px;max-height:170px;overflow:auto;font-size:13px;line-height:1.45}
+#feed div{margin:3px 0}
+#nearBox{left:10px;bottom:120px;max-width:280px;font-size:13px;line-height:1.5;display:none}
+#actions{position:absolute;left:50%;transform:translateX(-50%);bottom:12px;display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:96vw;pointer-events:auto;background:rgba(255,250,238,.94);border:1px solid rgba(236,217,172,.9);border-radius:18px;padding:8px;box-shadow:0 8px 24px rgba(60,35,10,.22)}
+#actions button{padding:9px 11px;font-size:13px;background:#fff7e8;color:#5b3a1e;border:1px solid #ecd9ac;box-shadow:0 2px 8px rgba(60,35,10,.12);white-space:nowrap}
+#actions button.buoi{background:linear-gradient(135deg,#8b5cf6,#6d28d9);color:#fff;border:0}
+#joy{position:absolute;left:16px;bottom:190px;width:110px;height:110px;border-radius:50%;background:rgba(255,255,255,.35);border:2px solid rgba(255,255,255,.7);display:none;pointer-events:auto;touch-action:none}
+#knob{position:absolute;left:35px;top:35px;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.9)}
+/* Toast lỗi trong game: thay cho alert() chặn màn hình. pointer-events
+   none để toast không chặn bấm nút phía dưới, tự ẩn sau 5 giây ở app.js. */
+#errorToast{position:fixed;left:50%;transform:translateX(-50%);top:12px;z-index:30;max-width:92vw;background:rgba(185,28,28,.96);color:#fff;font-size:14px;font-weight:600;line-height:1.4;padding:10px 14px;border-radius:12px;box-shadow:0 8px 24px rgba(60,35,10,.35);display:none;pointer-events:none;text-align:center}
+#retryMapBtn{display:none;margin-top:10px;width:100%}
+@media (pointer:coarse){ #joy{display:block} #feed{width:170px} }
+@media (max-width:640px){
+#shareBox{top:8px;left:8px;right:8px;padding:8px 10px;font-size:13px}
+#stats{top:78px;left:8px;padding:8px 10px;font-size:13px;line-height:1.4}
+#minimapWrap{display:block;top:78px;right:8px;padding:8px 10px}
+#minimapWrap canvas{width:150px;height:auto}
+#feed{display:none}
+#nearBox{bottom:190px;left:8px;right:8px;max-width:none}
+#actions{left:8px;right:8px;bottom:8px;transform:none;max-width:none;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:8px;max-height:26vh;overflow-y:auto;touch-action:pan-y}
+#actions button{padding:9px 4px;font-size:13px}
+#joy{left:12px;bottom:210px;width:96px;height:96px}
+#knob{left:28px;top:28px}
+}

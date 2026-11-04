@@ -136,11 +136,11 @@ def street_midpoint(name):
 # Rules for the rebuilt version:
 # - Drawn footprint = TRUE OSM footprint (no minimum 2x2 exaggeration any
 #   more — that old exaggeration was what made houses spill onto roads).
-# - Cartographic displacement: game road widths are exaggerated (width_m * 0.3,
+# - Cartographic displacement: game road widths are exaggerated (width_m * 0.25,
 #   vs true scale 0.0697 units/m), while building positions are at true scale.
 #   Each building is pushed away from its nearest road segment until its
 #   footprint clears the exaggerated road corridor plus a 0.5-unit margin
-#   (capped at 3 units, so buildings stay inside their block).
+#   (capped at 4 units, so buildings stay inside their block).
 # - After displacement, a building is DROPPED (not drawn) if:
 #   * its centroid is inside a park polygon (green, not yellow land), or
 #   * it is small/medium (area < 2000 m2) and still overlaps ANY road
@@ -317,7 +317,6 @@ for e in blds:
     # what made houses visually spill onto roads. Now drawn = displaced = true.
     hw = max(0.3, (w_m * SCALE) / 2.0)
     hd = max(0.3, (d_m * SCALE) / 2.0)
-    hw_t = hd_t = None  # set below, after displacement, to the same values
     # game coords: note game z = -meters_y, so rotation sign flips
     cx, cz = to_game(clon, clat)
     levels = tags.get('building:levels')
