@@ -43,7 +43,7 @@
   var MAX_BODY_BYTES = 10 * 1024;
   var MAX_EVENTS = 30;
   var MAX_NAME_LENGTH = 24;
-  var POSES = ['dung', 'chao', 'chup'];
+  var POSES = ['dung', 'chao', 'chup', 'an', 'cafe', 'mua'];
 
   var ACTIONS = {
     chao: { diem: 1, message: 'đã vẫy tay chào mọi người' },

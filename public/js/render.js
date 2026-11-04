@@ -9,7 +9,9 @@ var scene = null, renderer = null, camera = null, hemi = null, sun = null;
 if (RENDER_OK) {
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0xd8edf7);
-  scene.fog = new THREE.Fog(0xd8edf7, 60, 170);
+  // FogExp2 thay cho Fog tuyến tính: chiều sâu tăng dần theo khoảng
+  // cách, phố xa mờ nhẹ chứ không bị cắt đột ngột ở 170 đơn vị.
+  scene.fog = new THREE.FogExp2(0xd8edf7, 0.0045);
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.setSize(innerWidth, innerHeight);
@@ -120,9 +122,30 @@ function disposeObject(obj) {
     }
   });
 }
-// Đổi buổi: chỉ đổi nền, sương, đèn. Đèn lồng đã bị xóa khỏi game nên
-// không còn vòng lặp LANTERN_MATS rỗng như bản cũ.
+// Đổi buổi: chuyển màu mượt thay vì đổi tức thì. applyBuoi chỉ đặt
+// đích (target), stepBuoiTransition được animate gọi mỗi khung hình
+// và lerp mọi giá trị về đích với hệ số mượt 1-exp(-dt*2.5). Đèn lồng,
+// biển hiệu và đèn quảng trường cũng lerp theo cùng một hệ số đêm
+// (nightFactor 0 = sáng, 1 = đêm) để đêm xuống là đèn tự sáng dần.
+// lanternMat / signMat / lampMat / plazaLights do map.js tạo khi vẽ
+// thế giới; trước khi buildMap chúng chưa tồn tại nên phải kiểm tra
+// typeof trước khi dùng, không được crash.
 var curBuoi = 'sang';
+var BUOI_TARGETS = {
+  'sang': { sky: 0xd8edf7, fog: 0xd8edf7, sun: 0xffe2a8, sunI: 1.25, sunPos: [40, 50, 30], hemiSky: 0xcfe8ff, hemiI: 0.85, night: 0 },
+  'hoang-hon': { sky: 0xffb98a, fog: 0xffc49a, sun: 0xff8a3d, sunI: 0.9, sunPos: [60, 20, 10], hemiSky: 0xffc49a, hemiI: 0.6, night: 0.45 },
+  'dem': { sky: 0x141b3a, fog: 0x1a2347, sun: 0x8fa3ff, sunI: 0.3, sunPos: [-30, 40, -20], hemiSky: 0x3a4a7a, hemiI: 0.35, night: 1 }
+};
+var buoiTarget = BUOI_TARGETS['sang'];
+var buoiCurrent = null;
+if (RENDER_OK) {
+  buoiCurrent = {
+    sky: new THREE.Color(0xd8edf7), fog: new THREE.Color(0xd8edf7),
+    sun: new THREE.Color(0xffe2a8), sunI: 1.25,
+    sunPos: new THREE.Vector3(40, 50, 30),
+    hemiSky: new THREE.Color(0xcfe8ff), hemiI: 0.85, night: 0
+  };
+}
 function applyBuoi(v) {
   curBuoi = v;
   var labelEl = document.getElementById('buoiLabel');
@@ -130,23 +153,33 @@ function applyBuoi(v) {
     labelEl.textContent = (Quan5Shared.BUOI_LABELS[v] || 'Sáng');
   }
   if (!RENDER_OK) return;
-  if (v === 'sang') {
-    scene.background.set(0xd8edf7);
-    scene.fog.color.set(0xd8edf7);
-    sun.intensity = 1.25;
-    sun.color.set(0xffe2a8);
-    hemi.intensity = 0.85;
-  } else if (v === 'hoang-hon') {
-    scene.background.set(0xffb98a);
-    scene.fog.color.set(0xffc49a);
-    sun.intensity = 0.9;
-    sun.color.set(0xff8a3d);
-    hemi.intensity = 0.6;
-  } else {
-    scene.background.set(0x141b3a);
-    scene.fog.color.set(0x1a2347);
-    sun.intensity = 0.3;
-    sun.color.set(0x8fa3ff);
-    hemi.intensity = 0.35;
+  buoiTarget = BUOI_TARGETS[v] || BUOI_TARGETS['sang'];
+}
+function stepBuoiTransition(dt) {
+  if (!RENDER_OK || !buoiCurrent || !buoiTarget) return;
+  var k = 1 - Math.exp(-dt * 2.5);
+  buoiCurrent.sky.lerp(new THREE.Color(buoiTarget.sky), k);
+  buoiCurrent.fog.lerp(new THREE.Color(buoiTarget.fog), k);
+  buoiCurrent.sun.lerp(new THREE.Color(buoiTarget.sun), k);
+  buoiCurrent.hemiSky.lerp(new THREE.Color(buoiTarget.hemiSky), k);
+  buoiCurrent.sunI += (buoiTarget.sunI - buoiCurrent.sunI) * k;
+  buoiCurrent.hemiI += (buoiTarget.hemiI - buoiCurrent.hemiI) * k;
+  buoiCurrent.night += (buoiTarget.night - buoiCurrent.night) * k;
+  buoiCurrent.sunPos.lerp(new THREE.Vector3(buoiTarget.sunPos[0], buoiTarget.sunPos[1], buoiTarget.sunPos[2]), k);
+  scene.background.copy(buoiCurrent.sky);
+  scene.fog.color.copy(buoiCurrent.fog);
+  sun.color.copy(buoiCurrent.sun);
+  sun.intensity = buoiCurrent.sunI;
+  sun.position.copy(buoiCurrent.sunPos);
+  hemi.color.copy(buoiCurrent.hemiSky);
+  hemi.intensity = buoiCurrent.hemiI;
+  // Đêm: lồng đèn + biển hiệu + đèn đường phát sáng dần, đèn quảng
+  // trường (PointLight, chỉ đặt ở các chợ để không tốn hiệu năng) sáng
+  // dần theo nightFactor. Ngày: emissive gần như tắt.
+  if (typeof lanternMat !== 'undefined' && lanternMat) lanternMat.emissiveIntensity = 0.15 + buoiCurrent.night * 1.45;
+  if (typeof signMat !== 'undefined' && signMat) signMat.emissiveIntensity = 0.05 + buoiCurrent.night * 0.85;
+  if (typeof lampMat !== 'undefined' && lampMat) lampMat.emissiveIntensity = 0.05 + buoiCurrent.night * 1.2;
+  if (typeof plazaLights !== 'undefined' && plazaLights) {
+    plazaLights.forEach(function (L) { L.intensity = buoiCurrent.night * 2.2; });
   }
 }

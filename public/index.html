@@ -34,36 +34,57 @@
 </div>
 </div>
 <div id="hud">
-<div class="panel" id="shareBox"><b>🔗 Link thành phố chung</b><div class="row"><input id="shareLink" readonly><button type="button" id="copyBtn">Sao chép</button></div></div>
-<div class="panel" id="stats">
-<div class="stat"><span class="stat-label">⭐ Điểm khám phá</span><strong class="stat-value" id="diem">0</strong></div>
-<div class="stat"><span class="stat-label">📸 Check-in</span><strong class="stat-value" id="checkin">0</strong></div>
-<div class="stat"><span class="stat-label">👥 Đang chơi</span><strong class="stat-value" id="count">0</strong></div>
-<div class="stat"><span class="stat-label">💰 Tiền trong game</span><strong class="stat-value money" id="tien">0</strong></div>
-<div class="stat"><span class="stat-label">🏠 Nhà chính</span><strong class="stat-value" id="homeLabel">Chưa có</strong></div>
-<div class="stat"><span class="stat-label">🌅 Buổi</span><strong class="stat-value" id="buoiLabel">Sáng</strong></div>
-<div class="stat"><span class="stat-label">📍 Đang ở</span><strong class="stat-value" id="streetLabel">Quận 5</strong></div>
-<div class="stat-hint" id="playersHint" style="display:none"><span>Chỉ có bạn trong phòng — gửi link trên cho bạn bè vào cùng.</span><button type="button" class="secondary" id="copyLinkHintBtn">Sao chép link mời</button></div>
+<div id="topBar">
+<button type="button" id="inviteBtn" aria-label="Mời bạn vào phòng">🔗 Mời bạn</button>
+<div class="top-stats">
+<span class="top-stat">💰 <strong id="tien">0</strong></span>
+<span class="top-stat">⭐ <strong id="diem">0</strong></span>
+<span class="top-stat">📸 <strong id="checkin">0</strong></span>
+<span class="top-stat">👥 <strong id="count">0</strong></span>
+<span class="top-stat">🌅 <strong id="buoiLabel">Sáng</strong></span>
+<span class="top-stat hide-mobile">🏠 <strong id="homeLabel">Chưa có</strong></span>
 </div>
-<div class="panel" id="minimapWrap">🗺️ Bản đồ Quận 5 (thật)<canvas id="minimap" width="200" height="107"></canvas></div>
+</div>
+<div id="streetPill">📍 <span id="streetLabel">Quận 5</span></div>
+<div class="panel" id="minimapWrap" role="button" tabindex="0" aria-label="Mở bản đồ lớn">🗺️ Bản đồ Quận 5<canvas id="minimap" width="140" height="75"></canvas><span class="minimap-hint">Chạm để phóng to</span></div>
 <div class="panel" id="feed"><div class="feed-head"><b>📣 Hoạt động</b><button type="button" id="feedToggle" aria-expanded="true" aria-label="Thu gọn hoạt động">▾</button></div><div id="feedBody"><div class="skeleton-line" style="width:95%"></div><div class="skeleton-line" style="width:80%"></div><div class="skeleton-line" style="width:88%"></div></div></div>
 <div id="pollError"><span id="pollErrorText">Mất kết nối tới máy chủ — dữ liệu có thể đã cũ.</span><button type="button" id="pollRetryBtn">Thử lại ngay</button></div>
-<div class="panel" id="nearBox"></div>
-<div id="actions">
-<div id="houseRow" class="house-empty">🏠 Đi lại gần một ngôi nhà để xem giá và mua bán.</div>
+<div id="ctxPopup">
+<div id="ctxLandmark" style="display:none">
+<div class="ctx-title" id="ctxLandmarkName"></div>
+<div class="ctx-desc" id="ctxLandmarkDesc"></div>
+<button type="button" id="ctxCheckinBtn">📸 Check-in</button>
+</div>
+<div id="ctxHouse" style="display:none">
+<div id="houseRow" class="house-empty"></div>
+<div class="ctx-house-btns">
+<button type="button" id="buyHouseBtn" style="display:none">🏠 Mua nhà</button>
+<button type="button" id="sellHouseBtn" style="display:none">🏠 Bán nhà</button>
+<button type="button" id="homeHouseBtn" style="display:none">🏠 Đặt làm nhà chính</button>
+</div>
+</div>
+</div>
+<div id="quickDock">
+<div id="quickPanel" style="display:none">
 <button type="button" data-action="chao">👋 Chào</button>
 <button type="button" data-action="an">🍜 Ăn hủ tiếu</button>
 <button type="button" data-action="cafe">☕ Cà phê vợt</button>
 <button type="button" data-action="mua">🏮 Mua lồng đèn</button>
 <button type="button" data-action="muasam">🛍️ Mua sắm</button>
-<button type="button" data-action="checkin" id="checkinBtn">📸 Check-in</button>
 <button type="button" data-action="chup">📷 Chụp ảnh</button>
-<button type="button" id="buyHouseBtn" style="display:none">🏠 Mua nhà</button>
-<button type="button" id="sellHouseBtn" style="display:none">🏠 Bán nhà</button>
-<button type="button" id="homeHouseBtn" style="display:none">🏠 Đặt làm nhà chính</button>
 <button type="button" class="buoi" id="buoiBtn">🌅 Đổi buổi</button>
 </div>
+<button type="button" id="quickToggle" aria-expanded="false" aria-label="Mở thao tác nhanh">⚡ Thao tác</button>
+</div>
 <div id="joy"><div id="knob"></div></div>
+<div id="mapModal" style="display:none" role="dialog" aria-modal="true" aria-label="Bản đồ Quận 5 lớn">
+<div class="map-modal-panel">
+<div class="map-modal-head"><b>🗺️ Bản đồ Quận 5 (thật)</b><button type="button" id="mapModalClose" aria-label="Đóng bản đồ">✕</button></div>
+<canvas id="bigMap" width="600" height="320"></canvas>
+<p class="map-modal-note">Chấm vàng là bạn, chấm xanh là người chơi khác, chấm đỏ là landmark. Chạm ngoài khung hoặc nút ✕ để đóng.</p>
+</div>
+</div>
+<div id="toast" role="status" aria-live="polite"></div>
 </div>
 <div id="errorToast" role="status" aria-live="polite"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>

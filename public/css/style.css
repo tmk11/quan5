@@ -1,9 +1,9 @@
-/* Design system — Thành phố Quận 5 Online (v1.2, UI/UX)
-   Một nguồn sự thật cho màu, spacing, bo góc, bóng, chữ:
-   sửa ở :root là toàn bộ giao diện đổi theo, không còn màu/spacing
-   rải rác từng chỗ. Bảng màu giữ tông vàng ấm Chợ Lớn của bản cũ,
-   chỉ làm đậm nút chính để chữ trắng đủ tương phản (WCAG AA cho
-   chữ đậm), và làm đậm chữ mờ từ #7a6a52 thành #6b5a44. */
+/* Design system — Thành phố Quận 5 Online (v1.3, HUD mobile)
+   :root là nguồn sự thật duy nhất cho màu, spacing, bo góc, bóng, chữ.
+   HUD v1.3: Top Status Bar kính mờ mỏng ở mép trên, minimap gọn góc
+   phải + modal lớn, feed dưới top bar, joystick góc dưới trái tuyệt
+   đối không bị panel nào đè, Quick Dock thu gọn + Contextual Popup
+   thay cho bảng 8 nút khổng lồ ở đáy màn hình bản cũ. */
 :root{
   --ink:#3a2c1e; --ink-soft:#6b5a44; --ink-faint:#8a7a66;
   --paper:#fffdf6; --paper-warm:#fff3dc; --panel:rgba(255,250,238,.94);
@@ -31,11 +31,6 @@ html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,-apple-syst
 .card input:disabled{opacity:.55;background:#f5efe2;cursor:not-allowed}
 .row{display:flex;gap:var(--space-2)}
 .row input{flex:1;min-width:0}
-/* Nút: một hệ thống duy nhất cho mọi nút trong game.
-   hover nhấc nhẹ + bóng, active lún xuống, disabled mờ + không bấm
-   được, focus-visible có viền cam rõ cho người dùng bàn phím.
-   .is-busy (do JS gắn khi request đang chạy) hiện spinner xoay sau
-   chữ, dùng currentColor nên hợp cả nút đậm lẫn nút nhạt. */
 button{border:0;border-radius:var(--radius);padding:12px 14px;font-size:var(--font-base);font-weight:700;cursor:pointer;background:linear-gradient(135deg,var(--accent),var(--accent-dark));color:#fff;box-shadow:0 4px 14px rgba(168,50,38,.35);transition:transform .15s ease,box-shadow .15s ease,opacity .15s ease,background .15s ease;min-height:44px}
 button:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 6px 18px rgba(168,50,38,.4)}
 button:active:not(:disabled){transform:scale(.97)}
@@ -56,21 +51,21 @@ button.is-busy::after{content:'';display:inline-block;width:14px;height:14px;mar
 #hud.on{display:block}
 #hud button{pointer-events:auto}
 .panel{position:absolute;background:var(--panel);border:1px solid rgba(236,217,172,.9);border-radius:var(--radius-lg);padding:10px 12px;box-shadow:var(--shadow)}
-#shareBox{top:10px;left:10px;right:10px;pointer-events:auto}
-#shareBox .row{margin-top:6px}
-#shareBox input{flex:1;min-width:0;padding:9px;border:1px solid #e7d7b8;border-radius:var(--radius-sm);font-size:var(--font-sm);background:var(--paper)}
-#stats{top:104px;left:10px;font-weight:700;line-height:1.55}
-/* Phân cấp thị giác cho stats: nhãn mờ nhỏ, giá trị đậm lớn hơn,
-   tiền nổi bật bằng màu cam đậm, gợi ý "chỉ có bạn" mờ + CTA. */
-.stat{display:flex;justify-content:space-between;gap:var(--space-4);font-size:var(--font-sm)}
-.stat-label{color:var(--ink-soft);font-weight:600}
-.stat-value{color:var(--ink)}
-.stat-value.money{color:var(--accent-dark);font-size:16px}
-.stat-hint{margin-top:6px;padding-top:6px;border-top:1px dashed var(--line-strong);font-size:var(--font-xs);color:var(--ink-soft);font-weight:600;line-height:1.4;display:flex;flex-direction:column;gap:6px}
-.stat-hint button{font-size:var(--font-xs);padding:8px 10px;min-height:36px}
-#minimapWrap{top:104px;right:10px;text-align:center;font-size:var(--font-xs);font-weight:700}
-#minimapWrap canvas{display:block;margin-top:4px;border-radius:var(--radius-sm);background:#e8e0cc}
-#feed{top:280px;right:10px;width:240px;max-height:220px;display:flex;flex-direction:column;padding:0;overflow:hidden}
+/* Top Status Bar: thanh mỏng sát mép trên, nền kính mờ, không còn
+   khung link hay bảng thông số chiếm nửa màn hình như bản cũ. */
+#topBar{position:absolute;top:0;left:0;right:0;height:46px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;background:rgba(255,250,238,.72);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);pointer-events:auto;z-index:11}
+#inviteBtn{padding:8px 12px;min-height:36px;font-size:var(--font-sm);white-space:nowrap;flex-shrink:0}
+@keyframes pulseRing{0%{box-shadow:0 0 0 0 rgba(194,65,12,.5)}100%{box-shadow:0 0 0 10px rgba(194,65,12,0)}}
+#inviteBtn.pulse{animation:pulseRing 1.2s infinite}
+.top-stats{display:flex;gap:10px;font-size:var(--font-sm);font-weight:700;white-space:nowrap;overflow:hidden}
+.top-stat{color:var(--ink)}
+.top-stat strong{color:var(--ink)}
+.top-stat:first-child strong{color:var(--accent-dark);font-size:15px}
+#streetPill{position:absolute;top:54px;left:10px;background:rgba(255,250,238,.85);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:var(--font-sm);font-weight:700;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+#minimapWrap{top:54px;right:10px;text-align:center;font-size:var(--font-xs);font-weight:700;cursor:pointer;pointer-events:auto;padding:6px 8px}
+#minimapWrap canvas{display:block;margin-top:4px;border-radius:var(--radius-sm);background:#e8e0cc;width:140px;height:auto}
+.minimap-hint{display:block;margin-top:2px;font-size:11px;color:var(--ink-faint);font-weight:600}
+#feed{top:184px;right:10px;width:240px;max-height:200px;display:flex;flex-direction:column;padding:0;overflow:hidden}
 .feed-head{display:flex;justify-content:space-between;align-items:center;padding:10px 12px 8px;border-bottom:1px solid var(--line);font-size:var(--font-sm)}
 .feed-head button{background:var(--accent-soft);color:#5b4632;box-shadow:none;padding:4px 10px;min-height:32px;font-size:var(--font-sm)}
 #feedBody{overflow:auto;padding:8px 12px 10px;font-size:var(--font-sm);line-height:1.45}
@@ -79,10 +74,6 @@ button.is-busy::after{content:'';display:inline-block;width:14px;height:14px;mar
 .feed-item{margin:4px 0;display:flex;gap:6px}
 .feed-time{color:var(--ink-faint);font-size:var(--font-xs);white-space:nowrap;padding-top:1px}
 .feed-msg{flex:1;min-width:0}
-/* 4 trạng thái dùng chung cho mọi luồng dữ liệu.
-   Loading: skeleton shimmer (không chỉ chữ "Loading...").
-   Empty: khung nét đứt, chữ mờ, kèm nút hành động.
-   Error: nền đỏ nhạt, nguyên nhân rõ, kèm nút Thử lại. */
 .skeleton-wrap{margin:10px 0 12px;text-align:left}
 .skeleton-block{height:110px;border-radius:var(--radius-lg);background:linear-gradient(90deg,#f0e2c0 25%,#fff8e6 50%,#f0e2c0 75%);background-size:200% 100%;animation:shimmer 1.2s infinite linear;display:flex;align-items:center;justify-content:center;font-size:28px}
 .skeleton-line{height:12px;border-radius:6px;margin:8px 0;background:linear-gradient(90deg,#f0e2c0 25%,#fff8e6 50%,#f0e2c0 75%);background-size:200% 100%;animation:shimmer 1.2s infinite linear}
@@ -95,52 +86,73 @@ button.is-busy::after{content:'';display:inline-block;width:14px;height:14px;mar
 #loadStatus.state-error{color:var(--danger);font-weight:700}
 #joinError{display:none;background:var(--danger-bg);border:1px solid #fecaca;border-radius:var(--radius);padding:10px 12px;color:var(--danger);font-size:var(--font-sm);line-height:1.5;margin:8px 0 0;text-align:left}
 #joinError.show{display:block}
-#nearBox{left:10px;bottom:120px;max-width:280px;font-size:var(--font-sm);line-height:1.5;display:none}
-.near-title{font-weight:800;font-size:15px;margin-bottom:2px}
-.near-desc{color:var(--ink-soft)}
-.near-hint{color:var(--ink-soft);font-style:italic;margin-top:4px}
-#actions{position:absolute;left:50%;transform:translateX(-50%);bottom:12px;display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:96vw;pointer-events:auto;background:var(--panel);border:1px solid rgba(236,217,172,.9);border-radius:18px;padding:8px;box-shadow:var(--shadow)}
-#actions button{padding:11px 11px;font-size:var(--font-sm);background:#fff7e8;color:#5b3a1e;border:1px solid var(--line);box-shadow:var(--shadow-sm);white-space:nowrap;min-height:44px}
-#actions button:hover:not(:disabled){background:#ffedb8}
-#actions button.buoi{background:linear-gradient(135deg,#8b5cf6,var(--accent-2));color:#fff;border:0}
-#actions button.buoi:hover:not(:disabled){background:linear-gradient(135deg,#7c3aed,#5b21b6)}
-/* Hàng trạng thái nhà ở đầu thanh hành động, chiếm trọn chiều ngang:
-   Empty = hướng dẫn mờ, Data = tên đậm + giá cam, Error = đỏ + Retry. */
-#houseRow{flex-basis:100%;font-size:var(--font-sm);line-height:1.5;padding:6px 8px;border-radius:var(--radius-sm);text-align:center}
+/* Contextual Popup: chỉ hiện khi gần landmark hoặc gần nhà, ở giữa
+   đáy, phía trên joystick/dock nên không đè lên joystick góc trái. */
+#ctxPopup{position:absolute;left:50%;transform:translateX(-50%);bottom:134px;width:min(340px,92vw);background:var(--panel);border:1px solid rgba(236,217,172,.9);border-radius:18px;padding:10px 12px;box-shadow:var(--shadow);text-align:center;pointer-events:auto;display:none}
+#ctxPopup.ctx-lifted{bottom:272px}
+.ctx-title{font-weight:800;font-size:15px}
+.ctx-desc{color:var(--ink-soft);font-size:var(--font-sm);line-height:1.5;margin:4px 0 8px}
+#ctxPopup button{font-size:var(--font-sm);padding:11px 12px}
+#houseRow{font-size:var(--font-sm);line-height:1.5;padding:6px 8px;border-radius:var(--radius-sm);text-align:center}
 #houseRow.house-empty{color:var(--ink-soft)}
 #houseRow.house-data{background:var(--paper-warm);border:1px solid var(--line)}
 #houseRow.house-error{background:var(--danger-bg);border:1px solid #fecaca;color:var(--danger)}
 .house-name{font-weight:800}
 .house-price{color:var(--accent-dark);font-weight:800}
 #houseRow button{margin-left:8px;font-size:var(--font-xs);padding:8px 10px;min-height:36px}
-#joy{position:absolute;left:16px;bottom:190px;width:110px;height:110px;border-radius:50%;background:rgba(255,255,255,.35);border:2px solid rgba(255,255,255,.7);display:none;pointer-events:auto;touch-action:none}
+.ctx-house-btns{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-top:8px}
+.ctx-house-btns button{flex:1;min-width:0;white-space:normal}
+/* Quick Dock: một nút duy nhất ở góc dưới phải, bấm mới mở panel
+   thao tác chung. Panel mở hướng lên trên, không đè joystick trái. */
+#quickDock{position:absolute;right:12px;bottom:12px;display:flex;flex-direction:column;align-items:flex-end;gap:8px;pointer-events:auto}
+#quickPanel{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;background:var(--panel);border:1px solid rgba(236,217,172,.9);border-radius:18px;padding:8px;box-shadow:var(--shadow);width:220px}
+#quickPanel button{padding:11px 6px;font-size:var(--font-sm);background:#fff7e8;color:#5b3a1e;border:1px solid var(--line);box-shadow:var(--shadow-sm);white-space:normal;min-height:44px}
+#quickPanel button:hover:not(:disabled){background:#ffedb8}
+#quickPanel button.buoi{background:linear-gradient(135deg,#8b5cf6,var(--accent-2));color:#fff;border:0}
+#quickPanel button.buoi:hover:not(:disabled){background:linear-gradient(135deg,#7c3aed,#5b21b6)}
+#quickToggle{border-radius:999px;padding:12px 16px;font-size:14px}
+/* Joystick: góc dưới trái, trên lớp canvas, không panel nào được
+   đặt ở vùng này nữa (ctxPopup ở giữa, quickDock ở phải, feed/minimap
+   ở phải trên) nên joystick không bao giờ bị đè. */
+#joy{position:absolute;left:16px;bottom:16px;width:110px;height:110px;border-radius:50%;background:rgba(255,255,255,.35);border:2px solid rgba(255,255,255,.7);display:none;pointer-events:auto;touch-action:none}
 #knob{position:absolute;left:35px;top:35px;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.9)}
-/* Toast lỗi trong game: thay cho alert() chặn màn hình. pointer-events
-   none để toast không chặn bấm nút phía dưới, tự ẩn sau 5 giây ở app.js. */
 #errorToast{position:fixed;left:50%;transform:translateX(-50%);top:12px;z-index:30;max-width:92vw;background:rgba(185,28,28,.96);color:#fff;font-size:14px;font-weight:600;line-height:1.4;padding:10px 14px;border-radius:12px;box-shadow:var(--shadow);display:none;pointer-events:none;text-align:center}
-/* Banner lỗi kết nối: khác toast ở chỗ không tự ẩn, có nút Thử lại
-   ngay, vì dữ liệu đang hiển thị có thể đã cũ. */
-#pollError{position:absolute;left:10px;top:300px;background:var(--danger-bg);border:1px solid #fecaca;color:var(--danger);border-radius:var(--radius);padding:8px 12px;font-size:var(--font-sm);font-weight:600;line-height:1.4;box-shadow:var(--shadow);display:none;align-items:center;gap:10px;max-width:280px;pointer-events:auto}
+/* Toast thành công/thông báo nhỏ: giữa mép trên, dưới top bar, vùng
+   giữa trống (street pill trái, minimap phải) nên không đè chữ nào. */
+#toast{position:fixed;left:50%;transform:translateX(-50%);top:56px;z-index:30;max-width:92vw;background:rgba(30,25,18,.92);color:#fff;font-size:14px;font-weight:700;line-height:1.4;padding:10px 16px;border-radius:999px;box-shadow:var(--shadow);display:none;pointer-events:none;text-align:center;white-space:nowrap}
+#toast.show{display:block}
+#pollError{position:absolute;left:10px;top:92px;background:var(--danger-bg);border:1px solid #fecaca;color:var(--danger);border-radius:var(--radius);padding:8px 12px;font-size:var(--font-sm);font-weight:600;line-height:1.4;box-shadow:var(--shadow);display:none;align-items:center;gap:10px;max-width:280px;pointer-events:auto}
 #pollError.show{display:flex}
 #pollError button{font-size:var(--font-xs);padding:8px 10px;min-height:36px;white-space:nowrap}
 #retryMapBtn{display:none;margin-top:10px;width:100%}
+/* Modal bản đồ lớn: nền tối phủ toàn màn, panel giữa, chạm ngoài
+   hoặc nút ✕ để đóng. */
+#mapModal{position:fixed;inset:0;background:rgba(20,15,10,.6);display:none;align-items:center;justify-content:center;z-index:25;pointer-events:auto;padding:16px}
+#mapModal.open{display:flex}
+.map-modal-panel{background:linear-gradient(180deg,var(--paper),var(--paper-warm));border:1px solid var(--line);border-radius:20px;padding:16px;max-width:680px;width:100%;box-shadow:var(--shadow-lg);text-align:center}
+.map-modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:var(--font-base)}
+.map-modal-head button{background:var(--accent-soft);color:#5b4632;box-shadow:none;padding:8px 12px;min-height:36px}
+#bigMap{width:100%;height:auto;border-radius:12px;background:#e8e0cc;display:block}
+.map-modal-note{font-size:var(--font-sm);color:var(--ink-soft);line-height:1.5;margin:10px 0 0}
 @media (pointer:coarse){ #joy{display:block} #feed{width:200px} }
 @media (max-width:900px){
 #feed{width:210px}
-#stats{font-size:var(--font-sm)}
 }
 @media (max-width:640px){
-#shareBox{top:8px;left:8px;right:8px;padding:8px 10px;font-size:var(--font-sm)}
-#stats{top:78px;left:8px;padding:8px 10px;font-size:var(--font-sm);line-height:1.4}
-#minimapWrap{display:block;top:78px;right:8px;padding:8px 10px}
-#minimapWrap canvas{width:150px;height:auto}
-#feed{top:200px;right:8px;width:178px;max-height:150px}
-#pollError{left:8px;top:240px;max-width:200px}
-#nearBox{bottom:200px;left:8px;right:8px;max-width:none}
-#actions{left:8px;right:8px;bottom:8px;transform:none;max-width:none;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:8px;max-height:30vh;overflow-y:auto;touch-action:pan-y}
-#houseRow{grid-column:1 / -1}
-#actions button{padding:11px 4px;font-size:var(--font-sm);white-space:normal}
-#joy{left:12px;bottom:230px;width:96px;height:96px}
+.hide-mobile{display:none}
+#topBar{padding:6px 8px}
+#inviteBtn{padding:8px 10px;font-size:var(--font-xs)}
+.top-stats{gap:8px}
+#streetPill{left:8px;max-width:170px}
+#minimapWrap{right:8px;padding:6px}
+#minimapWrap canvas{width:110px}
+#feed{top:172px;right:8px;width:178px;max-height:140px}
+#pollError{left:8px;top:92px;max-width:200px}
+#ctxPopup{bottom:124px}
+#ctxPopup.ctx-lifted{bottom:272px}
+#quickDock{right:8px;bottom:8px}
+#quickPanel{width:210px}
+#joy{left:12px;bottom:16px;width:96px;height:96px}
 #knob{left:28px;top:28px}
 .sw{width:44px;height:44px}
 .card{padding:20px 16px}

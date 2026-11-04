@@ -71,6 +71,43 @@ vì footprint nhà trên OSM có khi sát tim hẻm chỉ 1–2m ngoài đời; 
 đại không bị nhà chồng lên quá nhiều — vị trí nhà trong game vì vậy lệch
 khỏi OSM một chút ở phố hẹp.
 
+## Nâng cấp HUD + đồ họa v1.3 (2026-11-04) — Top Bar, shophouse, nhân vật, marker
+
+- HUD mobile mới: Top Status Bar kính mờ mỏng sát mép trên (tiền,
+  điểm, check-in, người chơi, buổi, nhà chính trên desktop), nút
+  "🔗 Mời bạn" nhỏ góc trên (bấm là copy link phòng + toast, không còn
+  khung link chiếm đỉnh màn hình), street pill dưới top bar, minimap
+  gọn góc phải (chạm mở modal bản đồ lớn, đóng bằng ✕ hoặc chạm ngoài),
+  feed dưới top bar, joystick góc dưới trái không panel nào đè lên,
+  Quick Dock thu gọn (một nút "⚡ Thao tác" mở panel 7 thao tác chung),
+  Contextual Popup chỉ hiện khi gần landmark (check-in) hoặc gần nhà
+  (mua/bán/đặt nhà chính). Nút Mời bạn nhấp nháy khi chỉ có một mình.
+- Đồ họa: lòng đường nhựa + vạch kẻ mọi đường (lớn dày, hẻm mỏng),
+  vỉa hè hai bên đường đủ rộng, quảng trường gạch nung dưới mỗi chợ,
+  shophouse mái ngói dốc (nhà lớn giữ mái bằng), ban công mỗi tầng,
+  biển hiệu dọc đỏ/vàng (một phần ba nhà phố + nhà thương mại), cây
+  ven đường lớn (tối đa 120, không chồng nhà/kênh/đường), dây lồng đèn
+  ở phố lồng đèn và các chợ (chỉ dựng khi trong ranh, cột khử trùng),
+  xe đẩy hủ tiếu ở chợ và bàn cà phê vợt ở Văn Lang + An Đông (đạo cụ
+  trang trí cạnh landmark, không phải vị trí thật đã kiểm chứng, không
+  đưa vào va chạm để không kẹt người chơi). FogExp2 thay Fog tuyến tính.
+- Ánh sáng/buổi: chuyển buổi lerp mượt (trời, sương, mặt trời, hemisphere
+  và vị trí mặt trời), đêm xuống lồng đèn + biển hiệu + đèn đường phát
+  sáng dần, đèn quảng trường PointLight ấm chỉ ở các chợ.
+- Nhân vật: chân/tay tách biệt, nón lá, tỉ lệ mới cao ~2,8, đi thì vung
+  tay chân + nhún, đứng yên thì thở nhẹ, xoay người lerp theo joystick,
+  tư thế mới an/cafe/mua (đồng bộ qua heartbeat, server validate pose
+  mở rộng) với đạo cụ cầm tô/ly/lồng đèn/máy ảnh. Nhãn đường nhỏ lại
+  (4,2) và chỉ hiện 2 giây rồi mờ dần, tên người chơi co giãn theo
+  khoảng cách camera (0,75-1,5 lần).
+- Marker + juiciness: pin 3D nhấp nhô + vòng sáng pulse ở mọi landmark,
+  vòng sáng dưới nhà đang gần (vàng = rao bán, xanh = nhà mình, xám =
+  nhà người khác) + biển "BÁN" trên nhà chưa có chủ, chữ bay (+10⭐
+  +5.000đ, +điểm, -/+tiền mua bán) và hạt nổ cho cả hành động của mình
+  lẫn của người khác (qua event poll, bỏ qua event cũ lúc mới vào).
+- Không đổi luật chơi, không đổi API (chỉ mở rộng pose validate).
+  Kiểm tra visual cuối cùng vẫn là điện thoại của Boss.
+
 ## Nâng cấp UI/UX v1.2 (2026-11-04) — 4 trạng thái, design system, micro-interactions
 
 - Design system tập trung ở `public/css/style.css` (`:root`): màu, spacing,
