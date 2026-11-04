@@ -19,7 +19,7 @@ const { RateLimiter } = require('./src/rateLimit.js');
 const handlers = require('./src/handlers.js');
 const { serveStatic } = require('./src/static.js');
 
-let version = '1.1.0';
+let version = '1.2.0';
 try {
   const pkg = JSON.parse(fs.readFileSync(path.join(config.ROOT_DIR, 'package.json'), 'utf8'));
   if (pkg && typeof pkg.version === 'string') {

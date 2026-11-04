@@ -11,8 +11,11 @@
 <div class="overlay" id="joinOverlay">
 <div class="card">
 <h1>🏮 Thành phố Quận 5 Online</h1>
+<div id="mapState">
+<div id="mapSkeleton" class="skeleton-wrap" aria-hidden="true"><div class="skeleton-block">🗺️</div><div class="skeleton-line" style="width:90%"></div><div class="skeleton-line" style="width:65%"></div></div>
 <p id="loadStatus">Đang tải bản đồ thật từ OpenStreetMap…</p>
 <button type="button" id="retryMapBtn">Thử tải lại bản đồ</button>
+</div>
 <p>Đi dạo Chợ Lớn cùng nhau, trên đúng lưới đường thật của Quận 5 cũ (ranh OSM relation 3820432): nhà 3D chỉ trên nền đất vàng, không dựng ra đường — đường cong, chéo và giao nhau đúng như ngoài đời, kể cả hẻm và lối đi không tên. Không có chat tự do — chỉ chào hỏi, ăn uống, mua sắm và check-in có sẵn. <b>Mới: dùng tiền trong game để mua nhà và vào ở</b> — bắt đầu với 100.000đ, check-in +5.000đ, đi lại gần một ngôi nhà rồi bấm Mua nhà; nhà đã mua sẽ hiện bảng tên chủ, lần sau vào lại sẽ spawn ngay ngoài nhà chính của bạn.</p>
 <input id="roomInput" placeholder="Mã phòng (để trống = thành phố chung QUAN5)" maxlength="12" style="text-transform:uppercase">
 <div class="row"><input id="nameInput" placeholder="Tên của bạn (để trống sẽ đặt tên Chợ Lớn)" maxlength="24"><button type="button" class="secondary" id="randomNameBtn">🎲 Tên hay</button></div>
@@ -26,17 +29,28 @@
 <button type="button" class="sw" data-robe="#7b1fa2" style="background:#7b1fa2"></button>
 </div>
 <button type="button" id="joinBtn" disabled>Vào thành phố</button>
-<p id="joinError" style="color:#b91c1c;font-size:13px;min-height:18px;margin:8px 0 0"></p>
+<p id="joinError"></p>
 <p class="note">Lưu ý thật: nhà 3D chỉ dựng trên nền đất vàng, không dựng ra đường. Vị trí, hình dạng và thứ tự các đường là từ OpenStreetMap, gồm cả đường không tên, hẻm và lối đi bộ; nhà cũng từ footprint thật của OpenStreetMap, nhưng đã đẩy khỏi hành lang đường, nhà trong công viên và nhà nhỏ vẫn chồng đường đã bị bỏ hẳn — và nhà vẽ bằng đúng footprint thật (bản cũ phóng đại tối thiểu 2x2 nên hộp vẽ rộng hơn hành lang đã dọn, nhìn như nhà tràn ra đường). Màu nhà trầm, đồng tông nền vàng, không còn cầu vồng pastel. Bề rộng đường tỉ lệ với bề rộng thật (lấy từ OSM: tag width, không có thì số làn × 3,5m, không có nữa thì mặc định theo loại đường; trong game = bề rộng thật × 0,25, tối thiểu 1,8, tối đa 5,0 — nên đường 16m rộng gấp đôi đường 8m đúng như ngoài đời, và đường đủ rộng cho nhiều người đi cùng nhau; nhà không vừa lô vàng thì bỏ, không vẽ lên đường). Nhân vật đi trên đường không bị nhà chặn; ra khỏi đường thì nhà vẫn chặn như thường, và chỉ bị chặn ở ranh Quận 5 và ở kênh (trừ khi đang ở trên cầu/đường). Dữ liệu © OpenStreetMap contributors, ODbL.</p>
 </div>
 </div>
 <div id="hud">
 <div class="panel" id="shareBox"><b>🔗 Link thành phố chung</b><div class="row"><input id="shareLink" readonly><button type="button" id="copyBtn">Sao chép</button></div></div>
-<div class="panel" id="stats">⭐ Điểm khám phá: <span id="diem">0</span><br>📸 Check-in: <span id="checkin">0</span> &nbsp; 👥 Đang chơi: <span id="count">0</span><br>💰 Tiền trong game: <span id="tien">0</span> &nbsp; 🏠 Nhà chính: <span id="homeLabel">Chưa có</span><br>🌅 Buổi: <span id="buoiLabel">Sáng</span> &nbsp; 📍 <span id="streetLabel">Quận 5</span></div>
+<div class="panel" id="stats">
+<div class="stat"><span class="stat-label">⭐ Điểm khám phá</span><strong class="stat-value" id="diem">0</strong></div>
+<div class="stat"><span class="stat-label">📸 Check-in</span><strong class="stat-value" id="checkin">0</strong></div>
+<div class="stat"><span class="stat-label">👥 Đang chơi</span><strong class="stat-value" id="count">0</strong></div>
+<div class="stat"><span class="stat-label">💰 Tiền trong game</span><strong class="stat-value money" id="tien">0</strong></div>
+<div class="stat"><span class="stat-label">🏠 Nhà chính</span><strong class="stat-value" id="homeLabel">Chưa có</strong></div>
+<div class="stat"><span class="stat-label">🌅 Buổi</span><strong class="stat-value" id="buoiLabel">Sáng</strong></div>
+<div class="stat"><span class="stat-label">📍 Đang ở</span><strong class="stat-value" id="streetLabel">Quận 5</strong></div>
+<div class="stat-hint" id="playersHint" style="display:none"><span>Chỉ có bạn trong phòng — gửi link trên cho bạn bè vào cùng.</span><button type="button" class="secondary" id="copyLinkHintBtn">Sao chép link mời</button></div>
+</div>
 <div class="panel" id="minimapWrap">🗺️ Bản đồ Quận 5 (thật)<canvas id="minimap" width="200" height="107"></canvas></div>
-<div class="panel" id="feed"></div>
+<div class="panel" id="feed"><div class="feed-head"><b>📣 Hoạt động</b><button type="button" id="feedToggle" aria-expanded="true" aria-label="Thu gọn hoạt động">▾</button></div><div id="feedBody"><div class="skeleton-line" style="width:95%"></div><div class="skeleton-line" style="width:80%"></div><div class="skeleton-line" style="width:88%"></div></div></div>
+<div id="pollError"><span id="pollErrorText">Mất kết nối tới máy chủ — dữ liệu có thể đã cũ.</span><button type="button" id="pollRetryBtn">Thử lại ngay</button></div>
 <div class="panel" id="nearBox"></div>
 <div id="actions">
+<div id="houseRow" class="house-empty">🏠 Đi lại gần một ngôi nhà để xem giá và mua bán.</div>
 <button type="button" data-action="chao">👋 Chào</button>
 <button type="button" data-action="an">🍜 Ăn hủ tiếu</button>
 <button type="button" data-action="cafe">☕ Cà phê vợt</button>
@@ -51,7 +65,7 @@
 </div>
 <div id="joy"><div id="knob"></div></div>
 </div>
-<div id="errorToast"></div>
+<div id="errorToast" role="status" aria-live="polite"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>
 <script src="js/shared-core.js"></script>
 <script src="js/render.js"></script>

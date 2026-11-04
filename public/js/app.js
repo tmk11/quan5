@@ -117,7 +117,85 @@ var buoiOrder = ['sang', 'hoang-hon', 'dem'];
 var lastFeedJson = '';
 var lastPlayers = [];
 var clock = (typeof THREE !== 'undefined' && THREE.Clock) ? new THREE.Clock() : null;
-var pollErrorShown = false;
+var firstStateDone = false;
+var houseError = null;
+var lastHouseRowKey = '';
+function setBusy(btn, busy) {
+  if (!btn) return;
+  btn.disabled = !!busy;
+  btn.setAttribute('aria-busy', busy ? 'true' : 'false');
+  btn.classList.toggle('is-busy', !!busy);
+}
+function setJoinError(msg) {
+  var el = document.getElementById('joinError');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.classList.toggle('show', !!msg);
+}
+function setJoinFormDisabled(disabled) {
+  [roomInput, nameInput, document.getElementById('randomNameBtn')].forEach(function (el) { if (el) el.disabled = !!disabled; });
+  document.querySelectorAll('#robeSwatches .sw').forEach(function (b) { b.disabled = !!disabled; });
+}
+function setMapState(state, msg) {
+  var loadEl = document.getElementById('loadStatus');
+  var skeleton = document.getElementById('mapSkeleton');
+  var retryBtn = document.getElementById('retryMapBtn');
+  if (skeleton) skeleton.style.display = state === 'loading' ? '' : 'none';
+  if (loadEl) {
+    loadEl.textContent = msg || '';
+    loadEl.classList.remove('state-success', 'state-error');
+    if (state === 'success') loadEl.classList.add('state-success');
+    if (state === 'error') loadEl.classList.add('state-error');
+  }
+  if (retryBtn) retryBtn.style.display = state === 'error' ? '' : 'none';
+  // Trong lúc tải bản đồ, khóa cả form để người chơi không bấm Vào khi
+  // bản đồ chưa sẵn (trước đây chỉ khóa nút Vào, còn ô nhập vẫn gõ được).
+  // Lỗi thì mở lại ô nhập để sửa mã phòng/tên, nhưng nút Vào vẫn khóa
+  // vì chưa có bản đồ thì vào cũng không chơi được.
+  if (state === 'loading') { setJoinFormDisabled(true); document.getElementById('joinBtn').disabled = true; }
+  else if (state === 'success') { setJoinFormDisabled(false); document.getElementById('joinBtn').disabled = false; }
+  else if (state === 'error') { setJoinFormDisabled(false); document.getElementById('joinBtn').disabled = true; }
+}
+function showPollError(show) {
+  var el = document.getElementById('pollError');
+  if (el) el.classList.toggle('show', !!show);
+}
+function renderFeed(events, status) {
+  var body = document.getElementById('feedBody');
+  if (!body) return;
+  if (status === 'loading') {
+    body.innerHTML = '<div class="skeleton-line" style="width:95%"></div><div class="skeleton-line" style="width:80%"></div><div class="skeleton-line" style="width:88%"></div>';
+    return;
+  }
+  if (status === 'error') {
+    body.innerHTML = '<div class="state-error">Không tải được hoạt động mới.<button type="button" data-feed-retry>Thử lại</button></div>';
+    return;
+  }
+  if (!events || !events.length) {
+    body.innerHTML = '<div class="state-empty">Chưa có hoạt động nào.<br>Chào mọi người một tiếng nhé!<button type="button" data-feed-cta>👋 Chào mọi người</button></div>';
+    return;
+  }
+  body.innerHTML = events.slice().reverse().slice(0, 10).map(function (e) {
+    var t = '';
+    if (e.at) { var d = new Date(e.at); t = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
+    return '<div class="feed-item">' + (t ? '<span class="feed-time">' + t + '</span>' : '') + '<span class="feed-msg">• ' + Quan5Shared.escapeHtml(e.message) + '</span></div>';
+  }).join('');
+}
+document.getElementById('feedBody').addEventListener('click', function (e) {
+  var retry = e.target.closest('[data-feed-retry]');
+  if (retry) { pollOnce(); return; }
+  var cta = e.target.closest('[data-feed-cta]');
+  if (cta) { var chao = document.querySelector('#actions button[data-action="chao"]'); if (chao) chao.click(); }
+});
+document.getElementById('feedToggle').addEventListener('click', function () {
+  var feed = document.getElementById('feed');
+  var collapsed = feed.classList.toggle('collapsed');
+  var btn = document.getElementById('feedToggle');
+  btn.textContent = collapsed ? '▴' : '▾';
+  btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+});
+document.getElementById('pollRetryBtn').addEventListener('click', function () { pollOnce(); });
+document.getElementById('copyLinkHintBtn').addEventListener('click', function () { document.getElementById('copyBtn').click(); });
 var errorToastTimer = null;
 function showErrorToast(msg) {
   var el = document.getElementById('errorToast');
@@ -129,15 +207,19 @@ function showErrorToast(msg) {
 }
 function handleSessionExpired(msg) {
   playerId = '';
-  pollErrorShown = false;
+  firstStateDone = false;
+  houseError = null;
+  lastHouseRowKey = '';
+  showPollError(false);
+  renderFeed([], 'loading');
   var overlay = document.getElementById('joinOverlay');
   if (overlay) overlay.style.display = 'flex';
   var hud = document.getElementById('hud');
   if (hud) hud.classList.remove('on');
-  var el = document.getElementById('joinError');
-  if (el) el.textContent = msg || 'Phiên chơi đã hết hạn, vui lòng bấm Vào lại.';
+  setJoinError(msg || 'Phiên chơi đã hết hạn, vui lòng bấm Vào lại.');
   var joinBtn = document.getElementById('joinBtn');
-  if (joinBtn) joinBtn.disabled = false;
+  if (joinBtn) { joinBtn.disabled = false; setBusy(joinBtn, false); }
+  setJoinFormDisabled(false);
 }
 function ensurePerson(p) {
   if (people[p.id]) return people[p.id];
@@ -190,50 +272,95 @@ function rebuildHouseLabels() {
     houseLabels[id] = sp;
   });
 }
+function houseAction(btn, action, houseId) {
+  if (!playerId || !btn || btn.disabled) return;
+  setBusy(btn, true);
+  postJson('api/house', { room: room, playerId: playerId, action: action, houseId: houseId }).then(function (j) {
+    houseError = null;
+    if (typeof j.tien === 'number') { myTien = j.tien; document.getElementById('tien').textContent = fmtMoney(myTien); }
+    if ('home' in j) { myHome = j.home; updateHomeLabel(); }
+    lastHousesJson = '';
+    lastHouseRowKey = '';
+  }).catch(function (e) {
+    houseError = { msg: e.message || 'Không thực hiện được.', action: action, houseId: houseId };
+    lastHouseRowKey = '';
+    showErrorToast(houseError.msg);
+  }).finally(function () { setBusy(btn, false); });
+}
 function updateHouseUI() {
   var nh = nearestHouse();
   var buyBtn = document.getElementById('buyHouseBtn'), sellBtn = document.getElementById('sellHouseBtn'), homeBtn = document.getElementById('homeHouseBtn');
+  var row = document.getElementById('houseRow');
   buyBtn.style.display = 'none';
   sellBtn.style.display = 'none';
   homeBtn.style.display = 'none';
-  if (!nh || !playerId) return;
+  if (!nh || !playerId) {
+    if (row && lastHouseRowKey !== 'empty') {
+      lastHouseRowKey = 'empty';
+      row.className = 'house-empty';
+      row.textContent = '🏠 Đi lại gần một ngôi nhà để xem giá và mua bán.';
+    }
+    return;
+  }
   var b = nh.b, rec = lastHouses[b.id];
+  // Lỗi giao dịch nhà gần nhất được giữ nguyên cho tới khi người chơi
+  // đổi nhà, rời khỏi nhà, hoặc bấm Thử lại thành công — không để tick
+  // poll 400ms tiếp theo xóa mất thông báo lỗi.
+  if (houseError && houseError.houseId === b.id) {
+    if (row && lastHouseRowKey !== 'error:' + b.id + ':' + houseError.msg) {
+      lastHouseRowKey = 'error:' + b.id + ':' + houseError.msg;
+      row.className = 'house-error';
+      row.textContent = '⚠️ ' + houseError.msg + ' ';
+      var rb = document.createElement('button');
+      rb.type = 'button';
+      rb.textContent = 'Thử lại';
+      rb.addEventListener('click', function () {
+        var btnByAction = { buy: buyBtn, sell: sellBtn, sethome: homeBtn }[houseError.action];
+        if (btnByAction) houseAction(btnByAction, houseError.action, houseError.houseId);
+      });
+      row.appendChild(rb);
+    }
+    // Vẫn hiện nút của giao dịch lỗi để Thử lại bấm đúng nút đó.
+    if (houseError.action === 'buy') { buyBtn.style.display = ''; buyBtn.textContent = '🏠 Mua: ' + houseDisplayName(b) + ' — ' + fmtMoney(housePrice(b)) + ' (bạn có ' + fmtMoney(myTien) + ')'; buyBtn.onclick = function () { houseAction(buyBtn, 'buy', b.id); }; }
+    else if (houseError.action === 'sell') { sellBtn.style.display = ''; sellBtn.textContent = '🏠 Bán nhà (nhận lại ' + fmtMoney(Quan5Shared.sellRefund(rec ? rec.price : 0)) + ')'; sellBtn.onclick = function () { if (!confirm('Bán ' + houseDisplayName(b) + ' và nhận lại 80% giá mua?')) return; houseAction(sellBtn, 'sell', b.id); }; }
+    else if (houseError.action === 'sethome') { homeBtn.style.display = ''; homeBtn.textContent = '🏠 Đặt làm nhà chính'; homeBtn.onclick = function () { houseAction(homeBtn, 'sethome', b.id); }; }
+    return;
+  }
   if (!rec) {
     var price = housePrice(b);
+    var key = 'buy:' + b.id + ':' + price + ':' + myTien;
+    if (row && lastHouseRowKey !== key) {
+      lastHouseRowKey = key;
+      row.className = 'house-data';
+      row.innerHTML = '<span class="house-name">🏠 ' + Quan5Shared.escapeHtml(houseDisplayName(b)) + '</span> — <span class="house-price">' + fmtMoney(price) + '</span> <span>(bạn có ' + fmtMoney(myTien) + ')</span>';
+    }
     buyBtn.style.display = '';
     buyBtn.textContent = '🏠 Mua: ' + houseDisplayName(b) + ' — ' + fmtMoney(price) + ' (bạn có ' + fmtMoney(myTien) + ')';
-    buyBtn.onclick = function () {
-      postJson('api/house', { room: room, playerId: playerId, action: 'buy', houseId: b.id }).then(function (j) {
-        myTien = j.tien;
-        myHome = j.home;
-        document.getElementById('tien').textContent = fmtMoney(myTien);
-        updateHomeLabel();
-        lastHousesJson = '';
-      }).catch(function (e) { showErrorToast(e.message || 'Không mua được.'); });
-    };
+    buyBtn.onclick = function () { houseAction(buyBtn, 'buy', b.id); };
   } else if (rec.owner === deviceId) {
+    var key2 = 'own:' + b.id + ':' + rec.price + ':' + myHome;
+    if (row && lastHouseRowKey !== key2) {
+      lastHouseRowKey = key2;
+      row.className = 'house-data';
+      row.innerHTML = '<span class="house-name">🏠 Nhà của bạn: ' + Quan5Shared.escapeHtml(houseDisplayName(b)) + '</span> — bán lại <span class="house-price">' + fmtMoney(Quan5Shared.sellRefund(rec.price)) + '</span>';
+    }
     sellBtn.style.display = '';
     sellBtn.textContent = '🏠 Bán nhà (nhận lại ' + fmtMoney(Quan5Shared.sellRefund(rec.price)) + ')';
     sellBtn.onclick = function () {
       if (!confirm('Bán ' + houseDisplayName(b) + ' và nhận lại 80% giá mua?')) return;
-      postJson('api/house', { room: room, playerId: playerId, action: 'sell', houseId: b.id }).then(function (j) {
-        myTien = j.tien;
-        myHome = j.home;
-        document.getElementById('tien').textContent = fmtMoney(myTien);
-        updateHomeLabel();
-        lastHousesJson = '';
-      }).catch(function (e) { showErrorToast(e.message || 'Không bán được.'); });
+      houseAction(sellBtn, 'sell', b.id);
     };
     if (myHome !== b.id) {
       homeBtn.style.display = '';
       homeBtn.textContent = '🏠 Đặt làm nhà chính';
-      homeBtn.onclick = function () {
-        postJson('api/house', { room: room, playerId: playerId, action: 'sethome', houseId: b.id }).then(function (j) {
-          myHome = j.home;
-          updateHomeLabel();
-          lastHousesJson = '';
-        }).catch(function (e) { showErrorToast(e.message || 'Không đặt được.'); });
-      };
+      homeBtn.onclick = function () { houseAction(homeBtn, 'sethome', b.id); };
+    }
+  } else {
+    var key3 = 'other:' + b.id + ':' + (rec.ownerName || '');
+    if (row && lastHouseRowKey !== key3) {
+      lastHouseRowKey = key3;
+      row.className = 'house-data';
+      row.innerHTML = '<span class="house-name">🏠 Nhà của ' + Quan5Shared.escapeHtml(rec.ownerName || '') + ': ' + Quan5Shared.escapeHtml(houseDisplayName(b)) + '</span> — đã có chủ, không mua được.';
     }
   }
 }
@@ -277,7 +404,7 @@ function updateNear() {
   var boxEl = document.getElementById('nearBox');
   if (nl.L && nl.d <= Quan5Shared.CHECKIN_CLIENT_MAX_DISTANCE) {
     boxEl.style.display = 'block';
-    boxEl.innerHTML = '<b>📍 ' + Quan5Shared.escapeHtml(nl.L.name) + '</b><br>' + Quan5Shared.escapeHtml(nl.L.desc || '') + '<br><i>Bấm 📸 Check-in để +10 điểm và +5.000đ.</i>';
+    boxEl.innerHTML = '<div class="near-title">📍 ' + Quan5Shared.escapeHtml(nl.L.name) + '</div><div class="near-desc">' + Quan5Shared.escapeHtml(nl.L.desc || '') + '</div><div class="near-hint">Bấm 📸 Check-in để +10 điểm và +5.000đ.</div>';
   } else {
     boxEl.style.display = 'none';
   }
@@ -289,7 +416,7 @@ function updateNear() {
 }
 document.querySelectorAll('#actions button[data-action]').forEach(function (btn) {
   btn.addEventListener('click', function () {
-    if (!playerId) return;
+    if (!playerId || btn.disabled) return;
     var type = btn.getAttribute('data-action');
     var value = undefined;
     if (type === 'checkin') {
@@ -305,21 +432,26 @@ document.querySelectorAll('#actions button[data-action]').forEach(function (btn)
     } else if (type === 'chup') {
       setPose('chup', Date.now() + 1200);
     }
+    // Chống bấm đúp: khóa nút cho tới khi server trả lời, server còn
+    // chặn thêm bằng cooldown 1 giây, nên bấm nhanh cũng không gửi trùng.
+    setBusy(btn, true);
     postJson('api/action', { room: room, playerId: playerId, type: type, value: value }).catch(function (e) {
       showErrorToast(e.message || 'Không thực hiện được hành động.');
-    });
+    }).finally(function () { setBusy(btn, false); });
   });
 });
 document.getElementById('buoiBtn').addEventListener('click', function () {
-  if (!playerId) return;
+  var btn = document.getElementById('buoiBtn');
+  if (!playerId || btn.disabled) return;
   var next = buoiOrder[(buoiOrder.indexOf(curBuoi) + 1) % buoiOrder.length];
   // Không đổi buổi ở client trước rồi để server sửa lại: chỉ đổi khi
   // server xác nhận, để buổi ở client và server không bao giờ lệch nhau.
+  setBusy(btn, true);
   postJson('api/action', { room: room, playerId: playerId, type: 'buoi', value: next }).then(function (j) {
     if (j.buoi) applyBuoi(j.buoi);
   }).catch(function (e) {
     showErrorToast(e.message || 'Không đổi buổi được.');
-  });
+  }).finally(function () { setBusy(btn, false); });
 });
 document.getElementById('copyBtn').addEventListener('click', function () {
   var el = document.getElementById('shareLink');
@@ -329,10 +461,9 @@ document.getElementById('copyBtn').addEventListener('click', function () {
 document.getElementById('joinBtn').addEventListener('click', function () {
   if (!MAP) return;
   var joinBtn = document.getElementById('joinBtn');
-  var errorEl = document.getElementById('joinError');
   var codeCheck = Quan5Shared.validateRoomCode(roomInput.value.trim() || 'QUAN5');
   if (!codeCheck.ok) {
-    if (errorEl) errorEl.textContent = codeCheck.error;
+    setJoinError(codeCheck.error);
     return;
   }
   var code = codeCheck.value;
@@ -340,17 +471,18 @@ document.getElementById('joinBtn').addEventListener('click', function () {
   if (nameRaw) {
     var nameCheck = Quan5Shared.validatePlayerName(nameRaw);
     if (!nameCheck.ok) {
-      if (errorEl) errorEl.textContent = nameCheck.error;
+      setJoinError(nameCheck.error);
       return;
     }
   }
   var colorCheck = Quan5Shared.validateColor(selectedRobe);
   if (!colorCheck.ok) {
-    if (errorEl) errorEl.textContent = colorCheck.error;
+    setJoinError(colorCheck.error);
     return;
   }
-  if (errorEl) errorEl.textContent = '';
-  joinBtn.disabled = true;
+  setJoinError('');
+  setBusy(joinBtn, true);
+  setJoinFormDisabled(true);
   postJson('api/join', { room: code, name: nameRaw, robe: selectedRobe, skin: '#ffe0bd', deviceId: deviceId }).then(function (j) {
     room = j.room;
     playerId = j.playerId;
@@ -367,8 +499,9 @@ document.getElementById('joinBtn').addEventListener('click', function () {
     myGroup = ensurePerson({ id: playerId, name: myName, robe: selectedRobe, skin: '#ffe0bd', x: myPos.x, z: myPos.z, rot: 0 });
     applyBuoi('sang');
   }).catch(function (e) {
-    if (errorEl) errorEl.textContent = 'Không vào được: ' + (e.message || 'lỗi không rõ');
-    joinBtn.disabled = false;
+    setJoinError('Không vào được: ' + (e.message || 'lỗi không rõ'));
+    setBusy(joinBtn, false);
+    setJoinFormDisabled(false);
   });
 });
 addEventListener('keydown', function (e) { keys[e.key.toLowerCase()] = true; });
@@ -486,15 +619,18 @@ addEventListener('resize', function () {
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
 });
-setInterval(function () {
-  if (!playerId) return;
-  postJson('api/heartbeat', { room: room, playerId: playerId, x: myPos.x, z: myPos.z, rot: myPos.rot, pose: pose }).then(function () {
+function pollOnce() {
+  if (!playerId) return Promise.resolve();
+  return postJson('api/heartbeat', { room: room, playerId: playerId, x: myPos.x, z: myPos.z, rot: myPos.rot, pose: pose }).then(function () {
     return getState(room);
   }).then(function (st) {
-    pollErrorShown = false;
+    showPollError(false);
+    firstStateDone = true;
     if (st.buoi && st.buoi !== curBuoi) applyBuoi(st.buoi);
     lastPlayers = st.players || [];
     document.getElementById('count').textContent = lastPlayers.length;
+    var hint = document.getElementById('playersHint');
+    if (hint) hint.style.display = lastPlayers.length === 1 ? '' : 'none';
     lastHouses = st.houses || {};
     var hj = JSON.stringify(lastHouses);
     if (hj !== lastHousesJson) { lastHousesJson = hj; rebuildHouseLabels(); }
@@ -523,9 +659,7 @@ setInterval(function () {
     var feedJson = JSON.stringify(st.events || []);
     if (feedJson !== lastFeedJson) {
       lastFeedJson = feedJson;
-      document.getElementById('feed').innerHTML = (st.events || []).slice().reverse().slice(0, 10).map(function (e) {
-        return '<div>• ' + Quan5Shared.escapeHtml(e.message) + '</div>';
-      }).join('') || '<div>Chưa có ai làm gì cả.</div>';
+      renderFeed(st.events || [], 'data');
     }
     updateNear();
     drawMinimap();
@@ -536,37 +670,39 @@ setInterval(function () {
       handleSessionExpired(e.message);
       return;
     }
-    // Lỗi mạng/timeout: toast một lần, các tick sau tự thử lại, không spam.
-    if (!pollErrorShown) {
-      pollErrorShown = true;
-      showErrorToast(e.message || 'Mất kết nối tới máy chủ, đang thử lại...');
-    }
+    // Lỗi mạng/timeout: banner lỗi bền vững (không tự ẩn như toast),
+    // kèm nút Thử lại gọi pollOnce ngay, các tick sau vẫn tự thử lại.
+    // Feed chưa từng tải được thì hiện trạng thái Error kèm Retry.
+    showPollError(true);
+    if (!firstStateDone) renderFeed([], 'error');
   });
-}, 400);
+}
+setInterval(pollOnce, 400);
 function loadMap() {
-  var loadEl = document.getElementById('loadStatus');
-  var retryBtn = document.getElementById('retryMapBtn');
-  if (loadEl) loadEl.textContent = 'Đang tải bản đồ thật từ OpenStreetMap…';
-  if (retryBtn) retryBtn.style.display = 'none';
+  // Three.js CDN fail thì không phí một lần tải bản đồ: hiện thẳng
+  // trạng thái Error, nút Thử lại sẽ tải lại trang (render.js đã ghi
+  // cùng thông báo này lúc khởi động, loadMap chỉ chuẩn hóa lại trạng
+  // thái để skeleton không hiện sai).
+  if (!RENDER_OK) {
+    setMapState('error', 'Không tải được thư viện 3D (Three.js từ CDN). Vui lòng kiểm tra mạng rồi bấm Thử lại để tải lại trang.');
+    var retryEarly = document.getElementById('retryMapBtn');
+    if (retryEarly) { retryEarly.textContent = 'Thử tải lại trang'; retryEarly.onclick = function () { location.reload(); }; }
+    return;
+  }
+  setMapState('loading', 'Đang tải bản đồ thật từ OpenStreetMap…');
   getMapJson().then(function (j) {
     MAP = j;
-    if (!RENDER_OK) {
-      throw new Error('Không tải được thư viện 3D (Three.js).');
-    }
     buildMap();
     buildMinimapStatic();
-    if (loadEl) loadEl.textContent = 'Đã tải xong bản đồ thật: ' + j.roads.length + ' đoạn đường, ' + j.buildings.length + ' nhà trên nền vàng có thể mua bán (không nhà trên đường), ' + j.landmarks.length + ' landmark trong ranh Quận 5.';
-    document.getElementById('joinBtn').disabled = false;
+    setMapState('success', 'Đã tải xong bản đồ thật: ' + j.roads.length + ' đoạn đường, ' + j.buildings.length + ' nhà trên nền vàng có thể mua bán (không nhà trên đường), ' + j.landmarks.length + ' landmark trong ranh Quận 5.');
     camera.position.set(myPos.x, 6.5, myPos.z + 10);
     camera.lookAt(myPos.x, 1.6, myPos.z);
   }).catch(function (e) {
-    if (loadEl) loadEl.textContent = 'Không tải được bản đồ thật (' + (e.message || 'lỗi không rõ') + ').';
+    setMapState('error', 'Không tải được bản đồ thật (' + (e.message || 'lỗi không rõ') + '). Vui lòng kiểm tra mạng rồi bấm Thử lại.');
+    var retryBtn = document.getElementById('retryMapBtn');
     if (retryBtn) {
-      retryBtn.style.display = '';
-      retryBtn.textContent = RENDER_OK ? 'Thử tải lại bản đồ' : 'Thử tải lại trang';
-      retryBtn.onclick = function () {
-        if (RENDER_OK) loadMap(); else location.reload();
-      };
+      retryBtn.textContent = 'Thử tải lại bản đồ';
+      retryBtn.onclick = function () { loadMap(); };
     }
   });
 }

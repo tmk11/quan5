@@ -71,6 +71,42 @@ vì footprint nhà trên OSM có khi sát tim hẻm chỉ 1–2m ngoài đời; 
 đại không bị nhà chồng lên quá nhiều — vị trí nhà trong game vì vậy lệch
 khỏi OSM một chút ở phố hẹp.
 
+## Nâng cấp UI/UX v1.2 (2026-11-04) — 4 trạng thái, design system, micro-interactions
+
+- Design system tập trung ở `public/css/style.css` (`:root`): màu, spacing,
+  bo góc, bóng, cỡ chữ dùng chung toàn game, không còn giá trị rải rác.
+  Nút chính đậm hơn để chữ trắng đủ tương phản, chữ mờ đậm hơn
+  (#6b5a44) cho dễ đọc. Mọi nút có hover (nhấc nhẹ + bóng), active
+  (lún xuống), disabled (mờ, không bấm được, con trỏ cấm), focus-visible
+  (viền cam) và trạng thái busy (spinner xoay sau chữ).
+- 4 trạng thái cho mọi luồng dữ liệu:
+  - Tải bản đồ: Loading = khung skeleton shimmer + chữ trạng thái,
+    form bị khóa; Success = chữ xanh + form mở; Error = nguyên nhân rõ
+    + nút Thử lại (tải lại bản đồ, hoặc tải lại trang nếu lỗi Three.js).
+  - Vào thành phố: Loading = nút Vào khóa + spinner + form khóa;
+    Error = hộp đỏ inline kèm nguyên nhân, nút mở lại để thử lại.
+  - Hoạt động (feed): Loading = 3 dòng skeleton; Empty = khung nét đứt
+    + nút "👋 Chào mọi người"; Data = mỗi dòng có giờ + nội dung, phân
+    cấp rõ; Error = hộp đỏ + nút Thử lại gọi poll ngay.
+  - Người chơi: khi chỉ có một mình, stats hiện gợi ý mờ + nút
+    "Sao chép link mời" (trạng thái Empty của tính năng nhiều người).
+  - Nhà ở: hàng trạng thái ở đầu thanh hành động — Empty = hướng dẫn
+    "đi lại gần nhà", Data = tên đậm + giá cam + số tiền đang có
+    (hoặc "nhà của bạn" / "đã có chủ"), Error = nguyên nhân + nút
+    Thử lại, lỗi được giữ nguyên qua các tick poll cho tới khi thử lại
+    thành công hoặc đổi nhà.
+  - Mất kết nối: banner lỗi bền vững (không tự ẩn như toast) + nút
+    "Thử lại ngay" gọi poll ngay, dữ liệu cũ vẫn hiển thị kèm cảnh báo.
+- Chống bấm đúp: mọi nút hành động, đổi buổi, mua/bán/đặt nhà chính
+  đều khóa + spinner trong lúc request đang chạy (server vẫn chặn thêm
+  bằng cooldown 1 giây). Nút Vào đã khóa từ v1.1, nay khóa thêm cả form.
+- Responsive: feed trên mobile không còn ẩn hẳn — thành panel có nút
+  thu gọn/mở rộng, nằm trên minimap; thêm breakpoint 900px; nút hành
+  động và màu áo đủ 44px cho ngón tay; thẻ vào thành phố co padding
+  trên màn hẹp.
+- Không đổi luật chơi, không đổi API: chỉ HTML/CSS/app.js + version
+  (1.2.0). Kiểm tra visual cuối cùng vẫn là điện thoại của Boss.
+
 ## Refactor v1.1 (2026-11-04) — kiến trúc, logic nghiệp vụ, xử lý lỗi
 
 Không đổi luật chơi, chỉ tách code và siết lỗi. Mọi hàm đều triển khai đủ,
