@@ -129,6 +129,12 @@ function makePerson(name, robe, skin) {
   ns.position.y = 3.2;
   outer.add(ns);
   outer.userData = { inner: inner, tilt: 0, pose: 'dung', armL: armL, armR: armR, legL: legL, legR: legR, bowl: bowl, cup: cup, lanternProp: lanternProp, cameraProp: cameraProp, nameSprite: ns, nameBase: { x: 2.9, y: 0.72 }, swing: 0 };
+  // Thu nhỏ nhân vật (Boss 2026-11-04 tối): chỉ thu hình ảnh, không
+  // đổi gameplay — tốc độ, bán kính va chạm 0,35, tầm mua/check-in
+  // đều giữ nguyên. 0,7 cho nhân vật vẫn đọc được tên trên điện thoại
+  // mà đỡ choán đường và nhà. NPC dùng chung makePerson nên cũng nhỏ
+  // theo cho đồng bộ; Đoàn Lân giữ nguyên.
+  outer.scale.setScalar(0.7);
   return outer;
 }
 var room = '', playerId = '', myName = '';
@@ -1222,7 +1228,15 @@ function openSoHong() {
     houseZ: b.z,
     inviteLink: link
   };
-  drawSoHongCard(document.getElementById('soHongCanvas'), data);
+  try {
+    drawSoHongCard(document.getElementById('soHongCanvas'), data);
+  } catch (e) {
+    // Đừng để nút chết im: vẽ lỗi thì báo rõ, thay vì modal không mở
+    // mà không có dấu vết gì (lỗi từng xảy ra ở v1.6: inline
+    // display:none át class .open).
+    showErrorToast('Không vẽ được Sổ Hồng, thử tải lại trang.');
+    return;
+  }
   document.getElementById('soHongLinkInput').value = link;
   document.getElementById('soHongModal').classList.add('open');
 }

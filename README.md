@@ -278,6 +278,34 @@ vì server đọc lại theo mtime.
 
 ## Sổ Hồng Quận 5 & Deep Link ghé thăm (v1.6, 2026-11-04)
 
+## Thu nhỏ nhân vật & lấp đầy nhà (v1.8, 2026-11-04, đã build + test local, CHƯA deploy vì check 1.7.0 đang chạy)
+
+- Nhân vật (kể cả NPC) thu hình ảnh còn 0,7 lần trong makePerson;
+  tốc độ, bán kính va chạm 0,35, tầm mua/check-in giữ nguyên; Đoàn
+  Lân giữ nguyên.
+- Bản đồ: 474 → 1022 nhà. Nhà rớt vì đường (2077) được cứu bằng
+  recovery pass trong build_map.py: thu nhỏ tại chỗ (tỷ lệ tới 0,3,
+  sàn chân 0,3) rồi dời tới lô đất trống gần nhất (tối đa 10 đơn vị,
+  nhà lớn đặt trước), mỗi nhà OSM vẫn đúng một lần, id từ centroid
+  gốc nên ổn định. Điều kiện đặt: không chồng hành lang đường (cùng
+  hàm lọc chính), không chồng nhà đã đặt (SAT hộp xoay, chạm nhau
+  thì được), trong ranh Quận 5, không vào công viên, trong bounds.
+  Kết quả: cứu 548/2077 (2077 − 548 vẫn ở khe đất không chứa nổi
+  chấm nhà tối thiểu hoặc đã kín nhà kề). 474 nhà cũ giữ nguyên
+  100% tọa độ/kích thước (kiểm chứng superset: 0 thiếu, 0 đổi) nên
+  economy, visit-link H1/H2 và NPC porch của check đang chạy không
+  đổi. Kiểm chứng độc lập từ file output: 0 nhà nhỏ tràn đường
+  (sampling mép mỗi 0,5 đơn vị, strict), chồng nhà-nhà mới chỉ 1 cặp
+  sâu 0,0001 đơn vị (làm tròn, không nhìn thấy) so với 509 cặp vốn
+  đã chồng trong bản đồ cũ; validateMap OK; giá rẻ nhất vẫn 42.000đ.
+  Bản đồ cũ backup tại backups/quan5-2026-11-04/quan5-map-474.json.
+  Lưu ý deploy: lần này PHẢI scp quan5-map.json lên VPS (ngoại lệ
+  có chủ ý so với quy tắc cũ) vì bản đồ đã đổi; superset nên orphan
+  cleanup không hoàn tiền cho ai. Bản đồ không đẩy lên GitHub (như
+  mọi lần trước); build_map.py thì có trong push v1.8.
+- Test: unit 35/35 (mapStore kỳ vọng cập nhật 474 → 1022); shop /
+  event / sohong / npc smoke đều PASS trên bản đồ mới.
+
 ## Cư dân bất đồng bộ — NPC chủ nhà offline (v1.7, 2026-11-04, đã build + test local, CHƯA deploy vì check v1.6 đang chạy)
 
 - Server: ví trong economy.json nay lưu thêm `robe` (màu áo lúc join,

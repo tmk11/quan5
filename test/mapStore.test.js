@@ -11,7 +11,7 @@ test('mapStore: bản đồ thật tải được, số lượng đúng như b�
   const store = new MapStore(REAL_MAP);
   const summary = store.summary();
   assert.equal(summary.roads, 1913);
-  assert.equal(summary.buildings, 474);
+  assert.equal(summary.buildings, 1022);
   assert.equal(summary.landmarks, 11);
   const map = store.getMap();
   const first = map.buildings[0];
@@ -39,11 +39,11 @@ test('mapStore: file bản đồ hỏng sau khi đã cache thì giữ bản cũ,
   fs.copyFileSync(REAL_MAP, mapPath);
   const store = new MapStore(mapPath);
   const first = store.summary();
-  assert.equal(first.buildings, 474);
+  assert.equal(first.buildings, 1022);
   fs.writeFileSync(mapPath, '{ hỏng');
   // Đổi mtime bằng cách chạm file sau khi ghi hỏng, để store phải thử tải lại.
   const later = new Date(Date.now() + 2000);
   fs.utimesSync(mapPath, later, later);
   const second = store.summary();
-  assert.equal(second.buildings, 474);
+  assert.equal(second.buildings, 1022);
 });

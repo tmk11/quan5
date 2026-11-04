@@ -149,6 +149,13 @@ def street_midpoint(name):
 #   touch an exaggerated road edge — they ARE the block, roads go around
 #   them, and the client keeps the on-road exemption for those edges.
 # So by construction, every small house drawn sits on yellow land only.
+# Recovery (Boss 2026-11-04 evening: houses need not match reality
+# closely, fill priority, NEVER spill onto roads): small buildings that
+# still overlap a road after displacement are NOT dropped any more —
+# they are shrunk in place and, if that still does not fit, moved to
+# the nearest free yellow-land pocket (max 10 units), each OSM building
+# still appearing exactly once. Drawn footprint is then the FITTED size
+# (<= true OSM size), not the true size, for recovered houses.
 # Game road width (MUST match client roadWidthFromMeters exactly, otherwise
 # the build-time filter and the drawn road disagree about what is "on a road"):
 # width_m * 0.25, floor 1.8, cap 5.0. Still proportional (16 m road is twice
@@ -160,7 +167,10 @@ def street_midpoint(name):
 # future crowds, and start the buy/sell/live-in house economy. 0.25 gives
 # 8 m -> 2.0 (2-3 players side by side), 16 m -> 4.0, alley/footway -> 1.8
 # floor (2 players side by side). Houses that cannot fit between the wider
-# corridors are still dropped, not drawn on roads — that trade-off stays.
+# corridors are no longer dropped: since Boss 2026-11-04 evening they are
+# recovered by shrinking/relocating onto yellow land (see Recovery below),
+# never drawn on roads — that trade-off (fill priority over exact size
+# and position) replaces the old drop-them rule.
 def game_road_width(width_m):
     return max(1.8, min(5.0, (width_m or 6) * 0.25))
 
@@ -270,6 +280,10 @@ buildings = []
 used_house_ids = set()
 dropped_park = 0
 dropped_road = 0
+# Nhà rớt vì đường (để recovery pass phía dưới cứu lại bằng thu nhỏ +
+# dời chỗ — Boss 2026-11-04 tối: nhà không cần chính xác lắm, ưu tiên
+# lấp đầy, tuyệt đối không tràn ra đường).
+dropped_cands = []
 for e in blds:
     tags = e.get('tags', {})
     geom = e.get('geometry', [])
@@ -335,6 +349,9 @@ for e in blds:
         continue
     if area < 2000 and building_overlaps_road(cx, cz, hw, hd, -ang):
         dropped_road += 1
+        dropped_cands.append({'x': cx, 'z': cz, 'hw': hw, 'hd': hd, 'rot': -ang,
+                              'h': height, 'type': btype, 'name': name,
+                              'clon': clon, 'clat': clat})
         continue
     # Stable house ID for the buy/sell economy: from the ORIGINAL OSM
     # centroid (lon/lat), NOT the displaced game position — so the ID survives
@@ -352,6 +369,136 @@ for e in blds:
                       'type': btype, 'name': name})
 print('buildings inside Q5 after yellow-plot filter (was 2552 before filtering):', len(buildings),
       'dropped: park', dropped_park, 'still-on-road', dropped_road)
+
+# ---------- Recovery: lấp đầy (Boss 2026-11-04 tối) ----------
+# Nhà rớt vì đường được thử lại theo thứ tự ít méo mó nhất: (1) thu nhỏ
+# tại chỗ (tỷ lệ 1,0 → 0,3, sàn chân 0,3 đơn vị); (2) nếu tại chỗ không
+# vừa thì dời tới lô đất trống gần nhất (vòng tròn đồng tâm quanh vị
+# trí đã đẩy, bán kính tới 10 đơn vị, 12 hướng mỗi vòng), vẫn thu nhỏ
+# nếu cần. Điều kiện đặt: không chồng bất kỳ hành lang đường nào
+# (cùng hàm building_overlaps_road như lọc chính), không chồng nhà đã
+# đặt (SAT trên hộp xoay, chạm nhau thì được), trong ranh Quận 5,
+# không rơi vào công viên (chỉ đất vàng mới có nhà), trong bounds bản
+# đồ. Nhà lớn khó đặt hơn nên đặt trước. Mỗi nhà OSM vẫn đúng một lần;
+# id lấy từ centroid gốc (như nhà giữ lại) nên ổn định qua các lần
+# rebuild. Chiều cao giữ nguyên như cũ (nhà hẹp cao vẫn giống shophouse
+# Chợ Lớn). Nhà đã giữ lại (474) không đụng tới nên economy và các
+# visit-link đang kiểm chứng không đổi.
+placed_grid = defaultdict(list)
+def _aabb_extent(hw, hd, rot):
+    # Hộp xoay vươn xa hơn hw/hd theo trục x/z (góc 45° vươn tới
+    # hw*|cos|+hd*|sin|): lưới broadphase phải phủ đủ AABB thì mới
+    # không sót va chạm ở góc hộp xoay (lỗi gây 6 cặp chồng nhau ở
+    # bản recovery đầu tiên).
+    return (hw * abs(math.cos(rot)) + hd * abs(math.sin(rot)),
+            hw * abs(math.sin(rot)) + hd * abs(math.cos(rot)))
+def _grid_add(x, z, hw, hd, rot):
+    ex, ez = _aabb_extent(hw, hd, rot)
+    for gx in range(int((x - ex - 1) // 10), int((x + ex + 1) // 10) + 1):
+        for gz in range(int((z - ez - 1) // 10), int((z + ez + 1) // 10) + 1):
+            placed_grid[(gx, gz)].append((x, z, hw, hd, rot))
+for _b in buildings:
+    _grid_add(_b['x'], _b['z'], _b['hw'], _b['hd'], _b['rot'])
+def _obb_overlap(x1, z1, hw1, hd1, rot1, x2, z2, hw2, hd2, rot2):
+    axes = [(math.cos(rot1), -math.sin(rot1)), (math.sin(rot1), math.cos(rot1)),
+            (math.cos(rot2), -math.sin(rot2)), (math.sin(rot2), math.cos(rot2))]
+    def _corners(x, z, hw, hd, rot):
+        lx = (math.cos(rot), -math.sin(rot))
+        lz = (math.sin(rot), math.cos(rot))
+        return [(x + sx * hw * lx[0] + sz * hd * lz[0],
+                 z + sx * hw * lx[1] + sz * hd * lz[1])
+                for sx in (-1, 1) for sz in (-1, 1)]
+    c1, c2 = _corners(x1, z1, hw1, hd1, rot1), _corners(x2, z2, hw2, hd2, rot2)
+    for ax, az in axes:
+        p1 = [px * ax + pz * az for px, pz in c1]
+        p2 = [px * ax + pz * az for px, pz in c2]
+        if max(p1) <= min(p2) or max(p2) <= min(p1):
+            return False
+    return True
+def _house_clear(x, z, hw, hd, rot):
+    # Quét đủ các cell mà AABB của hộp ứng viên phủ tới (không chỉ 3x3
+    # quanh cell tâm — nhà lớn có AABB phủ nhiều cell, quét hẹp sẽ sót
+    # nhà kề ở góc).
+    ex, ez = _aabb_extent(hw, hd, rot)
+    seen = set()
+    for gx in range(int((x - ex - 1) // 10), int((x + ex + 1) // 10) + 1):
+        for gz in range(int((z - ez - 1) // 10), int((z + ez + 1) // 10) + 1):
+            for (ox, oz, ohw, ohd, orot) in placed_grid.get((gx, gz), []):
+                key = (ox, oz, orot)
+                if key in seen:
+                    continue
+                seen.add(key)
+                if _obb_overlap(x, z, hw, hd, rot, ox, oz, ohw, ohd, orot):
+                    return False
+    return True
+def _fits(x, z, hw, hd, rot):
+    if x < -140 or x > 140 or z < -75 or z > 75:
+        return False
+    if building_overlaps_road(x, z, hw, hd, rot):
+        return False
+    return _house_clear(x, z, hw, hd, rot)
+def _try_place(c, x, z, hw2, hd2):
+    # Làm tròn TRƯỚC rồi kiểm tra lại trên đúng số sẽ ghi vào file, để
+    # làm tròn 2 chữ số không biến một cặp vừa chạm nhau thành chồng
+    # nhau sau khi ghi.
+    rx, rz, rhw, rhd = round(x, 2), round(z, 2), round(hw2, 2), round(hd2, 2)
+    if not _fits(rx, rz, rhw, rhd, c['rot']):
+        return False
+    # Cổng cuối: trong ranh Quận 5 và không rơi vào công viên (đất vàng).
+    lon = LON0 + rx / (109300.0 * SCALE)
+    lat = LAT0 - rz / (110500.0 * SCALE)
+    if not point_in_poly(lon, lat, poly_lonlat):
+        return False
+    if any(point_in_poly(lon, lat, pp) for pp in park_lonlat):
+        return False
+    base_id = 'h%.6f_%.6f' % (c['clon'], c['clat'])
+    hid = base_id
+    suffix = 2
+    while hid in used_house_ids:
+        hid = base_id + '_' + str(suffix)
+        suffix += 1
+    used_house_ids.add(hid)
+    buildings.append({'id': hid, 'x': rx, 'z': rz,
+                      'hw': rhw, 'hd': rhd,
+                      'hw_t': rhw, 'hd_t': rhd,
+                      'rot': round(c['rot'], 3), 'h': c['h'],
+                      'type': c['type'], 'name': c['name']})
+    _grid_add(rx, rz, rhw, rhd, c['rot'])
+    return True
+RECOVERY_SCALES = [1.0, 0.8, 0.6, 0.45, 0.3]
+dropped_cands.sort(key=lambda c: max(c['hw'], c['hd']), reverse=True)
+recovered = 0
+for c in dropped_cands:
+    done = False
+    for s in RECOVERY_SCALES:
+        hw2, hd2 = c['hw'] * s, c['hd'] * s
+        if hw2 < 0.3 or hd2 < 0.3:
+            continue
+        if _fits(c['x'], c['z'], hw2, hd2, c['rot']) and _try_place(c, c['x'], c['z'], hw2, hd2):
+            done = True
+            break
+    if done:
+        recovered += 1
+        continue
+    for r in (2.0, 4.0, 6.0, 8.0, 10.0):
+        if done:
+            break
+        for k in range(12):
+            ang = k * math.pi / 6.0
+            nx, nz = c['x'] + r * math.cos(ang), c['z'] + r * math.sin(ang)
+            for s in RECOVERY_SCALES:
+                hw2, hd2 = c['hw'] * s, c['hd'] * s
+                if hw2 < 0.3 or hd2 < 0.3:
+                    continue
+                if _fits(nx, nz, hw2, hd2, c['rot']) and _try_place(c, nx, nz, hw2, hd2):
+                    done = True
+                    break
+            if done:
+                break
+    if done:
+        recovered += 1
+print('recovery: placed', recovered, 'of', len(dropped_cands), 'dropped-road houses;',
+      'total buildings now', len(buildings))
 for b in buildings:
     if b['name'] in ('Chợ An Đông', 'Chợ Kim Biên', 'Bệnh Viện Nguyễn Tri Phương'):
         print(' named building:', b)
@@ -401,7 +548,7 @@ for name, desc in [('Phố lồng đèn Lương Nhữ Học', 'Phố lồng đè
         print(' WARNING street not found:', street)
 
 out = {
-    'source': 'OpenStreetMap (ODbL), boundary OSM relation 3820432 (Quan 5), all highways incl. unnamed alleys/footways, fetched 2026-11-02 (merged small Overpass chunks; eastmost unnamed residential strip may be incomplete due to Overpass 502 capacity, named roads there are complete); buildings filtered to yellow land plots only (park buildings and small buildings still overlapping a road after displacement are dropped, drawn footprint = true OSM footprint)',
+    'source': 'OpenStreetMap (ODbL), boundary OSM relation 3820432 (Quan 5), all highways incl. unnamed alleys/footways, fetched 2026-11-02 (merged small Overpass chunks; eastmost unnamed residential strip may be incomplete due to Overpass 502 capacity, named roads there are complete); buildings on yellow land plots only (park buildings dropped; small buildings that still overlap a road after displacement are recovered by shrinking in place or moving to the nearest free yellow-land pocket, max 10 units, so drawn footprint is the fitted size <= true OSM size for recovered houses, never spilling onto roads)',
     'origin': {'lon': LON0, 'lat': LAT0, 'scale_units_per_meter': SCALE},
     'bounds': {'x': [-140, 140], 'z': [-75, 75]},
     'boundary': poly_game,
