@@ -137,7 +137,7 @@ function makePerson(name, robe, skin) {
   outer.scale.setScalar(0.7);
   return outer;
 }
-var room = '', playerId = '', myName = '';
+var room = '', playerId = '', sessionId = '', myName = '';
 var deviceId = (function () {
   try {
     var k = 'quan5-device-id';
@@ -302,7 +302,7 @@ function renderMissionPanel(mission) {
 function doShipper(action, btn) {
   if (!playerId || (btn && btn.disabled)) return;
   if (btn) setBusy(btn, true);
-  postJson('api/shipper', { room: room, playerId: playerId, action: action }).then(function (j) {
+  postJson('api/shipper', { room: room, playerId: sessionId, action: action }).then(function (j) {
     j = j || {};
     myMission = j.mission || null;
     renderMissionPanel(myMission);
@@ -595,6 +595,77 @@ function applyPoseToGroup(g, t, moving, phase) {
     u.inner.position.y = Math.sin(t * 2) * 0.03;
   }
 }
+var destinationSelect = document.getElementById('mapDestination');
+var destinations = new Map();
+var destinationListKey = '';
+function updateDestinations() {
+  var next = new Map();
+  function add(key, group, name, point) {
+    next.set(key, { group: group, name: name, x: point.x, z: point.z });
+  }
+  if (myHome) {
+    var home = MAP.buildings.find(function (b) { return b.id === myHome; });
+    if (home) add('home:' + home.id, 'Nhà ở', 'Nhà chính', home);
+  }
+  lastPlayers.forEach(function (p) {
+    if (p.id !== playerId) add('player:' + p.id, 'Người cùng phòng', p.name, p);
+  });
+  LANDMARKS.forEach(function (l) { add('place:' + l.name, 'Địa danh', l.name, l); });
+  destinations = next;
+  // Chỉ thay các option khi danh sách đổi để giữ lựa chọn lúc bạn di chuyển.
+  var listKey = JSON.stringify(Array.from(next, function (entry) { return [entry[0], entry[1].name]; }));
+  if (listKey !== destinationListKey) {
+    destinationListKey = listKey;
+    var selected = destinationSelect.value;
+    destinationSelect.replaceChildren(new Option('Bỏ chỉ hướng', ''));
+    var groups = new Map();
+    next.forEach(function (target, key) {
+      if (!groups.has(target.group)) {
+        var group = document.createElement('optgroup');
+        group.label = target.group;
+        groups.set(target.group, group);
+        destinationSelect.appendChild(group);
+      }
+      groups.get(target.group).appendChild(new Option(target.name, key));
+    });
+    destinationSelect.value = next.has(selected) ? selected : '';
+    if (selected && !next.has(selected)) showToast('Điểm đến đã rời phòng hoặc đổi chủ.');
+  }
+  updateDestinationDistance();
+}
+function updateDestinationDistance() {
+  var target = destinations.get(destinationSelect.value);
+  var hint = document.getElementById('mapHint');
+  var distance = document.getElementById('destinationDistance');
+  distance.hidden = !target;
+  if (target) {
+    var meters = Math.round(Math.hypot(target.x - myPos.x, target.z - myPos.z) / MAP.origin.scale_units_per_meter);
+    hint.textContent = meters + ' m · ' + target.name;
+    distance.textContent = target.name + ' · ' + meters + ' m theo đường thẳng';
+  } else {
+    hint.textContent = 'Chạm để phóng to';
+  }
+}
+function drawDestination(ctx, mx, mz, scale) {
+  var target = destinations.get(destinationSelect.value);
+  if (!target) return;
+  ctx.save();
+  ctx.strokeStyle = '#732cad';
+  ctx.lineWidth = 2 * scale;
+  ctx.beginPath();
+  ctx.moveTo(mx(myPos.x), mz(myPos.z));
+  ctx.lineTo(mx(target.x), mz(target.z));
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(mx(target.x), mz(target.z), 6 * scale, 0, 2 * Math.PI);
+  ctx.stroke();
+  ctx.restore();
+}
+destinationSelect.addEventListener('change', function () {
+  updateDestinationDistance();
+  drawMinimap();
+  drawBigMap();
+});
 function drawBigMap() {
   var cv = document.getElementById('bigMap');
   if (!cv) return;
@@ -620,22 +691,35 @@ function drawBigMap() {
     ctx.stroke();
   });
   drawEventOverlays(ctx, mx, mz, 1.6);
+  drawDestination(ctx, mx, mz, 1.6);
 }
 function openMapModal() {
   var m = document.getElementById('mapModal');
   if (!m) return;
+  resetMovement();
+  updateDestinations();
   drawBigMap();
   m.classList.add('open');
   m.style.display = 'flex';
+  destinationSelect.focus();
 }
 function closeMapModal() {
   var m = document.getElementById('mapModal');
   if (!m) return;
+  if (m.classList.contains('open')) document.getElementById('minimapWrap').focus();
   m.classList.remove('open');
   m.style.display = 'none';
 }
 function handleSessionExpired(msg) {
   playerId = '';
+  sessionId = '';
+  resetMovement();
+  destinationSelect.value = '';
+  lastPlayers = [];
+  lastEventSeenAt = 0;
+  firstPollEventsDone = false;
+  lastFeedJson = '';
+  lastHousesJson = '';
   firstStateDone = false;
   houseError = null;
   lastHouseRowKey = '';
@@ -674,7 +758,7 @@ function handleSessionExpired(msg) {
 function ensurePerson(p) {
   if (people[p.id]) return people[p.id];
   var g = makePerson(p.name, p.robe || '#e0651f', p.skin || '#ffe0bd');
-  g.position.set(p.x || 25, 0, p.z || -10);
+  g.position.set(p.x, 0, p.z);
   g.rotation.y = p.rot || 0;
   scene.add(g);
   people[p.id] = g;
@@ -726,7 +810,7 @@ function rebuildHouseLabels() {
 function houseAction(btn, action, houseId, shopType) {
   if (!playerId || !btn || btn.disabled) return;
   setBusy(btn, true);
-  var body = { room: room, playerId: playerId, action: action, houseId: houseId };
+  var body = { room: room, playerId: sessionId, action: action, houseId: houseId };
   if (shopType) body.shopType = shopType;
   postJson('api/house', body).then(function (j) {
     houseError = null;
@@ -782,7 +866,7 @@ function updateHouseUI() {
     houseRingBase = Math.max(b.hw, b.hd) + 1.2;
     houseRing.position.set(b.x, 0.20, b.z);
     houseRing.scale.set(houseRingBase, houseRingBase, houseRingBase);
-    houseRing.material.color.set(!rec ? 0xf9a825 : (rec.owner === deviceId ? 0x2e7d32 : 0x8a7a66));
+    houseRing.material.color.set(!rec ? 0xf9a825 : (rec.isMine ? 0x2e7d32 : 0x8a7a66));
     houseRing.visible = true;
   }
   if (houseSaleSprite) {
@@ -835,7 +919,7 @@ function updateHouseUI() {
     buyBtn.style.display = '';
     buyBtn.textContent = '🏠 Mua: ' + houseDisplayName(b) + ' — ' + fmtMoney(price) + ' (bạn có ' + fmtMoney(myTien) + ')';
     buyBtn.onclick = function () { houseAction(buyBtn, 'buy', b.id); };
-  } else if (rec.owner === deviceId) {
+  } else if (rec.isMine) {
     var key2 = 'own:' + b.id + ':' + rec.price + ':' + myHome + ':' + (rec.shopType || '');
     if (row && lastHouseRowKey !== key2) {
       lastHouseRowKey = key2;
@@ -1002,7 +1086,7 @@ function doAction(btn, type) {
   // Chống bấm đúp: khóa nút cho tới khi server trả lời, server còn
   // chặn thêm bằng cooldown 1 giây, nên bấm nhanh cũng không gửi trùng.
   setBusy(btn, true);
-  postJson('api/action', { room: room, playerId: playerId, type: type, value: value }).then(function (j) {
+  postJson('api/action', { room: room, playerId: sessionId, type: type, value: value }).then(function (j) {
     j = j || {};
     // Buff tốc độ: server trả buffUntil tuyệt đối. Chỉ hiện chữ bay khi
     // buff vừa được cấp mới trên hành động này (trước đó chưa có buff),
@@ -1049,7 +1133,7 @@ document.getElementById('buoiBtn').addEventListener('click', function () {
   // Không đổi buổi ở client trước rồi để server sửa lại: chỉ đổi khi
   // server xác nhận, để buổi ở client và server không bao giờ lệch nhau.
   setBusy(btn, true);
-  postJson('api/action', { room: room, playerId: playerId, type: 'buoi', value: next }).then(function (j) {
+  postJson('api/action', { room: room, playerId: sessionId, type: 'buoi', value: next }).then(function (j) {
     if (j.buoi) applyBuoi(j.buoi);
   }).catch(function (e) {
     showErrorToast(e.message || 'Không đổi buổi được.');
@@ -1067,7 +1151,7 @@ document.getElementById('buoiBtn').addEventListener('click', function () {
 function soHongOwned() {
   var out = [];
   Object.keys(lastHouses).forEach(function (id) {
-    if (lastHouses[id] && lastHouses[id].owner === deviceId) out.push({ id: id, rec: lastHouses[id] });
+    if (lastHouses[id] && lastHouses[id].isMine) out.push({ id: id, rec: lastHouses[id] });
   });
   return out;
 }
@@ -1221,6 +1305,7 @@ function drawSoHongCard(canvas, d) {
   c.fillText('Chỉ dùng trong game Thành phố Quận 5 Online — không phải giấy tờ thật.', 600, 590);
 }
 function openSoHong() {
+  resetMovement();
   var pick = soHongPickHouse();
   if (!pick) return;
   var b = null;
@@ -1418,7 +1503,8 @@ document.getElementById('joinBtn').addEventListener('click', function () {
   setJoinFormDisabled(true);
   postJson('api/join', { room: code, name: nameRaw, robe: selectedRobe, skin: '#ffe0bd', deviceId: deviceId, visit: visitParam || null }).then(function (j) {
     room = j.room;
-    playerId = j.playerId;
+    playerId = j.avatarId;
+    sessionId = j.playerId;
     myName = j.name;
     if (j.deviceId) deviceId = j.deviceId;
     myTien = j.tien || 0;
@@ -1460,7 +1546,20 @@ document.getElementById('joinBtn').addEventListener('click', function () {
     setJoinFormDisabled(false);
   });
 });
-addEventListener('keydown', function (e) { keys[e.key.toLowerCase()] = true; });
+var movementKeys = new Set(['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright']);
+addEventListener('keydown', function (e) {
+  if (!playerId || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (document.getElementById('mapModal').classList.contains('open')) {
+    if (e.key === 'Escape') closeMapModal();
+    return;
+  }
+  if (document.getElementById('soHongModal').classList.contains('open')) return;
+  var key = e.key.toLowerCase();
+  if (movementKeys.has(key)) {
+    e.preventDefault();
+    keys[key] = true;
+  }
+});
 addEventListener('keyup', function (e) { keys[e.key.toLowerCase()] = false; });
 var camPointerId = null, camLastX = 0;
 if (RENDER_OK) {
@@ -1495,10 +1594,23 @@ function joySet(e) {
 joyEl.addEventListener('pointerdown', function (e) { joyId = e.pointerId; joyEl.setPointerCapture(joyId); joySet(e); });
 joyEl.addEventListener('pointermove', function (e) { if (e.pointerId === joyId) joySet(e); });
 function joyEnd(e) {
-  if (e.pointerId === joyId) { joyId = null; joy = { x: 0, y: 0 }; knob.style.left = '35px'; knob.style.top = '35px'; }
+  if (e.pointerId === joyId) resetJoystick();
+}
+function resetJoystick() {
+  joyId = null;
+  joy = { x: 0, y: 0 };
+  knob.style.left = '';
+  knob.style.top = '';
+}
+function resetMovement() {
+  keys = {};
+  resetJoystick();
 }
 joyEl.addEventListener('pointerup', joyEnd);
 joyEl.addEventListener('pointercancel', joyEnd);
+joyEl.addEventListener('lostpointercapture', joyEnd);
+addEventListener('blur', resetMovement);
+document.addEventListener('visibilitychange', function () { if (document.hidden) resetMovement(); });
 function blockedAt(x, z) {
   if (BOUNDARY.length && !pointInPoly(x, z, BOUNDARY)) return true;
   return collides(x, z);
@@ -1528,11 +1640,10 @@ function drawMinimap() {
     ctx.stroke();
   });
   drawEventOverlays(ctx, mx, mz, 1);
+  drawDestination(ctx, mx, mz, 1);
 }
 function wrapAngle(a) {
-  while (a > Math.PI) a -= Math.PI * 2;
-  while (a < -Math.PI) a += Math.PI * 2;
-  return a;
+  return Math.atan2(Math.sin(a), Math.cos(a));
 }
 function animate() {
   requestAnimationFrame(animate);
@@ -1616,8 +1727,9 @@ function animate() {
       var tg = g.userData.target;
       var dx = tg.x - g.position.x, dz = tg.z - g.position.z;
       moving = Math.hypot(dx, dz) > 0.15;
-      g.position.x += dx * 0.3;
-      g.position.z += dz * 0.3;
+      var follow = 1 - Math.exp(-dt * 12);
+      g.position.x += dx * follow;
+      g.position.z += dz * follow;
       g.rotation.y += wrapAngle(tg.rot - g.rotation.y) * (1 - Math.exp(-dt * 12));
       phase = t * 10 + (hashStr(id) % 10);
     } else {
@@ -1735,13 +1847,15 @@ addEventListener('resize', function () {
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
 });
+var pendingPoll = null;
 function pollOnce() {
-  if (!playerId) return Promise.resolve();
-  return postJson('api/heartbeat', { room: room, playerId: playerId, x: myPos.x, z: myPos.z, rot: myPos.rot, pose: pose }).then(function (hb) {
+  if (!sessionId) return Promise.resolve();
+  if (pendingPoll) return pendingPoll;
+  pendingPoll = postJson('api/heartbeat', { room: room, playerId: sessionId, x: myPos.x, z: myPos.z, rot: myPos.rot, pose: pose }).then(function (hb) {
     hb = hb || {};
     handleMissionEvent(hb.missionEvent);
     handleLionPickup(hb.lionPickup);
-    return getState(room);
+    return getState(room, sessionId);
   }).then(function (st) {
     showPollError(false);
     firstStateDone = true;
@@ -1836,6 +1950,7 @@ function pollOnce() {
     lastLion = st.lion || null;
     lastEnvelopes = st.envelopes || [];
     renderLionAndEnvelopes();
+    updateDestinations();
     drawMinimap();
     var modal = document.getElementById('mapModal');
     if (modal && modal.classList.contains('open')) drawBigMap();
@@ -1851,7 +1966,8 @@ function pollOnce() {
     // Feed chưa từng tải được thì hiện trạng thái Error kèm Retry.
     showPollError(true);
     if (!firstStateDone) renderFeed([], 'error');
-  });
+  }).finally(function () { pendingPoll = null; });
+  return pendingPoll;
 }
 setInterval(pollOnce, 400);
 function loadMap() {

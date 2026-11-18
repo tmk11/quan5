@@ -9,6 +9,7 @@ function sendJson(res, status, obj) {
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
     'X-Content-Type-Options': 'nosniff',
+    'Cache-Control': 'no-store',
     'Content-Length': Buffer.byteLength(body)
   });
   res.end(body);

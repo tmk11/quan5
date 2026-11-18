@@ -38,15 +38,8 @@ function econHome(econStore, deviceId) {
   const rec = deviceId ? econStore.players[deviceId] : null;
   return rec ? rec.home : null;
 }
-// Nhà gửi xuống client cho NPC (v1.7): bản sao mới của từng record, kèm
-// màu áo chủ (từ ví, mặc định cam khi ví cũ chưa có) và chủ có đang
-// online trong phòng này không (so deviceId với phiên trong phòng).
-// KHÔNG sửa record gốc: state trả thẳng economyStore.houses từ trước
-// nên gán thêm trường vào đó sẽ lọt vào economy.json ở lần lưu sau.
-// Client không bao giờ thấy deviceId của người khác qua hai trường này:
-// ownerOnline chỉ là boolean, ownerRobe chỉ là màu áo (vốn đã hiện công
-// khai trên nhân vật lúc chủ online).
-function enrichHousesForState(houses, players, roomPlayers) {
+// Chỉ công bố thông tin dùng để vẽ nhà. Mã ví là thông tin riêng của chủ.
+function enrichHousesForState(houses, players, roomPlayers, viewer) {
   const online = new Set();
   if (roomPlayers) {
     for (const p of roomPlayers) {
@@ -57,10 +50,16 @@ function enrichHousesForState(houses, players, roomPlayers) {
   for (const id of Object.keys(houses || {})) {
     const rec = houses[id];
     const ownerRec = rec && players ? players[rec.owner] : null;
-    out[id] = Object.assign({}, rec, {
+    out[id] = {
+      isMine: !!viewer && rec.owner === viewer.deviceId,
+      ownerName: rec.ownerName,
+      price: rec.price,
+      paid: rec.paid,
+      shopType: rec.shopType,
+      shieldUntil: rec.shieldUntil,
       ownerRobe: ownerRec && typeof ownerRec.robe === 'string' && ownerRec.robe ? ownerRec.robe : '#e0651f',
-      ownerOnline: !!(rec && online.has(rec.owner))
-    });
+      ownerOnline: online.has(rec.owner)
+    };
   }
   return out;
 }
@@ -92,9 +91,9 @@ async function handleJoin(req, res, ctx) {
   const deviceId = V.requireDeviceIdOrGenerate(body.deviceId);
   ctx.joinLimiter.checkRate(clientIp(req));
 
+  ctx.roomStore.cleanupEmptyRooms();
   const room = ctx.roomStore.getOrCreate(roomCode);
   ctx.roomStore.prune(room);
-  ctx.roomStore.cleanupEmptyRooms();
 
   const name = nameRaw || ctx.roomStore.pickName(room);
   const map = ctx.mapStore.getMap();
@@ -172,10 +171,13 @@ async function handleJoin(req, res, ctx) {
       buffUntil: 0,
       mission: null
     };
-    room.players.set(player.id, player);
+    // Mã phiên chỉ trả qua join. Sự kiện và nhân vật trong phòng dùng player.id.
+    const sessionId = newId();
+    room.players.set(sessionId, player);
     ctx.roomStore.touch(room);
     sendJson(res, 200, {
-      playerId: player.id,
+      playerId: sessionId,
+      avatarId: player.id,
       name: player.name,
       room: roomCode,
       deviceId,
@@ -832,12 +834,15 @@ async function handleState(req, res, ctx, query) {
   if (cleanup.saveError) {
     console.error('[' + new Date().toISOString() + '] Dọn nhà mồ côi khi state thất bại khi lưu: ' + cleanup.saveError);
   }
+  const authorization = req.headers.authorization;
+  const sessionId = authorization && authorization.startsWith('Bearer ') ? authorization.slice(7) : null;
   if (!room) {
     sendJson(res, 200, { players: [], events: [], buoi: 'sang', houses: enrichHousesForState(ctx.economyStore.houses, ctx.economyStore.players, null), leaderboard: [], lion: null, envelopes: [] });
     return;
   }
   ctx.roomStore.prune(room);
   ctx.roomStore.cleanupEmptyRooms();
+  const viewer = sessionId ? room.players.get(sessionId) : null;
   const players = [];
   for (const p of room.players.values()) {
     const econ = p.deviceId ? ctx.economyStore.players[p.deviceId] : null;
@@ -850,7 +855,7 @@ async function handleState(req, res, ctx, query) {
     players,
     events: room.events.slice(-S.MAX_EVENTS),
     buoi: room.buoi,
-    houses: enrichHousesForState(ctx.economyStore.houses, ctx.economyStore.players, room.players.values()),
+    houses: enrichHousesForState(ctx.economyStore.houses, ctx.economyStore.players, room.players.values(), viewer),
     leaderboard: S.rankLandlords([...room.players.values()], ctx.economyStore.players, ctx.economyStore.houses),
     lion: lionState.lion,
     envelopes: lionState.envelopes

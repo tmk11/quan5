@@ -129,7 +129,10 @@ button.is-busy::after{content:'';display:inline-block;width:14px;height:14px;mar
    hoặc nút ✕ để đóng. */
 #mapModal{position:fixed;inset:0;background:rgba(20,15,10,.6);display:none;align-items:center;justify-content:center;z-index:25;pointer-events:auto;padding:16px}
 #mapModal.open{display:flex}
-.map-modal-panel{background:linear-gradient(180deg,var(--paper),var(--paper-warm));border:1px solid var(--line);border-radius:20px;padding:16px;max-width:680px;width:100%;box-shadow:var(--shadow-lg);text-align:center}
+.map-modal-panel{max-height:100%;overflow:auto;background:linear-gradient(180deg,var(--paper),var(--paper-warm));border:1px solid var(--line);border-radius:20px;padding:16px;max-width:680px;width:100%;box-shadow:var(--shadow-lg);text-align:center}
+.map-destination{display:flex;align-items:center;gap:8px;margin-bottom:12px;font-weight:700}
+.map-destination select{flex:1;min-width:0;padding:8px;border:1px solid var(--line-strong);border-radius:var(--radius-sm);background:var(--paper);color:var(--ink);font:inherit}
+#mapHint{max-width:140px;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}
 .map-modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:var(--font-base)}
 .map-modal-head button{background:var(--accent-soft);color:#5b4632;box-shadow:none;padding:8px 12px;min-height:36px}
 #bigMap{width:100%;height:auto;border-radius:12px;background:#e8e0cc;display:block}
@@ -145,7 +148,7 @@ button.is-busy::after{content:'';display:inline-block;width:14px;height:14px;mar
 .top-stats{gap:8px}
 #streetPill{left:8px;max-width:170px}
 #minimapWrap{right:8px;padding:6px}
-#minimapWrap canvas{width:110px}
+#minimapWrap canvas,#mapHint{width:110px}
 #feed{top:172px;right:8px;width:178px;max-height:140px}
 #pollError{left:8px;top:92px;max-width:200px}
 #ctxPopup{bottom:124px}

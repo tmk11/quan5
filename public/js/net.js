@@ -11,64 +11,47 @@ function apiError(message, code, status) {
   e.status = status || 0;
   return e;
 }
-function fetchWithTimeout(url, options, timeoutMs) {
-  var controller = null;
+async function fetchJson(url, options, timeoutMs) {
+  var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
   var timer = null;
-  var opts = options || {};
-  if (typeof AbortController !== 'undefined') {
-    controller = new AbortController();
-    opts.signal = controller.signal;
-    timer = setTimeout(function () {
-      try { controller.abort(); } catch (e) {}
-    }, timeoutMs);
+  if (controller) {
+    options.signal = controller.signal;
+    timer = setTimeout(function () { controller.abort(); }, timeoutMs);
   }
-  return fetch(url, opts).then(function (res) {
-    if (timer) clearTimeout(timer);
-    return res;
-  }, function (err) {
-    if (timer) clearTimeout(timer);
-    if (err && err.name === 'AbortError') {
-      throw apiError('Hết thời gian chờ máy chủ (' + Math.round(timeoutMs / 1000) + ' giây), vui lòng kiểm tra mạng rồi thử lại.', 'TIMEOUT', 0);
+  try {
+    var response = await fetch(url, options);
+    var data = await response.json();
+    if (!response.ok) {
+      throw apiError(data.error || ('Lỗi ' + response.status), data.code || null, response.status);
     }
-    throw apiError('Không kết nối được tới máy chủ, vui lòng kiểm tra mạng rồi thử lại.', 'NETWORK', 0);
-  });
+    return data;
+  } catch (err) {
+    if (controller && controller.signal.aborted) {
+      throw apiError('Hết thời gian chờ máy chủ (' + Math.round(timeoutMs / 1000) + ' giây), vui lòng thử lại.', 'TIMEOUT', 0);
+    }
+    if (err instanceof SyntaxError) {
+      throw apiError('Máy chủ trả về dữ liệu không hợp lệ.', 'BAD_RESPONSE', response.status);
+    }
+    if (err instanceof TypeError) {
+      throw apiError('Không kết nối được tới máy chủ, vui lòng kiểm tra mạng rồi thử lại.', 'NETWORK', 0);
+    }
+    throw err;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 function postJson(p, b) {
-  return fetchWithTimeout(p, {
+  return fetchJson(p, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(b)
-  }, 10000).then(function (r) {
-    return r.json().then(function (j) {
-      if (!r.ok) {
-        throw apiError(j.error || ('Lỗi ' + r.status), j.code || null, r.status);
-      }
-      return j;
-    }, function () {
-      throw apiError('Máy chủ trả về dữ liệu không hợp lệ (HTTP ' + r.status + ').', 'BAD_RESPONSE', r.status);
-    });
-  });
+  }, 10000);
 }
-function getState(room) {
-  return fetchWithTimeout('api/state?room=' + encodeURIComponent(room), {}, 8000).then(function (r) {
-    return r.json().then(function (j) {
-      if (!r.ok) {
-        throw apiError(j.error || ('Lỗi ' + r.status), j.code || null, r.status);
-      }
-      return j;
-    }, function () {
-      throw apiError('Máy chủ trả về dữ liệu không hợp lệ (HTTP ' + r.status + ').', 'BAD_RESPONSE', r.status);
-    });
-  });
+function getState(room, sessionId) {
+  return fetchJson('api/state?room=' + encodeURIComponent(room), {
+    headers: { Authorization: 'Bearer ' + sessionId }
+  }, 8000);
 }
 function getMapJson() {
-  return fetchWithTimeout('quan5-map.json', {}, 15000).then(function (r) {
-    if (!r.ok) {
-      throw apiError('Không tải được bản đồ thật (HTTP ' + r.status + ').', 'MAP_HTTP', r.status);
-    }
-    return r.json();
-  }, function (e) {
-    if (e && e.code) throw e;
-    throw apiError('Không tải được bản đồ thật: dữ liệu không hợp lệ.', 'MAP_BAD', 0);
-  });
+  return fetchJson('quan5-map.json', {}, 15000);
 }

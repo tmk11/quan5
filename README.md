@@ -225,6 +225,12 @@ không có TODO hay dữ liệu giả trong phần đã sửa.
   thất nhà / giao dịch người với người vẫn chưa có (vào ở hiện tại là spawn
   ngoài nhà chính).
 
+## Đồng bộ phòng và quyền sở hữu
+
+Khi vào phòng, `POST /api/join` trả về `avatarId` để nhận diện nhân vật trên bản đồ và `playerId` riêng để gửi hành động. Client gửi `Authorization: Bearer <playerId>` khi đọc `GET /api/state` để biết nhà nào có `isMine`. Mã ví được giữ trong trình duyệt và sổ kinh tế trên máy chủ.
+
+Bản đồ trong GitHub có 474 nhà. Bản v1.8 được ghi nhận trong phần lịch sử có 1.022 nhà. Khi cập nhật máy chủ đang dùng bản 1.022 nhà, giữ file bản đồ hiện có để bảo toàn danh sách nhà trong sổ kinh tế.
+
 ## Cách chơi
 
 - Mặc định vào thành phố chung `QUAN5`. Nhập mã phòng khác để chơi phòng riêng.
@@ -232,6 +238,7 @@ không có TODO hay dữ liệu giả trong phần đã sửa.
 - Hành động có sẵn (không có chat tự do): chào, ăn hủ tiếu, cà phê vợt,
   mua lồng đèn, mua sắm, chụp ảnh, check-in địa điểm gần nhất (+10 điểm),
   đổi buổi sáng / hoàng hôn / đêm.
+- Chạm bản đồ nhỏ, chọn **Điểm đến** để tìm bạn đang online trong phòng, một địa danh hoặc nhà chính. Vòng tím và khoảng cách theo đường thẳng cập nhật khi hai người di chuyển. Chọn **Bỏ chỉ hướng** để xóa điểm đến.
 - Bản đồ nhỏ (minimap) ở góc phải cho thấy ranh, đường, kênh, landmark và vị trí người chơi.
 
 ## Chạy local / trên VPS (không cần npm, chỉ dùng module có sẵn của Node)

@@ -17,7 +17,7 @@
 <p id="loadStatus">Đang tải bản đồ thật từ OpenStreetMap…</p>
 <button type="button" id="retryMapBtn">Thử tải lại bản đồ</button>
 </div>
-<p>Đi dạo Chợ Lớn cùng nhau, trên đúng lưới đường thật của Quận 5 cũ (ranh OSM relation 3820432): nhà 3D chỉ trên nền đất vàng, không dựng ra đường — đường cong, chéo và giao nhau đúng như ngoài đời, kể cả hẻm và lối đi không tên. Không có chat tự do — chỉ chào hỏi, ăn uống, mua sắm và check-in có sẵn. <b>Mới: kinh doanh shophouse</b> — mua nhà rồi chọn biển hiệu (Vịt Quay, Chè, Tiệm Vàng, Thuốc Bắc), khách ghé quán ăn/mua sắm thì bạn nhận 2.000đ và khách được buff tốc độ, nhà đã có chủ thì mua lại được với +25% giá.</p>
+<p>Hẹn bạn ở Chợ An Đông, nhận đơn giao hàng hoặc mở quán trên con đường mình thích. Dùng phím WASD, phím mũi tên hoặc cần điều khiển để đi bộ. Mở bản đồ để tìm nhau.</p>
 <input id="roomInput" placeholder="Mã phòng (để trống = thành phố chung QUAN5)" maxlength="12" style="text-transform:uppercase">
 <div class="row"><input id="nameInput" placeholder="Tên của bạn (để trống sẽ đặt tên Chợ Lớn)" maxlength="24"><button type="button" class="secondary" id="randomNameBtn">🎲 Tên hay</button></div>
 <div style="text-align:left;font-size:13px;margin:8px 0 2px;font-weight:700">Màu áo</div>
@@ -31,7 +31,8 @@
 </div>
 <button type="button" id="joinBtn" disabled>Vào thành phố</button>
 <p id="joinError"></p>
-<p class="note">Lưu ý thật: nhà 3D chỉ dựng trên nền đất vàng, không dựng ra đường. Vị trí, hình dạng và thứ tự các đường là từ OpenStreetMap, gồm cả đường không tên, hẻm và lối đi bộ; nhà cũng từ footprint thật của OpenStreetMap, nhưng đã đẩy khỏi hành lang đường, nhà trong công viên và nhà nhỏ vẫn chồng đường đã bị bỏ hẳn — và nhà vẽ bằng đúng footprint thật (bản cũ phóng đại tối thiểu 2x2 nên hộp vẽ rộng hơn hành lang đã dọn, nhìn như nhà tràn ra đường). Màu nhà trầm, đồng tông nền vàng, không còn cầu vồng pastel. Bề rộng đường tỉ lệ với bề rộng thật (lấy từ OSM: tag width, không có thì số làn × 3,5m, không có nữa thì mặc định theo loại đường; trong game = bề rộng thật × 0,25, tối thiểu 1,8, tối đa 5,0 — nên đường 16m rộng gấp đôi đường 8m đúng như ngoài đời, và đường đủ rộng cho nhiều người đi cùng nhau; nhà không vừa lô vàng thì bỏ, không vẽ lên đường). Nhân vật đi trên đường không bị nhà chặn; ra khỏi đường thì nhà vẫn chặn như thường, và chỉ bị chặn ở ranh Quận 5 và ở kênh (trừ khi đang ở trên cầu/đường). Dữ liệu © OpenStreetMap contributors, ODbL.</p>
+<p class="note">Để trống mã phòng để vào thành phố chung QUAN5. Tiền và nhà được lưu theo trình duyệt của bạn.</p>
+<p class="note">Dữ liệu bản đồ © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a> (ODbL).</p>
 </div>
 </div>
 <div id="hud">
@@ -50,7 +51,7 @@
 <div id="streetPill">📍 <span id="streetLabel">Quận 5</span></div>
 <div class="panel" id="leaderboard"><div class="leader-head"><b>🏆 Top Địa Chủ Quận 5</b><button type="button" id="leaderToggle" aria-expanded="true" aria-label="Thu gọn bảng xếp hạng">▾</button></div><div id="leaderBody"><div class="leader-empty">Đang tải bảng xếp hạng…</div></div></div>
 <div class="panel" id="shipperPanel" style="display:none"><div class="shipper-head"><b>📦 Đơn giao hàng</b><span id="shipperTimer">⏱ 60s</span></div><div id="shipperTarget" class="shipper-target"></div><div class="shipper-foot"><span id="shipperReward"></span><button type="button" id="shipperCancelBtn">Hủy đơn</button></div></div>
-<div class="panel" id="minimapWrap" role="button" tabindex="0" aria-label="Mở bản đồ lớn">🗺️ Bản đồ Quận 5<canvas id="minimap" width="140" height="75"></canvas><span class="minimap-hint">Chạm để phóng to</span></div>
+<div class="panel" id="minimapWrap" role="button" tabindex="0" aria-label="Mở bản đồ lớn">🗺️ Bản đồ Quận 5<canvas id="minimap" width="140" height="75"></canvas><span id="mapHint" class="minimap-hint">Chạm để phóng to</span></div>
 <div class="panel" id="feed"><div class="feed-head"><b>📣 Hoạt động</b><button type="button" id="feedToggle" aria-expanded="true" aria-label="Thu gọn hoạt động">▾</button></div><div id="feedBody"><div class="skeleton-line" style="width:95%"></div><div class="skeleton-line" style="width:80%"></div><div class="skeleton-line" style="width:88%"></div></div></div>
 <div id="pollError"><span id="pollErrorText">Mất kết nối tới máy chủ — dữ liệu có thể đã cũ.</span><button type="button" id="pollRetryBtn">Thử lại ngay</button></div>
 <div id="ctxPopup">
@@ -95,8 +96,11 @@
 <div id="mapModal" role="dialog" aria-modal="true" aria-label="Bản đồ Quận 5 lớn">
 <div class="map-modal-panel">
 <div class="map-modal-head"><b>🗺️ Bản đồ Quận 5 (thật)</b><button type="button" id="mapModalClose" aria-label="Đóng bản đồ">✕</button></div>
+<label class="map-destination" for="mapDestination">Điểm đến
+<select id="mapDestination"><option value="">Bỏ chỉ hướng</option></select></label>
 <canvas id="bigMap" width="600" height="320"></canvas>
-<p class="map-modal-note">Chấm vàng là bạn, chấm xanh là người chơi khác, chấm đỏ là landmark, chấm vàng lớn là Đoàn Lân, chấm đỏ nhỏ là bao lì xì, đường đứt nét là hướng tới điểm giao hàng.</p>
+<p id="destinationDistance" class="map-modal-note" hidden></p>
+<p class="map-modal-note">Vàng là bạn, xanh dương là người cùng phòng, đỏ là địa danh. Vòng tím đánh dấu điểm đến. Nét đứt chỉ hướng giao hàng.</p>
 </div>
 </div>
 <div id="toast" role="status" aria-live="polite"></div>
