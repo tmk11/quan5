@@ -97,6 +97,17 @@ async function main() {
       assert(a.status === 200, 'tài nguyên ' + asset + ' phải 200, nhận ' + a.status);
     }
 
+    for (const [asset, type] of [
+      ['/art/cho-lon.webp', 'image/webp'],
+      ['/fonts/work-sans.woff2', 'font/woff2'],
+      ['/fonts/spectral-italic.woff2', 'font/woff2']
+    ]) {
+      const response = await fetch(BASE + asset);
+      const data = await response.arrayBuffer();
+      assert(response.ok && response.headers.get('content-type') === type && data.byteLength > 0,
+        'Sảnh chơi cần tải được ' + asset + ' với kiểu ' + type);
+    }
+
     const mapRes = await get('/quan5-map.json');
     assert(mapRes.status === 200, 'GET /quan5-map.json phải 200');
     assert(Array.isArray(mapRes.json.buildings), 'map phải có buildings');

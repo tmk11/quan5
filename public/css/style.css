@@ -1,220 +1,259 @@
-/* Design system — Thành phố Quận 5 Online (v1.3, HUD mobile)
-   :root là nguồn sự thật duy nhất cho màu, spacing, bo góc, bóng, chữ.
-   HUD v1.3: Top Status Bar kính mờ mỏng ở mép trên, minimap gọn góc
-   phải + modal lớn, feed dưới top bar, joystick góc dưới trái tuyệt
-   đối không bị panel nào đè, Quick Dock thu gọn + Contextual Popup
-   thay cho bảng 8 nút khổng lồ ở đáy màn hình bản cũ. */
-:root{
-  --ink:#3a2c1e; --ink-soft:#6b5a44; --ink-faint:#8a7a66;
-  --paper:#fffdf6; --paper-warm:#fff3dc; --panel:rgba(255,250,238,.94);
-  --line:#ecd9ac; --line-strong:#e3cda2;
-  --accent:#c2410c; --accent-dark:#991b1b; --accent-soft:#f3e6c8;
-  --accent-2:#6d28d9; --success:#2e7d32; --danger:#b91c1c;
-  --danger-bg:#fef2f2; --success-bg:#f0fdf4;
-  --radius-sm:10px; --radius:13px; --radius-lg:16px; --radius-xl:24px;
-  --shadow-sm:0 2px 8px rgba(60,35,10,.12);
-  --shadow:0 8px 24px rgba(60,35,10,.22);
-  --shadow-lg:0 18px 50px rgba(60,35,10,.38);
-  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-6:24px;
-  --font-xs:12px; --font-sm:13px; --font-base:15px; --font-lg:17px; --font-xl:30px;
+@font-face {
+  font-family: "Work Sans";
+  src: url("../fonts/work-sans.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
 }
-*{box-sizing:border-box}
-html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;background:#ffe8c2;color:var(--ink)}
-#scene{position:fixed;inset:0}
-#scene canvas{display:block;touch-action:none;overscroll-behavior:none}
-.overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 30%,rgba(255,190,110,.28),rgba(28,20,12,.62));z-index:20;padding:var(--space-4);overflow-y:auto}
-.card{background:linear-gradient(180deg,var(--paper),var(--paper-warm));border:1px solid var(--line);border-radius:var(--radius-xl);padding:26px 22px;max-width:460px;width:100%;box-shadow:var(--shadow-lg);text-align:center;margin:auto}
-.card h1{margin:0 0 var(--space-2);font-size:var(--font-xl);color:var(--accent-dark)}
-.card p{margin:0 0 14px;color:var(--ink-soft);line-height:1.55}
-.card input{width:100%;padding:12px 13px;border:2px solid var(--line-strong);border-radius:var(--radius);font-size:16px;margin:6px 0;background:var(--paper);color:var(--ink);outline:none}
-.card input:focus{border-color:#d97706;box-shadow:0 0 0 3px rgba(217,119,6,.25)}
-.card input:disabled{opacity:.55;background:#f5efe2;cursor:not-allowed}
-.row{display:flex;gap:var(--space-2)}
-.row input{flex:1;min-width:0}
-button{border:0;border-radius:var(--radius);padding:12px 14px;font-size:var(--font-base);font-weight:700;cursor:pointer;background:linear-gradient(135deg,var(--accent),var(--accent-dark));color:#fff;box-shadow:0 4px 14px rgba(168,50,38,.35);transition:transform .15s ease,box-shadow .15s ease,opacity .15s ease,background .15s ease;min-height:44px}
-button:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 6px 18px rgba(168,50,38,.4)}
-button:active:not(:disabled){transform:scale(.97)}
-button:disabled{opacity:.55;cursor:not-allowed;transform:none;box-shadow:0 4px 14px rgba(168,50,38,.2)}
-button:focus-visible{outline:3px solid #d97706;outline-offset:2px}
-button.secondary{background:var(--accent-soft);color:#5b4632;box-shadow:none}
-button.secondary:hover:not(:disabled){background:#eadfc2;box-shadow:var(--shadow-sm)}
-button.is-busy{cursor:wait}
-button.is-busy::after{content:'';display:inline-block;width:14px;height:14px;margin-left:var(--space-2);border:2px solid rgba(128,128,128,.3);border-top-color:currentColor;border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px}
-@keyframes spin{to{transform:rotate(360deg)}}
-#joinBtn{width:100%;margin-top:10px;padding:14px;font-size:var(--font-lg);min-height:48px}
-.note{font-size:var(--font-sm);color:var(--ink-faint);margin-top:12px}
-.sw{width:40px;height:40px;border-radius:50%;border:3px solid transparent;cursor:pointer;padding:0;box-shadow:none;min-height:0}
-.sw:hover:not(:disabled){transform:scale(1.08)}
-.sw.sel{border-color:var(--accent-dark)}
-.sw:disabled{opacity:.55;cursor:not-allowed}
-#hud{position:fixed;inset:0;pointer-events:none;z-index:10;display:none}
-#hud.on{display:block}
-#hud button{pointer-events:auto}
-.panel{position:absolute;background:var(--panel);border:1px solid rgba(236,217,172,.9);border-radius:var(--radius-lg);padding:10px 12px;box-shadow:var(--shadow)}
-/* Top Status Bar: thanh mỏng sát mép trên, nền kính mờ, không còn
-   khung link hay bảng thông số chiếm nửa màn hình như bản cũ. */
-#topBar{position:absolute;top:0;left:0;right:0;height:46px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;background:rgba(255,250,238,.72);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);pointer-events:auto;z-index:11}
-#inviteBtn{padding:8px 12px;min-height:36px;font-size:var(--font-sm);white-space:nowrap;flex-shrink:0}
-@keyframes pulseRing{0%{box-shadow:0 0 0 0 rgba(194,65,12,.5)}100%{box-shadow:0 0 0 10px rgba(194,65,12,0)}}
-#inviteBtn.pulse{animation:pulseRing 1.2s infinite}
-.top-stats{display:flex;gap:10px;font-size:var(--font-sm);font-weight:700;white-space:nowrap;overflow:hidden}
-.top-stat{color:var(--ink)}
-.top-stat strong{color:var(--ink)}
-.top-stat:first-child strong{color:var(--accent-dark);font-size:15px}
-#streetPill{position:absolute;top:54px;left:10px;background:rgba(255,250,238,.85);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:var(--font-sm);font-weight:700;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
-#minimapWrap{top:54px;right:10px;text-align:center;font-size:var(--font-xs);font-weight:700;cursor:pointer;pointer-events:auto;padding:6px 8px}
-#minimapWrap canvas{display:block;margin-top:4px;border-radius:var(--radius-sm);background:#e8e0cc;width:140px;height:auto}
-.minimap-hint{display:block;margin-top:2px;font-size:11px;color:var(--ink-faint);font-weight:600}
-#feed{top:184px;right:10px;width:240px;max-height:200px;display:flex;flex-direction:column;padding:0;overflow:hidden}
-.feed-head{display:flex;justify-content:space-between;align-items:center;padding:10px 12px 8px;border-bottom:1px solid var(--line);font-size:var(--font-sm)}
-.feed-head button{background:var(--accent-soft);color:#5b4632;box-shadow:none;padding:4px 10px;min-height:32px;font-size:var(--font-sm)}
-#feedBody{overflow:auto;padding:8px 12px 10px;font-size:var(--font-sm);line-height:1.45}
-#feed.collapsed #feedBody{display:none}
-#feed.collapsed{max-height:none}
-.feed-item{margin:4px 0;display:flex;gap:6px}
-.feed-time{color:var(--ink-faint);font-size:var(--font-xs);white-space:nowrap;padding-top:1px}
-.feed-msg{flex:1;min-width:0}
-.skeleton-wrap{margin:10px 0 12px;text-align:left}
-.skeleton-block{height:110px;border-radius:var(--radius-lg);background:linear-gradient(90deg,#f0e2c0 25%,#fff8e6 50%,#f0e2c0 75%);background-size:200% 100%;animation:shimmer 1.2s infinite linear;display:flex;align-items:center;justify-content:center;font-size:28px}
-.skeleton-line{height:12px;border-radius:6px;margin:8px 0;background:linear-gradient(90deg,#f0e2c0 25%,#fff8e6 50%,#f0e2c0 75%);background-size:200% 100%;animation:shimmer 1.2s infinite linear}
-@keyframes shimmer{to{background-position:-200% 0}}
-.state-empty{border:1px dashed var(--line-strong);border-radius:var(--radius);padding:12px;text-align:center;color:var(--ink-soft);line-height:1.5}
-.state-empty button{margin-top:8px;font-size:var(--font-sm);padding:10px 12px}
-.state-error{background:var(--danger-bg);border:1px solid #fecaca;border-radius:var(--radius);padding:12px;color:var(--danger);line-height:1.5}
-.state-error button{margin-top:8px;font-size:var(--font-sm);padding:10px 12px}
-#loadStatus.state-success{color:var(--success);font-weight:700}
-#loadStatus.state-error{color:var(--danger);font-weight:700}
-#joinError{display:none;background:var(--danger-bg);border:1px solid #fecaca;border-radius:var(--radius);padding:10px 12px;color:var(--danger);font-size:var(--font-sm);line-height:1.5;margin:8px 0 0;text-align:left}
-#joinError.show{display:block}
-/* Contextual Popup: chỉ hiện khi gần landmark hoặc gần nhà, ở giữa
-   đáy, phía trên joystick/dock nên không đè lên joystick góc trái. */
-#ctxPopup{position:absolute;left:50%;transform:translateX(-50%);bottom:134px;width:min(340px,92vw);background:var(--panel);border:1px solid rgba(236,217,172,.9);border-radius:18px;padding:10px 12px;box-shadow:var(--shadow);text-align:center;pointer-events:auto;display:none}
-#ctxPopup.ctx-lifted{bottom:272px}
-.ctx-title{font-weight:800;font-size:15px}
-.ctx-desc{color:var(--ink-soft);font-size:var(--font-sm);line-height:1.5;margin:4px 0 8px}
-#ctxPopup button{font-size:var(--font-sm);padding:11px 12px}
-#houseRow{font-size:var(--font-sm);line-height:1.5;padding:6px 8px;border-radius:var(--radius-sm);text-align:center}
-#houseRow.house-empty{color:var(--ink-soft)}
-#houseRow.house-data{background:var(--paper-warm);border:1px solid var(--line)}
-#houseRow.house-error{background:var(--danger-bg);border:1px solid #fecaca;color:var(--danger)}
-.house-name{font-weight:800}
-.house-price{color:var(--accent-dark);font-weight:800}
-#houseRow button{margin-left:8px;font-size:var(--font-xs);padding:8px 10px;min-height:36px}
-.ctx-house-btns{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-top:8px}
-.ctx-house-btns button{flex:1;min-width:0;white-space:normal}
-/* Quick Dock: một nút duy nhất ở góc dưới phải, bấm mới mở panel
-   thao tác chung. Panel mở hướng lên trên, không đè joystick trái. */
-#quickDock{position:absolute;right:12px;bottom:12px;display:flex;flex-direction:column;align-items:flex-end;gap:8px;pointer-events:auto}
-#quickPanel{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;background:var(--panel);border:1px solid rgba(236,217,172,.9);border-radius:18px;padding:8px;box-shadow:var(--shadow);width:220px}
-#quickPanel button{padding:11px 6px;font-size:var(--font-sm);background:#fff7e8;color:#5b3a1e;border:1px solid var(--line);box-shadow:var(--shadow-sm);white-space:normal;min-height:44px}
-#quickPanel button:hover:not(:disabled){background:#ffedb8}
-#quickPanel button.buoi{background:linear-gradient(135deg,#8b5cf6,var(--accent-2));color:#fff;border:0}
-#quickPanel button.buoi:hover:not(:disabled){background:linear-gradient(135deg,#7c3aed,#5b21b6)}
-#quickToggle{border-radius:999px;padding:12px 16px;font-size:14px}
-/* Joystick: góc dưới trái, trên lớp canvas, không panel nào được
-   đặt ở vùng này nữa (ctxPopup ở giữa, quickDock ở phải, feed/minimap
-   ở phải trên) nên joystick không bao giờ bị đè. */
-#joy{position:absolute;left:16px;bottom:16px;width:110px;height:110px;border-radius:50%;background:rgba(255,255,255,.35);border:2px solid rgba(255,255,255,.7);display:none;pointer-events:auto;touch-action:none}
-#knob{position:absolute;left:35px;top:35px;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.9)}
-#errorToast{position:fixed;left:50%;transform:translateX(-50%);top:12px;z-index:50;max-width:92vw;background:rgba(185,28,28,.96);color:#fff;font-size:14px;font-weight:600;line-height:1.4;padding:10px 14px;border-radius:12px;box-shadow:var(--shadow);display:none;pointer-events:none;text-align:center}
-/* Toast thành công/thông báo nhỏ: giữa mép trên, dưới top bar, vùng
-   giữa trống (street pill trái, minimap phải) nên không đè chữ nào. */
-#toast{position:fixed;left:50%;transform:translateX(-50%);top:56px;z-index:50;max-width:92vw;background:rgba(30,25,18,.92);color:#fff;font-size:14px;font-weight:700;line-height:1.4;padding:10px 16px;border-radius:999px;box-shadow:var(--shadow);display:none;pointer-events:none;text-align:center;white-space:nowrap}
-#toast.show{display:block}
-#pollError{position:absolute;left:10px;top:92px;background:var(--danger-bg);border:1px solid #fecaca;color:var(--danger);border-radius:var(--radius);padding:8px 12px;font-size:var(--font-sm);font-weight:600;line-height:1.4;box-shadow:var(--shadow);display:none;align-items:center;gap:10px;max-width:280px;pointer-events:auto}
-#pollError.show{display:flex}
-#pollError button{font-size:var(--font-xs);padding:8px 10px;min-height:36px;white-space:nowrap}
-#retryMapBtn{display:none;margin-top:10px;width:100%}
-/* Modal bản đồ lớn: nền tối phủ toàn màn, panel giữa, chạm ngoài
-   hoặc nút ✕ để đóng. */
-#mapModal{position:fixed;inset:0;background:rgba(20,15,10,.6);display:none;align-items:center;justify-content:center;z-index:25;pointer-events:auto;padding:16px}
-#mapModal.open{display:flex}
-.map-modal-panel{max-height:100%;overflow:auto;background:linear-gradient(180deg,var(--paper),var(--paper-warm));border:1px solid var(--line);border-radius:20px;padding:16px;max-width:680px;width:100%;box-shadow:var(--shadow-lg);text-align:center}
-.map-destination{display:flex;align-items:center;gap:8px;margin-bottom:12px;font-weight:700}
-.map-destination select{flex:1;min-width:0;padding:8px;border:1px solid var(--line-strong);border-radius:var(--radius-sm);background:var(--paper);color:var(--ink);font:inherit}
-#mapHint{max-width:140px;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}
-.map-modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:var(--font-base)}
-.map-modal-head button{background:var(--accent-soft);color:#5b4632;box-shadow:none;padding:8px 12px;min-height:36px}
-#bigMap{width:100%;height:auto;border-radius:12px;background:#e8e0cc;display:block}
-.map-modal-note{font-size:var(--font-sm);color:var(--ink-soft);line-height:1.5;margin:10px 0 0}
-@media (pointer:coarse){ #joy{display:block} #feed{width:200px} }
-@media (max-width:900px){
-#feed{width:210px}
+@font-face {
+  font-family: Spectral;
+  src: url("../fonts/spectral-italic.woff2") format("woff2");
+  font-weight: 600;
+  font-style: italic;
+  font-display: swap;
 }
-@media (max-width:640px){
-.hide-mobile{display:none}
-#topBar{padding:6px 8px}
-#inviteBtn{padding:8px 10px;font-size:var(--font-xs)}
-.top-stats{gap:8px}
-#streetPill{left:8px;max-width:170px}
-#minimapWrap{right:8px;padding:6px}
-#minimapWrap canvas,#mapHint{width:110px}
-#feed{top:172px;right:8px;width:178px;max-height:140px}
-#pollError{left:8px;top:92px;max-width:200px}
-#ctxPopup{bottom:124px}
-#ctxPopup.ctx-lifted{bottom:272px}
-#quickDock{right:8px;bottom:8px}
-#quickPanel{width:210px}
-#joy{left:12px;bottom:16px;width:96px;height:96px}
-#knob{left:28px;top:28px}
-.sw{width:44px;height:44px}
-.card{padding:20px 16px}
-.card h1{font-size:26px}
+:root {
+  --ink: #233d34;
+  --muted: #565f55;
+  --paper: #faf7ef;
+  --panel: #fffcf4;
+  --line: #d9d5c8;
+  --jade: #204c40;
+  --red: #ab392b;
+  --shadow: 0 5px 22px #19332a24;
+  --edge: clamp(10px, 1.5vw, 22px);
+  --hud-top: max(10px, env(safe-area-inset-top));
+  --hud-bottom: max(14px, env(safe-area-inset-bottom));
+  font: 16px/1.45 "Work Sans", system-ui, sans-serif;
+  color: var(--ink);
 }
-/* Bảng Top Địa Chủ (v1.4): góc trên trái, dưới street pill và dưới vùng
-   banner lỗi kết nối (pollError ở top 92px, cao ~50px) nên bắt đầu từ
-   150px để không bị đè khi banner hiện. Thu gọn được bằng nút ▾/▴. */
-#leaderboard{top:150px;left:10px;width:220px;padding:0;overflow:hidden;pointer-events:auto}
-/* Shipper (v1.5): panel tạm thời, chỉ hiện khi đang có đơn (tối đa 60s).
-   Đặt ở cột trái dưới bảng Top (bảng cao nhất ~160px, kết thúc ~310px)
-   nên top 320px không đè bảng, và trên joystick (góc dưới trái) ở cả
-   màn hình dọc; màn hình ngang vốn đã chật thì panel 60s này chấp nhận
-   được vì nó tự ẩn khi hết đơn. */
-#shipperPanel{top:320px;left:10px;width:220px;padding:10px 12px;pointer-events:auto}
-.shipper-head{display:flex;justify-content:space-between;align-items:center;font-size:var(--font-sm)}
-#shipperTimer{font-weight:800}
-#shipperTimer.urgent{color:#b91c1c}
-.shipper-target{font-size:var(--font-sm);line-height:1.4;margin:6px 0}
-.shipper-foot{display:flex;justify-content:space-between;align-items:center;font-size:var(--font-sm);font-weight:700}
-#shipperCancelBtn{font-size:var(--font-xs);padding:8px 10px;min-height:36px;background:#fff;border:1px solid var(--line);color:#b91c1c}
-#shipperBtn{border-radius:999px;padding:12px 16px;font-size:14px}
-.leader-head{display:flex;justify-content:space-between;align-items:center;padding:10px 12px 8px;border-bottom:1px solid var(--line);font-size:var(--font-sm)}
-.leader-head button{background:var(--accent-soft);color:#5b4632;box-shadow:none;padding:4px 10px;min-height:32px;font-size:var(--font-sm)}
-#leaderBody{padding:8px 12px 10px;font-size:var(--font-sm);line-height:1.45}
-#leaderboard.collapsed #leaderBody{display:none}
-#leaderboard.collapsed{padding-bottom:0}
-.leader-row{display:flex;gap:6px;margin:4px 0;align-items:baseline}
-.leader-rank{flex-shrink:0;min-width:22px}
-.leader-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}
-.leader-wealth{white-space:nowrap;color:var(--accent-dark);font-weight:800}
-.leader-empty{color:var(--ink-soft);text-align:center;padding:6px 0}
-/* Bảng chọn biển hiệu shophouse (v1.4): 4 nút trong popup nhà, nút đang
-   chọn viền đậm + nền vàng nhạt để nhìn là biết biển hiện tại. */
-#shopRow{margin-top:8px;padding-top:8px;border-top:1px dashed var(--line-strong)}
-.shop-label{font-size:var(--font-sm);font-weight:700;margin-bottom:6px}
-.shop-btns{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
-.shop-btns button{flex:1 1 45%;background:#fff7e8;color:#5b3a1e;border:2px solid var(--line);box-shadow:var(--shadow-sm);font-size:var(--font-sm);padding:10px 6px;white-space:normal}
-.shop-btns button.sel{border-color:var(--accent-dark);background:#ffedb8}
-/* Huy hiệu buff tốc độ trên top bar: chỉ hiện 30 giây sau khi ghé quán. */
-#buffLabel{color:#b45309;font-weight:800}
-/* Sổ Hồng Quận 5 (v1.6, viral loop): nút ở Quick Dock cùng hàng với
-   nút Shipper; modal dùng chung kiểu với mapModal nhưng z-index thấp
-   hơn toast (toast lên 50) để bấm Copy xong vẫn thấy "Đã copy!".
-   Popup nhà được nâng lên 190px khi nút Sổ Hồng hiện (3 nút Quick Dock
-   cao ~160px từ đáy) để nút không đè nút Mua/Bán trên điện thoại; khi
-   Quick Panel mở thì vẫn chấp nhận đè như cũ, đóng panel là mua được. */
-#soHongBtn{border-radius:999px;padding:12px 16px;font-size:14px}
-#ctxPopup.ctx-sohong{bottom:190px}
-#soHongModal{position:fixed;inset:0;background:rgba(20,15,10,.6);display:none;align-items:center;justify-content:center;z-index:40;pointer-events:auto;padding:16px;overflow-y:auto}
-#soHongModal.open{display:flex}
-.sohong-panel{background:linear-gradient(180deg,var(--paper),var(--paper-warm));border:1px solid var(--line);border-radius:20px;padding:16px;max-width:960px;width:100%;box-shadow:var(--shadow-lg);text-align:center;margin:auto}
-.sohong-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:var(--font-base)}
-.sohong-head button{background:var(--accent-soft);color:#5b4632;box-shadow:none;padding:8px 12px;min-height:36px}
-#soHongCanvas{width:100%;height:auto;display:block;border-radius:12px}
-#soHongLinkInput{width:100%;margin-top:10px;padding:10px 12px;font-family:monospace;font-size:13px;border:1px solid var(--line);border-radius:10px;background:#fffdf5;color:#1a1a1a}
-.sohong-btns{display:flex;gap:8px;margin-top:10px}
-.sohong-btns button{flex:1;min-width:0;white-space:normal}
-@media (max-width:640px){
-#leaderboard{left:8px;width:170px}
-#leaderBody{font-size:var(--font-xs)}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--paper); }
+body, #scene { position: fixed; inset: 0; overflow: hidden; }
+#scene canvas { display: block; touch-action: none; }
+button, input, select { font: inherit; color: inherit; }
+button, summary, select { cursor: pointer; }
+button {
+  background: var(--jade); color: #fffdf3; border: 0; border-radius: 9px;
+  padding: 10px 15px; min-height: 44px; font-weight: 600; line-height: 1.25;
+}
+button:hover:not(:disabled) { filter: brightness(.92); }
+button:disabled { opacity: .55; cursor: default; }
+:focus-visible { outline: 3px solid #327969; outline-offset: 3px; }
+button.is-busy::after {
+  content: ""; display: inline-block; width: .85em; height: .85em; margin-left: 8px;
+  border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 1s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+[hidden] { display: none !important; }
+p, h1, h2, fieldset, dd { margin: 0; }
+button.secondary, .close-btn { background: #e9eee5; color: var(--ink); }
+
+#joinOverlay {
+  position: fixed; inset: 0; z-index: 20; overflow: auto; background: var(--paper);
+  display: flex; flex-direction: column; padding: 0 clamp(20px, 4.6vw, 80px);
+}
+.masthead, .lobby-layout, .lobby-footer { width: 100%; max-width: 1536px; margin-inline: auto; }
+.masthead { display: flex; flex: none; align-items: center; justify-content: space-between; min-height: 84px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 740; font-size: 24px; letter-spacing: -.055em; }
+.brand-online { color: var(--red); font: italic 600 25px/1 Spectral, Georgia, serif; margin-left: -5px; }
+.brand-mark {
+  display: inline-grid; place-items: center; position: relative; flex: none;
+  background: var(--red); width: 37px; height: 39px; border-radius: 11px;
+}
+.brand-mark i {
+  position: relative; width: 18px; height: 18px; border-radius: 45%; border: 1.5px solid #ffe6ba;
+  background: repeating-linear-gradient(90deg,transparent 0 4px,#ffe6bb 4px 5px);
+}
+.brand-mark i::before, .brand-mark i::after { content: ""; position: absolute; width: 9px; left: 3px; height: 2px; background: #ffe6ba; }
+.brand-mark i::before { top: -4px; }
+.brand-mark i::after { bottom: -4px; }
+.help-link { display: inline-flex; gap: 8px; align-items: center; background: transparent; color: var(--ink); font-size: 14px; }
+.help-link span { border: 1.5px solid; border-radius: 100%; width: 20px; height: 20px; line-height: 18px; }
+.lobby-layout {
+  flex: 1 0 auto; display: grid; grid-template-columns: minmax(0, 1.38fr) minmax(345px, 1fr);
+  min-height: min(620px, 75vh); border: 1px solid var(--line); border-radius: 19px; overflow: hidden; background: var(--panel);
+}
+.postcard { position: relative; isolation: isolate; display: flex; align-items: end; min-width: 0; background: #355e50; color: #fffaf0; }
+.postcard img, .postcard::after { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -1; }
+.postcard img { object-fit: cover; object-position: 53% center; }
+.postcard::after { content: ""; background: linear-gradient(0deg,#112e28f7 0%,#102e24aa 20%,transparent 62%); }
+.postcard-copy { padding: clamp(28px, 3.5vw, 62px); }
+.place-label { font-size: 12px; font-weight: 680; letter-spacing: .15em; color: #ffe3ae; }
+.place-label span { padding: 0 5px; opacity: .7; }
+.postcard h1 { margin: 15px 0 14px; font-weight: 530; font-size: clamp(52px, 5.8vw, 102px); letter-spacing: -.064em; line-height: 1.03; }
+.postcard h1 em { color: #ffdc9e; font: italic 600 1.14em/.98 Spectral, Georgia, serif; letter-spacing: -.065em; }
+.postcard-intro { max-width: 385px; font-size: clamp(15px,1.15vw,19px); line-height: 1.5; }
+#joinForm { align-self: center; padding: clamp(28px, 3.8vw, 66px); width: 100%; max-width: 580px; margin-inline: auto; }
+#joinForm h2, .dialog-heading h2 { font-size: clamp(27px, 2.45vw, 41px); line-height: 1.18; font-weight: 650; letter-spacing: -.055em; }
+.form-intro { margin: 7px 0 26px; color: var(--muted); font-size: 15px; }
+.form-field { position: relative; padding: 0; border: 0; min-width: 0; margin: 0 0 21px; }
+.form-field label, .form-field legend { padding: 0; margin: 0 0 7px; display: block; font-weight: 650; font-size: 14px; }
+.form-field input, .map-destination select, #soHongLinkInput {
+  width: 100%; min-height: 46px; border: 1px solid #bdbfb2; border-radius: 8px; padding: 9px 12px;
+  background: #fffefa; color: var(--ink);
+}
+.form-field input::placeholder { color: #6c756c; }
+#roomInput { text-transform: uppercase; letter-spacing: .07em; }
+.form-field small, #loadStatus { color: var(--muted); font-size: 13px; }
+.form-field small { display: block; margin-top: 6px; }
+.name-field { position: relative; }
+.name-field input { padding-right: 48px; }
+#randomNameBtn { position: absolute; right: 2px; top: 1px; background: transparent; color: var(--red); font: 29px/1 system-ui; width: 44px; padding: 0; }
+#robeSwatches { display: flex; gap: clamp(0px,.55vw,8px); }
+.sw { position: relative; min-width: 0; width: 44px; height: 44px; padding: 0; background: transparent; border-radius: 50%; }
+.sw::before { content: ""; position: absolute; inset: 5px; background: var(--robe); border-radius: 50%; }
+.sw[aria-pressed="true"]::before { outline: 2px solid var(--ink); outline-offset: 3px; }
+.sw[aria-pressed="true"]::after { content: "✓"; position: relative; color: white; text-shadow: 0 1px 2px #333; font-weight: 800; }
+#robeName { position: absolute; inset-inline-end: 0; top: -26px; color: var(--muted); font-size: 13px; }
+#joinBtn { width: 100%; background: var(--red); min-height: 50px; display: flex; align-items: center; justify-content: center; gap: 12px; }
+#joinBtn span { font-size: 24px; line-height: 1; }
+#mapState { text-align: center; margin-top: 12px; }
+#loadStatus.state-success::before { content: ""; display: inline-block; width: 7px; height: 7px; background: #397055; border-radius: 50%; margin-right: 7px; }
+#retryMapBtn, #joinError { display: none; }
+#retryMapBtn { margin: 8px auto 0; }
+#joinError.show, .state-error { display: block; margin-bottom: 10px; background: #fff0e9; color: #9c2b20; padding: 10px; border-radius: 8px; font-size: 14px; }
+#loadStatus.state-error { color: #9c2b20; }
+.lobby-footer { display: flex; justify-content: space-between; gap: 12px; padding: 16px 2px 20px; color: var(--muted); font-size: 12px; flex: none; }
+.lobby-footer a { color: inherit; text-underline-offset: 2px; }
+
+#helpDialog, .map-modal-panel, .sohong-panel {
+  padding: clamp(18px,3vw,32px); border: 1px solid var(--line); border-radius: 16px;
+  background: var(--panel); color: var(--ink); box-shadow: var(--shadow); max-height: 90dvh; overflow: auto;
+}
+#helpDialog { width: min(440px, 92vw); }
+#helpDialog::backdrop, #mapModal, #soHongModal { background: #10291fe0; }
+.dialog-heading, .map-modal-head, .sohong-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.dialog-heading h2 { font-size: 26px; }
+.close-btn, .map-modal-head button, .sohong-head button { width: 44px; padding: 0; font-size: 20px; background: #e9eee5; color: var(--ink); }
+.guide { margin-bottom: 0; }
+.guide dt { font-weight: 680; margin: 16px 0 2px; }
+.guide dd { color: var(--muted); font-size: 14px; }
+
+#hud { display: none; position: fixed; inset: 0; z-index: 10; pointer-events: none; font-size: 14px; }
+#hud.on { display: block; }
+#topBar, #minimapWrap, #community, #shipperPanel, #ctxPopup, #quickPanel {
+  pointer-events: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow);
+}
+#topBar {
+  position: absolute; top: var(--hud-top); left: var(--edge); right: var(--edge); z-index: 2;
+  display: flex; align-items: center; gap: 18px; padding: 6px 8px 6px 12px;
+}
+.hud-place, .hud-tools, .top-stats { display: flex; align-items: center; gap: 8px; }
+.hud-place { min-width: 0; flex: 0 1 185px; }
+.hud-place > span:last-child { display: grid; min-width: 0; }
+.hud-place small { text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
+.hud-place strong { font-size: 14px; letter-spacing: .05em; }
+.hud-place small, .top-stat small { color: var(--muted); font-size: 11px; }
+.top-stats { flex: 1; overflow: auto; gap: clamp(14px,2.5vw,46px); scrollbar-width: thin; }
+.top-stat { display: grid; white-space: nowrap; }
+.top-stat strong { font-size: 14px; font-variant-numeric: tabular-nums; }
+#tien { color: var(--red); }
+#buffLabel { color: var(--jade); }
+.hud-tools { flex: none; }
+.help-icon { width: 44px; background: #e9eee5; color: var(--jade); padding: 0; }
+#inviteBtn { background: var(--red); }
+.city-widgets, #minimapWrap { position: absolute; top: calc(var(--hud-top) + 69px); }
+.city-widgets { left: var(--edge); width: min(230px, 47vw); display: grid; gap: 8px; }
+#community { overflow: hidden; }
+#community summary { padding: 12px 14px; font-weight: 650; }
+.community-tabs { display: flex; padding: 0 8px 6px; gap: 4px; }
+.community-tabs button { flex: 1; min-height: 40px; padding: 6px; font-size: 13px; background: transparent; color: var(--muted); }
+.community-tabs button[aria-pressed="true"] { color: var(--jade); background: #e5ece2; }
+#feedBody, #leaderBody { max-height: min(24vh, 220px); overflow: auto; padding: 10px; border-top: 1px solid var(--line); font-size: 13px; }
+.feed-item, .leader-row { display: flex; align-items: baseline; gap: 6px; margin: 4px 0; }
+.feed-time { color: var(--muted); font-variant-numeric: tabular-nums; }
+.leader-name { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.leader-wealth { color: var(--red); font-weight: 650; }
+.state-empty button, .state-error button { display: block; margin-top: 8px; font-size: 13px; }
+#shipperPanel { padding: 12px; }
+.shipper-head, .shipper-foot { display: flex; justify-content: space-between; align-items: center; gap: 6px; font-size: 13px; }
+.shipper-target { margin: 6px 0; }
+#shipperCancelBtn { background: transparent; color: var(--red); padding: 6px; }
+.urgent { color: var(--red); }
+#minimapWrap { right: var(--edge); width: 156px; padding: 8px; cursor: pointer; font-weight: 650; font-size: 13px; }
+#minimapWrap > span:first-child { float: right; }
+#minimap, #bigMap, #soHongCanvas { width: 100%; height: auto; display: block; border-radius: 7px; }
+#minimap { margin: 5px 0; }
+#mapHint { display: block; color: var(--muted); font-size: 11px; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+#ctxPopup {
+  position: absolute; left: 50%; bottom: var(--hud-bottom); transform: translateX(-50%);
+  width: min(350px, 90vw); max-height: 40dvh; overflow: auto; padding: 13px; display: none;
+}
+.ctx-title, .house-name, .house-price { font-weight: 670; }
+.ctx-desc, .shop-label { color: var(--muted); font-size: 13px; margin: 4px 0 8px; }
+#ctxCheckinBtn { margin-top: 4px; width: 100%; }
+.ctx-house-btns, .shop-btns, .sohong-btns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.ctx-house-btns button, .shop-btns button, .sohong-btns button { flex: 1 1 40%; font-size: 13px; }
+.shop-btns button { background: #e7ece2; color: var(--ink); }
+.shop-btns button.sel { outline: 2px solid var(--jade); }
+#shopRow { border-top: 1px solid var(--line); margin-top: 8px; padding-top: 6px; }
+#quickDock { position: absolute; right: var(--edge); bottom: var(--hud-bottom); display: grid; gap: 6px; justify-items: end; pointer-events: none; }
+#quickDock button { pointer-events: auto; box-shadow: var(--shadow); }
+#quickPanel { display: grid; grid-template-columns: repeat(2,1fr); gap: 5px; padding: 7px; width: 226px; max-height: 43dvh; overflow: auto; }
+#quickPanel button, #shipperBtn, #soHongBtn { color: var(--ink); background: var(--panel); font-size: 13px; }
+#quickPanel button { background: #eef0e6; box-shadow: none; padding: 8px; }
+#quickToggle { background: var(--red); }
+#joy { display: none; position: absolute; bottom: var(--hud-bottom); left: var(--edge); width: 98px; height: 98px; border: 2px solid #fff9e5ba; border-radius: 50%; background: #2142376b; touch-action: none; pointer-events: auto; }
+#knob { position: absolute; left: 50%; top: 50%; width: 40px; height: 40px; translate: -50% -50%; border-radius: 50%; background: #fff9eb; box-shadow: var(--shadow); }
+@media (pointer: coarse) { #joy { display: block; } }
+#pollError, #toast, #errorToast { position: fixed; z-index: 50; top: calc(var(--hud-top) + 68px); left: 50%; transform: translateX(-50%); border-radius: 10px; padding: 10px 14px; background: var(--jade); color: white; display: none; max-width: min(94vw,460px); width: max-content; box-shadow: var(--shadow); font-size: 14px; }
+#pollError, #errorToast { background: #8a3026; }
+#pollError { pointer-events: auto; }
+#toast, #errorToast { pointer-events: none; }
+#toast.show, #pollError.show { display: block; }
+#pollRetryBtn { margin-left: 8px; background: var(--panel); color: var(--ink); }
+#mapModal, #soHongModal { position: fixed; inset: 0; display: none; z-index: 30; padding: 16px; pointer-events: auto; align-items: center; justify-content: center; }
+#mapModal.open, #soHongModal.open { display: flex; }
+.map-modal-panel, .sohong-panel { width: min(100%,700px); }
+.map-modal-head, .sohong-head { font-size: 20px; margin-bottom: 12px; }
+.map-destination { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.map-destination select { flex: 1; min-width: 0; }
+.map-modal-note { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; font-size: 13px; }
+.map-key::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; background: var(--key); }
+.me { --key: #f9a825; } .friend { --key: #1565c0; } .place { --key: #c62828; }
+.map-key.target::before { border: 2px solid #732cad; }
+.map-key.delivery::before { border-top: 2px dashed var(--muted); border-radius: 0; width: 15px; height: 2px; }
+#soHongLinkInput { margin-top: 12px; }
+
+@media (max-width: 820px) {
+  #joinOverlay { padding-inline: 18px; }
+  .masthead { min-height: 66px; }
+  .lobby-layout { grid-template-columns: 1fr; }
+  .postcard { min-height: clamp(200px,30vh,320px); }
+  .postcard img { object-position: center 52%; }
+  .postcard::after { background: linear-gradient(90deg,#102e26ea 0%,#102e2480 55%,transparent 100%); }
+  .postcard-copy { padding: 24px; }
+  .postcard h1 { font-size: 44px; margin: 8px 0 4px; }
+  .postcard-intro { max-width: 290px; font-size: 13px; }
+  #joinForm { padding: 24px; max-width: 620px; }
+  .form-intro { margin-bottom: 18px; }
+  .form-field { margin-bottom: 15px; }
+  #ctxPopup { bottom: calc(var(--hud-bottom) + 106px); }
+  #ctxPopup.ctx-sohong { bottom: calc(var(--hud-bottom) + 154px); }
+  #ctxPopup.ctx-lifted { visibility: hidden; }
+}
+@media (max-width: 600px) {
+  #joinOverlay { padding-inline: 12px; }
+  .lobby-layout { border-radius: 14px; }
+  .masthead { padding-inline: 4px; }
+  .lobby-footer { font-size: 10px; }
+  #joinForm { padding: 22px 18px; }
+  #topBar { display: grid; grid-template-columns: 1fr auto; gap: 0 10px; padding: 4px 9px; }
+  .top-stats { grid-area: 2 / 1 / 3 / 3; padding: 5px 0 3px; margin-top: 4px; border-top: 1px solid var(--line); gap: 16px; }
+  .top-stat small { font-size: 10px; }
+  .top-stat strong { font-size: 12px; }
+  .hud-place .brand-mark { width: 30px; height: 34px; }
+  .hud-tools button { font-size: 13px; }
+  .city-widgets, #minimapWrap, #pollError, #toast, #errorToast { top: calc(var(--hud-top) + 108px); }
+  #minimapWrap { width: 115px; font-size: 12px; }
+  .community-tabs button { padding: 4px; font-size: 12px; }
+  #ctxPopup { max-height: 33dvh; }
+}
+@media (max-height: 480px) and (orientation: landscape) {
+  .city-widgets { max-height: 48dvh; overflow: auto; }
+  #quickPanel { max-height: 40dvh; }
+  #ctxPopup, #ctxPopup.ctx-sohong { bottom: var(--hud-bottom); width: 35vw; }
+}
+@media (prefers-reduced-motion: reduce) {
+  button.is-busy::after { animation: none; }
 }

@@ -53,6 +53,14 @@ function serveStatic(req, res, pathname) {
     serveFile(res, resolveSafe('quan5-map.json'), CONTENT_TYPES['.json']);
     return;
   }
+  if (pathname === '/art/cho-lon.webp') {
+    serveFile(res, resolveSafe(pathname.slice(1)), 'image/webp');
+    return;
+  }
+  if (pathname === '/fonts/spectral-italic.woff2' || pathname === '/fonts/work-sans.woff2') {
+    serveFile(res, resolveSafe(pathname.slice(1)), 'font/woff2');
+    return;
+  }
   if (pathname.startsWith('/js/') && pathname.endsWith('.js')) {
     serveFile(res, resolveSafe(pathname.slice(1)), CONTENT_TYPES['.js']);
     return;

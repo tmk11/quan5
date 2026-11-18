@@ -43,8 +43,8 @@ var selectedRobe = '#e0651f';
 document.querySelectorAll('#robeSwatches .sw').forEach(function (b) {
   b.addEventListener('click', function () {
     selectedRobe = b.getAttribute('data-robe');
-    document.querySelectorAll('#robeSwatches .sw').forEach(function (x) { x.classList.remove('sel'); });
-    b.classList.add('sel');
+    document.querySelectorAll('#robeSwatches .sw').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+    document.getElementById('robeName').textContent = b.getAttribute('aria-label');
   });
 });
 function makePerson(name, robe, skin) {
@@ -219,9 +219,7 @@ function setJoinFormDisabled(disabled) {
 }
 function setMapState(state, msg) {
   var loadEl = document.getElementById('loadStatus');
-  var skeleton = document.getElementById('mapSkeleton');
   var retryBtn = document.getElementById('retryMapBtn');
-  if (skeleton) skeleton.style.display = state === 'loading' ? '' : 'none';
   if (loadEl) {
     loadEl.textContent = msg || '';
     loadEl.classList.remove('state-success', 'state-error');
@@ -229,13 +227,8 @@ function setMapState(state, msg) {
     if (state === 'error') loadEl.classList.add('state-error');
   }
   if (retryBtn) retryBtn.style.display = state === 'error' ? 'block' : 'none';
-  // Trong lúc tải bản đồ, khóa cả form để người chơi không bấm Vào khi
-  // bản đồ chưa sẵn (trước đây chỉ khóa nút Vào, còn ô nhập vẫn gõ được).
-  // Lỗi thì mở lại ô nhập để sửa mã phòng/tên, nhưng nút Vào vẫn khóa
-  // vì chưa có bản đồ thì vào cũng không chơi được.
-  if (state === 'loading') { setJoinFormDisabled(true); document.getElementById('joinBtn').disabled = true; }
-  else if (state === 'success') { setJoinFormDisabled(false); document.getElementById('joinBtn').disabled = false; }
-  else if (state === 'error') { setJoinFormDisabled(false); document.getElementById('joinBtn').disabled = true; }
+  // Người chơi có thể chọn tên và màu áo trong khi bản đồ đang tải.
+  document.getElementById('joinBtn').disabled = state !== 'success';
 }
 function showPollError(show) {
   var el = document.getElementById('pollError');
@@ -275,7 +268,7 @@ function renderMissionPanel(mission) {
   if (!mission) {
     panel.style.display = 'none';
     btn.disabled = false;
-    btn.textContent = '📦 Nhận đơn giao hàng';
+    btn.textContent = 'Nhận đơn giao hàng';
     lastMissionJson = '';
     lastMissionSeconds = -1;
     return;
@@ -422,31 +415,24 @@ function renderLeaderboard(rows) {
     return '<div class="leader-row"><span class="leader-rank">' + medal + '</span><span class="leader-name">' + Quan5Shared.escapeHtml(r.name || '') + '</span><span class="leader-wealth">' + fmtMoney(r.wealth) + (r.houseCount ? ' (' + r.houseCount + ' nhà)' : '') + '</span></div>';
   }).join('');
 }
-document.getElementById('leaderToggle').addEventListener('click', function () {
-  var panel = document.getElementById('leaderboard');
-  var collapsed = panel.classList.toggle('collapsed');
-  var btn = document.getElementById('leaderToggle');
-  btn.textContent = collapsed ? '▴' : '▾';
-  btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+var community = document.getElementById('community');
+community.open = window.innerWidth > 820 && window.innerHeight > 520;
+var communityTabs = document.querySelectorAll('[data-community]');
+communityTabs.forEach(function (tab) {
+  tab.addEventListener('click', function () {
+    communityTabs.forEach(function (item) {
+      var selected = tab === item;
+      document.getElementById(item.dataset.community).hidden = !selected;
+      item.setAttribute('aria-pressed', String(selected));
+    });
+  });
 });
-// Điện thoại hẹp: bảng xếp hạng mặc định thu gọn để không đè feed bên
-// phải (màn 360px thì hai panel trái/phải vừa khít, màn nhỏ hơn sẽ đè
-// nhau); người chơi bấm 🏆 để mở khi cần. Desktop mặc định mở.
-if (window.innerWidth < 640) {
-  var lbPanel = document.getElementById('leaderboard');
-  var lbBtn = document.getElementById('leaderToggle');
-  if (lbPanel && lbBtn) {
-    lbPanel.classList.add('collapsed');
-    lbBtn.textContent = '▴';
-    lbBtn.setAttribute('aria-expanded', 'false');
-  }
-}
-document.getElementById('feedToggle').addEventListener('click', function () {
-  var feed = document.getElementById('feed');
-  var collapsed = feed.classList.toggle('collapsed');
-  var btn = document.getElementById('feedToggle');
-  btn.textContent = collapsed ? '▴' : '▾';
-  btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+var helpDialog = document.getElementById('helpDialog');
+document.querySelectorAll('[data-help]').forEach(function (button) {
+  button.addEventListener('click', function () {
+    resetMovement();
+    helpDialog.showModal();
+  });
 });
 document.getElementById('pollRetryBtn').addEventListener('click', function () { pollOnce(); });
 document.getElementById('inviteBtn').addEventListener('click', function () {
@@ -643,7 +629,7 @@ function updateDestinationDistance() {
     hint.textContent = meters + ' m · ' + target.name;
     distance.textContent = target.name + ' · ' + meters + ' m theo đường thẳng';
   } else {
-    hint.textContent = 'Chạm để phóng to';
+    hint.textContent = 'Mở bản đồ';
   }
 }
 function drawDestination(ctx, mx, mz, scale) {
@@ -693,22 +679,26 @@ function drawBigMap() {
   drawEventOverlays(ctx, mx, mz, 1.6);
   drawDestination(ctx, mx, mz, 1.6);
 }
+function setGameDialog(dialog, open, focusTarget) {
+  if (dialog.classList.contains('open') === open) return;
+  dialog.classList.toggle('open', open);
+  Array.from(document.getElementById('hud').children).forEach(function (child) {
+    if (child !== dialog && child.id !== 'toast') child.inert = open;
+  });
+  focusTarget.focus();
+}
 function openMapModal() {
   var m = document.getElementById('mapModal');
   if (!m) return;
   resetMovement();
   updateDestinations();
   drawBigMap();
-  m.classList.add('open');
-  m.style.display = 'flex';
-  destinationSelect.focus();
+  setGameDialog(m, true, destinationSelect);
 }
 function closeMapModal() {
   var m = document.getElementById('mapModal');
   if (!m) return;
-  if (m.classList.contains('open')) document.getElementById('minimapWrap').focus();
-  m.classList.remove('open');
-  m.style.display = 'none';
+  setGameDialog(m, false, document.getElementById('minimapWrap'));
 }
 function handleSessionExpired(msg) {
   playerId = '';
@@ -747,7 +737,8 @@ function handleSessionExpired(msg) {
   var popup = document.getElementById('ctxPopup');
   if (popup) popup.style.display = 'none';
   var overlay = document.getElementById('joinOverlay');
-  if (overlay) overlay.style.display = 'flex';
+  if (overlay) overlay.style.display = '';
+  if (helpDialog.open) helpDialog.close();
   var hud = document.getElementById('hud');
   if (hud) hud.classList.remove('on');
   setJoinError(msg || 'Phiên chơi đã hết hạn, vui lòng bấm Vào lại.');
@@ -1338,10 +1329,10 @@ function openSoHong() {
     return;
   }
   document.getElementById('soHongLinkInput').value = link;
-  document.getElementById('soHongModal').classList.add('open');
+  setGameDialog(document.getElementById('soHongModal'), true, document.getElementById('soHongClose'));
 }
 function closeSoHong() {
-  document.getElementById('soHongModal').classList.remove('open');
+  setGameDialog(document.getElementById('soHongModal'), false, document.getElementById('soHongBtn'));
 }
 document.getElementById('soHongBtn').addEventListener('click', openSoHong);
 document.getElementById('soHongClose').addEventListener('click', closeSoHong);
@@ -1476,8 +1467,9 @@ document.getElementById('shipperBtn').addEventListener('click', function () {
 document.getElementById('shipperCancelBtn').addEventListener('click', function () {
   doShipper('cancel', document.getElementById('shipperCancelBtn'));
 });
-document.getElementById('joinBtn').addEventListener('click', function () {
-  if (!MAP) return;
+document.getElementById('joinForm').addEventListener('submit', function (event) {
+  event.preventDefault();
+  if (!MAP || document.getElementById('joinBtn').disabled || helpDialog.open) return;
   var joinBtn = document.getElementById('joinBtn');
   var codeCheck = Quan5Shared.validateRoomCode(roomInput.value.trim() || 'QUAN5');
   if (!codeCheck.ok) {
@@ -1503,6 +1495,7 @@ document.getElementById('joinBtn').addEventListener('click', function () {
   setJoinFormDisabled(true);
   postJson('api/join', { room: code, name: nameRaw, robe: selectedRobe, skin: '#ffe0bd', deviceId: deviceId, visit: visitParam || null }).then(function (j) {
     room = j.room;
+    document.getElementById('hudRoom').textContent = room;
     playerId = j.avatarId;
     sessionId = j.playerId;
     myName = j.name;
@@ -1548,12 +1541,15 @@ document.getElementById('joinBtn').addEventListener('click', function () {
 });
 var movementKeys = new Set(['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright']);
 addEventListener('keydown', function (e) {
-  if (!playerId || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (!playerId || helpDialog.open || e.ctrlKey || e.metaKey || e.altKey) return;
   if (document.getElementById('mapModal').classList.contains('open')) {
     if (e.key === 'Escape') closeMapModal();
     return;
   }
-  if (document.getElementById('soHongModal').classList.contains('open')) return;
+  if (document.getElementById('soHongModal').classList.contains('open')) {
+    if (e.key === 'Escape') closeSoHong();
+    return;
+  }
   var key = e.key.toLowerCase();
   if (movementKeys.has(key)) {
     e.preventDefault();
@@ -1588,8 +1584,7 @@ function joySet(e) {
   var dx = (e.clientX - cx) / 45, dy = (e.clientY - cy) / 45, len = Math.hypot(dx, dy);
   if (len > 1) { dx /= len; dy /= len; }
   joy = { x: dx, y: dy };
-  knob.style.left = (35 + dx * 28) + 'px';
-  knob.style.top = (35 + dy * 28) + 'px';
+  knob.style.transform = 'translate(' + dx * 28 + 'px,' + dy * 28 + 'px)';
 }
 joyEl.addEventListener('pointerdown', function (e) { joyId = e.pointerId; joyEl.setPointerCapture(joyId); joySet(e); });
 joyEl.addEventListener('pointermove', function (e) { if (e.pointerId === joyId) joySet(e); });
@@ -1599,8 +1594,7 @@ function joyEnd(e) {
 function resetJoystick() {
   joyId = null;
   joy = { x: 0, y: 0 };
-  knob.style.left = '';
-  knob.style.top = '';
+  knob.style.transform = '';
 }
 function resetMovement() {
   keys = {};
@@ -1647,7 +1641,7 @@ function wrapAngle(a) {
 }
 function animate() {
   requestAnimationFrame(animate);
-  if (!RENDER_OK || !clock) return;
+  if (!RENDER_OK || !clock || !playerId) return;
   var dt = Math.min(clock.getDelta(), 0.05);
   var t = clock.elapsedTime;
   stepBuoiTransition(dt);
@@ -1971,12 +1965,8 @@ function pollOnce() {
 }
 setInterval(pollOnce, 400);
 function loadMap() {
-  // Three.js CDN fail thì không phí một lần tải bản đồ: hiện thẳng
-  // trạng thái Error, nút Thử lại sẽ tải lại trang (render.js đã ghi
-  // cùng thông báo này lúc khởi động, loadMap chỉ chuẩn hóa lại trạng
-  // thái để skeleton không hiện sai).
   if (!RENDER_OK) {
-    setMapState('error', 'Không tải được thư viện 3D (Three.js từ CDN). Vui lòng kiểm tra mạng rồi bấm Thử lại để tải lại trang.');
+    setMapState('error', renderError);
     var retryEarly = document.getElementById('retryMapBtn');
     if (retryEarly) { retryEarly.textContent = 'Thử tải lại trang'; retryEarly.onclick = function () { location.reload(); }; }
     return;
@@ -1987,7 +1977,7 @@ function loadMap() {
     buildMap();
     buildMinimapStatic();
     initHouseMarker();
-    setMapState('success', 'Đã tải xong bản đồ thật: ' + j.roads.length + ' đoạn đường, ' + j.buildings.length + ' nhà trên nền vàng có thể mua bán (không nhà trên đường), ' + j.landmarks.length + ' landmark trong ranh Quận 5.');
+    setMapState('success', 'Bản đồ đã sẵn sàng');
     camera.position.set(myPos.x, 6.5, myPos.z + 10);
     camera.lookAt(myPos.x, 1.6, myPos.z);
   }).catch(function (e) {

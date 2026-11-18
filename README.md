@@ -233,6 +233,8 @@ Bản đồ trong GitHub có 474 nhà. Bản v1.8 được ghi nhận trong ph�
 
 ## Cách chơi
 
+- Tại sảnh, chọn tên và màu áo rồi bấm **Vào thành phố**. Nút xúc xắc gợi ý tên ngẫu nhiên. Mở **Cách chơi** ở sảnh hoặc nút **?** trong game để xem hướng dẫn.
+- Trong game, **Trong khu phố** hiển thị hoạt động và xếp hạng. Mở **Sinh hoạt** để chào, ăn uống, mua sắm hoặc chụp ảnh.
 - Mặc định vào thành phố chung `QUAN5`. Nhập mã phòng khác để chơi phòng riêng.
 - Di chuyển: phím WASD / mũi tên, hoặc joystick trên điện thoại. Kéo để xoay camera.
 - Hành động có sẵn (không có chat tự do): chào, ăn hủ tiếu, cà phê vợt,

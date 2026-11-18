@@ -1,18 +1,25 @@
 // Render: khởi tạo Three.js, đèn, và các helper vẽ sprite.
 // File này phải load sau script Three.js CDN và trước map.js / app.js.
 // Nếu CDN Three.js fail, file này không crash: nó đặt cờ RENDER_OK=false
-// và ghi lỗi rõ ràng vào #loadStatus, để app.js không gọi buildMap hay
-// animate với scene chưa tồn tại.
+// và cung cấp thông báo để sảnh chơi hiển thị lý do và nút thử lại.
 'use strict';
 var RENDER_OK = typeof THREE !== 'undefined';
+var renderError = 'Không tải được thư viện 3D. Hãy kiểm tra kết nối rồi tải lại trang.';
 var scene = null, renderer = null, camera = null, hemi = null, sun = null;
+if (RENDER_OK) {
+  try {
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+  } catch (error) {
+    RENDER_OK = false;
+    renderError = 'Trình duyệt chưa bật được đồ họa 3D. Hãy bật tăng tốc đồ họa hoặc dùng trình duyệt hỗ trợ WebGL.';
+  }
+}
 if (RENDER_OK) {
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0xd8edf7);
   // FogExp2 thay cho Fog tuyến tính: chiều sâu tăng dần theo khoảng
   // cách, phố xa mờ nhẹ chứ không bị cắt đột ngột ở 170 đơn vị.
   scene.fog = new THREE.FogExp2(0xd8edf7, 0.0045);
-  renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.setSize(innerWidth, innerHeight);
   renderer.shadowMap.enabled = true;
@@ -33,17 +40,6 @@ if (RENDER_OK) {
   sun.shadow.camera.bottom = -150;
   sun.shadow.camera.far = 300;
   scene.add(sun);
-} else {
-  var loadEl = document.getElementById('loadStatus');
-  if (loadEl) {
-    loadEl.textContent = 'Không tải được thư viện 3D (Three.js từ CDN). Vui lòng kiểm tra mạng rồi bấm Thử lại để tải lại trang.';
-  }
-  var retryEl = document.getElementById('retryMapBtn');
-  if (retryEl) {
-    retryEl.style.display = 'block';
-    retryEl.textContent = 'Thử tải lại trang';
-    retryEl.onclick = function () { location.reload(); };
-  }
 }
 function mat(c, o) {
   o = o || {};

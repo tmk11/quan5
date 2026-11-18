@@ -106,7 +106,7 @@ const server = http.createServer(async (req, res) => {
       await handlers.handleState(req, res, ctx, url.searchParams);
     } else if (req.method === 'GET' && (
       pathname === '/' || pathname === '/index.html' ||
-      pathname === '/quan5-map.json' ||
+      pathname === '/quan5-map.json' || pathname.startsWith('/art/') || pathname.startsWith('/fonts/') ||
       (pathname.startsWith('/js/') && pathname.endsWith('.js')) ||
       (pathname.startsWith('/css/') && pathname.endsWith('.css'))
     )) {
