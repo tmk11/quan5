@@ -53,6 +53,7 @@ function makePerson(name, robe, skin) {
   // ẩn sẵn và chỉ hiện theo tư thế. Tỉ lệ mới cao ~2,8 đơn vị: chân
   // 0-0,64, thân 0,37-1,73, đầu tâm 2,05, nón tới 2,78, bảng tên 3,2.
   var outer = new THREE.Group(), inner = new THREE.Group();
+  inner.scale.set(0.78, 1, 0.87);
   outer.add(inner);
   var robeMat = new THREE.MeshStandardMaterial({ color: robe, roughness: 0.75 });
   var skinMat = new THREE.MeshStandardMaterial({ color: skin || '#ffe0bd', roughness: 0.6 });
@@ -63,7 +64,12 @@ function makePerson(name, robe, skin) {
   var legR = new THREE.Mesh(new THREE.CapsuleGeometry(0.14, 0.35, 4, 12), pantsMat);
   legR.position.set(0.18, 0.32, 0);
   inner.add(legR);
-  var body = new THREE.Mesh(new THREE.CapsuleGeometry(0.48, 0.4, 6, 18), robeMat);
+  var body = new THREE.Mesh(new THREE.LatheGeometry([
+    new THREE.Vector2(0, -0.53), new THREE.Vector2(0.45, -0.53),
+    new THREE.Vector2(0.40, -0.12), new THREE.Vector2(0.44, 0.30),
+    new THREE.Vector2(0.42, 0.41), new THREE.Vector2(0.24, 0.53),
+    new THREE.Vector2(0.20, 0.56), new THREE.Vector2(0, 0.56)
+  ], 20), robeMat);
   body.position.y = 1.05;
   body.scale.set(1, 1, 0.82);
   body.castShadow = true;
@@ -80,15 +86,19 @@ function makePerson(name, robe, skin) {
   earR.position.x = 0.53;
   inner.add(earR);
   [-0.22, 0.22].forEach(function (ex) {
-    var eye = new THREE.Mesh(new THREE.SphereGeometry(0.13, 18, 14), new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.15 }));
-    eye.position.set(ex, 2.11, 0.48);
+    var eye = new THREE.Mesh(new THREE.SphereGeometry(0.088, 12, 10), new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.15 }));
+    eye.position.set(ex, 2.09, 0.46);
+    eye.scale.set(0.87, 1.12, 0.60);
     inner.add(eye);
-    var cheek = new THREE.Mesh(new THREE.SphereGeometry(0.15, 14, 10), new THREE.MeshStandardMaterial({ color: 0xff8fa0, roughness: 0.7, transparent: true, opacity: 0.85 }));
-    cheek.position.set(ex * 1.85, 1.91, 0.42);
+    var glint = new THREE.Mesh(new THREE.SphereGeometry(0.022, 6, 6), mat(0xfff7df));
+    glint.position.set(ex - 0.014, 2.118, 0.51);
+    inner.add(glint);
+    var cheek = new THREE.Mesh(new THREE.SphereGeometry(0.106, 12, 8), new THREE.MeshStandardMaterial({ color: 0xe39182, roughness: 0.7, transparent: true, opacity: 0.85 }));
+    cheek.position.set(ex * 1.65, 1.93, 0.39);
     cheek.scale.set(1, 0.7, 0.5);
     inner.add(cheek);
   });
-  var smile = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.025, 8, 16, Math.PI), mat(0x5b4632));
+  var smile = new THREE.Mesh(new THREE.TorusGeometry(0.096, 0.016, 8, 16, Math.PI), mat(0x5b4632));
   smile.position.set(0, 1.89, 0.51);
   smile.rotation.z = Math.PI;
   inner.add(smile);
@@ -96,10 +106,33 @@ function makePerson(name, robe, skin) {
   hair.position.y = 2.13;
   hair.scale.set(1, 0.95, 0.92);
   inner.add(hair);
-  var hat = new THREE.Mesh(new THREE.ConeGeometry(0.72, 0.32, 20), new THREE.MeshStandardMaterial({ color: 0xe8d9a8, roughness: 0.9 }));
-  hat.position.y = 2.62;
+  var hat = new THREE.Mesh(new THREE.ConeGeometry(0.70, 0.42, 32), mat(0xe8c783));
+  hat.position.y = 2.57;
   hat.castShadow = true;
   inner.add(hat);
+  // Vành tre, quai khăn và túi vải giúp nhận ra dáng người cả khi nhìn từ sau.
+  var brim = new THREE.Mesh(new THREE.TorusGeometry(0.69, 0.018, 5, 32), mat(0x9d7349));
+  brim.rotation.x = Math.PI / 2;
+  brim.position.y = 2.365;
+  inner.add(brim);
+  var band = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.42, 0.11, 18), mat(0xf4d89f));
+  band.position.y = 1.56;
+  band.scale.x = 0.75;
+  band.scale.z = 0.65;
+  inner.add(band);
+  [1.37, 1.19, 1.01].forEach(function (y) {
+    var button = new THREE.Mesh(new THREE.SphereGeometry(0.030, 7, 5), mat(0xffda98));
+    button.position.set(0.10, y, 0.34);
+    inner.add(button);
+  });
+  var strap = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.94, 0.075), mat(0x684932));
+  strap.position.set(0.02, 1.04, -0.362);
+  strap.rotation.z = -0.62;
+  inner.add(strap);
+  var bag = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.33, 0.16), mat(0xb47749));
+  bag.position.set(-0.23, 0.70, -0.34);
+  bag.rotation.z = -0.12;
+  inner.add(bag);
   var armL = new THREE.Mesh(new THREE.CapsuleGeometry(0.12, 0.3, 4, 12), robeMat);
   armL.position.set(-0.52, 1.35, 0.05);
   armL.rotation.z = 0.25;
@@ -108,6 +141,17 @@ function makePerson(name, robe, skin) {
   armR.position.set(0.52, 1.35, 0.05);
   armR.rotation.z = -0.25;
   inner.add(armR);
+  [armL, armR].forEach(function (arm) {
+    var hand = new THREE.Mesh(new THREE.SphereGeometry(0.108, 10, 8), skinMat);
+    hand.position.y = -0.24;
+    arm.add(hand);
+  });
+  [legL, legR].forEach(function (leg) {
+    var shoe = new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 8), mat(0x443b37));
+    shoe.scale.set(1, 0.60, 1.4);
+    shoe.position.set(0, -0.23, 0.055);
+    leg.add(shoe);
+  });
   // Đạo cụ cầm tay, ẩn mặc định, chỉ hiện khi tư thế tương ứng.
   var bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.16, 0.12, 12), new THREE.MeshStandardMaterial({ color: 0xfff8e8, roughness: 0.6 }));
   bowl.position.set(0, 1.15, 0.65);
@@ -129,12 +173,7 @@ function makePerson(name, robe, skin) {
   ns.position.y = 3.2;
   outer.add(ns);
   outer.userData = { inner: inner, tilt: 0, pose: 'dung', armL: armL, armR: armR, legL: legL, legR: legR, bowl: bowl, cup: cup, lanternProp: lanternProp, cameraProp: cameraProp, nameSprite: ns, nameBase: { x: 2.9, y: 0.72 }, swing: 0 };
-  // Thu nhỏ nhân vật (Boss 2026-11-04 tối): chỉ thu hình ảnh, không
-  // đổi gameplay — tốc độ, bán kính va chạm 0,35, tầm mua/check-in
-  // đều giữ nguyên. 0,7 cho nhân vật vẫn đọc được tên trên điện thoại
-  // mà đỡ choán đường và nhà. NPC dùng chung makePerson nên cũng nhỏ
-  // theo cho đồng bộ; Đoàn Lân giữ nguyên.
-  outer.scale.setScalar(0.7);
+  outer.scale.setScalar(Quan5Shared.RESIDENT_HEIGHT / 2.78);
   return outer;
 }
 var room = '', playerId = '', sessionId = '', myName = '';
@@ -175,7 +214,8 @@ var NPC_GREETING_RADIUS = 5;
 var NPC_GREETINGS = ['Chào hàng xóm!', 'Ghé quán ủng hộ nha!', 'Đi dạo Chợ Lớn vui vẻ!', 'Mua gì không bạn ơi!', 'Nhà mình mở cửa nè!', 'Chợ Lớn đông vui quá!'];
 var myBuffUntil = 0, buffShown = false, lastLeaderboardJson = '';
 var myPos = { x: 25, z: -10, rot: 0 }, pose = 'dung', poseUntil = 0;
-var camYaw = 0, keys = {}, joy = { x: 0, y: 0 };
+var followStreetCamera = RENDER_OK ? createStreetCamera() : null;
+var camYaw = -0.30, keys = {}, joy = { x: 0, y: 0 };
 var people = {};
 var myGroup = null;
 var buoiOrder = ['sang', 'hoang-hon', 'dem'];
@@ -341,6 +381,7 @@ function renderLionAndEnvelopes() {
     var label = textSprite('🦁 Đoàn Lân', 4);
     label.position.y = 2.3;
     lionGroup.add(label);
+    lionGroup.scale.setScalar(0.39);
     lionGroup.visible = false;
     scene.add(lionGroup);
   }
@@ -352,7 +393,7 @@ function renderLionAndEnvelopes() {
     lionTarget = null;
   }
   if (!envelopeGeo) {
-    envelopeGeo = new THREE.BoxGeometry(0.6, 0.4, 0.08);
+    envelopeGeo = new THREE.BoxGeometry(0.14, 0.092, 0.018);
     envelopeMat = new THREE.MeshLambertMaterial({ color: 0xc62828 });
   }
   var seen = {};
@@ -360,7 +401,7 @@ function renderLionAndEnvelopes() {
     seen[env.id] = true;
     if (!envelopeMeshes[env.id]) {
       var m = new THREE.Mesh(envelopeGeo, envelopeMat);
-      m.position.set(env.x, 0.2, env.z);
+      m.position.set(env.x, 0.12, env.z);
       scene.add(m);
       envelopeMeshes[env.id] = m;
     }
@@ -498,8 +539,8 @@ function showToast(msg) {
 // Points duy nhất mỗi lần nổ để không tạo hàng chục mesh riêng.
 function spawnFloatingText(pos, text) {
   if (!RENDER_OK || !scene) return;
-  var sp = textSprite(text, 3);
-  sp.position.set(pos.x, pos.y + 3.6, pos.z);
+  var sp = textSprite(text, 1.05);
+  sp.position.set(pos.x, pos.y + 0.68, pos.z);
   scene.add(sp);
   floatingTexts.push({ sp: sp, life: 1.6, max: 1.6 });
 }
@@ -511,15 +552,15 @@ function spawnBurst(pos, colorHex, count) {
   var vel = new Float32Array(count * 3);
   for (var i = 0; i < count; i++) {
     positions[i * 3] = pos.x;
-    positions[i * 3 + 1] = pos.y + 1.5;
+    positions[i * 3 + 1] = pos.y + 0.30;
     positions[i * 3 + 2] = pos.z;
-    var a = Math.random() * Math.PI * 2, r = 1 + Math.random() * 2;
+    var a = Math.random() * Math.PI * 2, r = 0.3 + Math.random() * 0.5;
     vel[i * 3] = Math.cos(a) * r;
-    vel[i * 3 + 1] = 2 + Math.random() * 2.5;
+    vel[i * 3 + 1] = 0.65 + Math.random() * 0.55;
     vel[i * 3 + 2] = Math.sin(a) * r;
   }
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  var mat = new THREE.PointsMaterial({ color: colorHex, size: 0.18, transparent: true, opacity: 1, depthWrite: false });
+  var mat = new THREE.PointsMaterial({ color: colorHex, size: 0.045, transparent: true, opacity: 1, depthWrite: false });
   var points = new THREE.Points(geo, mat);
   scene.add(points);
   particles.push({ points: points, vel: vel, life: 0.9, max: 0.9 });
@@ -749,7 +790,7 @@ function handleSessionExpired(msg) {
 function ensurePerson(p) {
   if (people[p.id]) return people[p.id];
   var g = makePerson(p.name, p.robe || '#e0651f', p.skin || '#ffe0bd');
-  g.position.set(p.x, 0, p.z);
+  g.position.set(p.x, 0.026, p.z);
   g.rotation.y = p.rot || 0;
   scene.add(g);
   people[p.id] = g;
@@ -855,7 +896,7 @@ function updateHouseUI() {
   // nhà của mình, xám = nhà người khác. Biển BÁN chỉ hiện khi chưa có chủ.
   if (houseRing) {
     houseRingBase = Math.max(b.hw, b.hd) + 1.2;
-    houseRing.position.set(b.x, 0.20, b.z);
+    houseRing.position.set(b.x, 0.043, b.z);
     houseRing.scale.set(houseRingBase, houseRingBase, houseRingBase);
     houseRing.material.color.set(!rec ? 0xf9a825 : (rec.isMine ? 0x2e7d32 : 0x8a7a66));
     houseRing.visible = true;
@@ -1000,7 +1041,7 @@ function updateStreetLabel(ns) {
     // Banner đường nhỏ lại (từ 7 xuống 4,2) và chỉ hiện 2 giây rồi mờ
     // dần, để không chắn tầm nhìn giữa màn hình như bản cũ. Đường lớn
     // đã có nhãn cố định trên bản đồ nên không cần banner động.
-    dynStreetSprite = textSprite(ns.name, 4.2);
+    dynStreetSprite = textSprite(ns.name, 1.4);
     scene.add(dynStreetSprite);
     dynStreetName = ns.name;
     streetShowUntil = Date.now() + 2000;
@@ -1014,7 +1055,7 @@ function updateStreetLabel(ns) {
     dynStreetSprite.material.opacity = 1;
     streetShowUntil = Date.now() + 2000;
   }
-  dynStreetSprite.position.set(ns.x, 2.8, ns.z);
+  dynStreetSprite.position.set(ns.x, 1.3, ns.z);
 }
 function updateNear() {
   var nl = nearestLandmark();
@@ -1451,7 +1492,7 @@ function updateNPCs() {
     if (!g) {
       var pos = npcSpawnPosition(b);
       g = makePerson(wantName, wantRobe, '#ffe0bd');
-      g.position.set(pos.x, 0, pos.z);
+      g.position.set(pos.x, 0.026, pos.z);
       // makePerson đã gán userData (inner/pose/nameSprite); chỉ thêm
       // nhánh npc, không ghi đè userData sẵn có.
       g.userData.npc = { houseId: id, robe: wantRobe, name: wantName, bubble: null, wasNear: false, targetRot: 0 };
@@ -1644,7 +1685,7 @@ function animate() {
   if (!RENDER_OK || !clock || !playerId) return;
   var dt = Math.min(clock.getDelta(), 0.05);
   var t = clock.elapsedTime;
-  stepBuoiTransition(dt);
+  stepBuoiTransition(dt, myPos);
   var myMoving = false;
   if (playerId && myGroup) {
     if (poseUntil && Date.now() > poseUntil) { setPose('dung', 0); }
@@ -1665,15 +1706,13 @@ function animate() {
       if (!blockedAt(nx, myPos.z) || stuck) myPos.x = nx;
       if (!blockedAt(myPos.x, nz) || stuck) myPos.z = nz;
       myPos.rot = Math.atan2(mx2, mz2);
-      myGroup.position.set(myPos.x, 0, myPos.z);
+      myGroup.position.set(myPos.x, 0.026, myPos.z);
       swingPhase += dt * 11;
     }
     // Xoay người mượt theo hướng joystick: lerp góc (có wrap ±π) thay
     // vì gán tức thì như bản cũ, để nhân vật quay tròn mượt, không giật.
     myGroup.rotation.y += wrapAngle(myPos.rot - myGroup.rotation.y) * (1 - Math.exp(-dt * 12));
-    var camDist = innerWidth < innerHeight ? 13 : 10;
-    camera.position.set(myPos.x + Math.sin(camYaw) * camDist, 6.5, myPos.z + Math.cos(camYaw) * camDist);
-    camera.lookAt(myPos.x, 1.6, myPos.z);
+    followStreetCamera(myPos, camYaw);
     // Huy hiệu buff tốc độ trên top bar: chỉ đổi display khi trạng thái
     // đổi, không gán lại mỗi frame để khỏi layout lại vô ích.
     var buffActive = myBuffUntil > Date.now();
@@ -1697,8 +1736,8 @@ function animate() {
       if (near && !u.wasNear) {
         if (u.bubble) { scene.remove(u.bubble); disposeObject(u.bubble); }
         var text = NPC_GREETINGS[Math.floor(Math.random() * NPC_GREETINGS.length)];
-        u.bubble = textSprite(text, 2.5);
-        u.bubble.position.set(g.position.x, 4.6, g.position.z);
+        u.bubble = textSprite(text, 0.95);
+        u.bubble.position.set(g.position.x, 0.80, g.position.z);
         scene.add(u.bubble);
         u.wasNear = true;
       } else if (!near && u.wasNear) {
@@ -1735,7 +1774,7 @@ function animate() {
     // tinh tế, xa thì to lên cho vẫn đọc được, kẹp trong 0,75-1,5 lần.
     if (u.nameSprite && camera) {
       var dist = camera.position.distanceTo(g.position);
-      var f = Math.max(0.75, Math.min(1.5, dist / 14));
+      var f = Math.max(0.75, Math.min(1.8, dist / 2.4));
       u.nameSprite.scale.set(u.nameBase.x * f, u.nameBase.y * f, 1);
     }
   });
@@ -1766,6 +1805,7 @@ function animate() {
       shape.closePath();
       shipperArrowMat = new THREE.MeshBasicMaterial({ color: 0xf9a825, transparent: true, opacity: 0.9, side: THREE.DoubleSide });
       shipperArrow = new THREE.Mesh(new THREE.ShapeGeometry(shape), shipperArrowMat);
+      shipperArrow.scale.setScalar(0.38);
       shipperArrow.rotation.x = -Math.PI / 2;
       scene.add(shipperArrow);
     }
@@ -1776,7 +1816,7 @@ function animate() {
       shipperArrow.visible = false;
     } else {
       shipperArrow.visible = true;
-      shipperArrow.position.set(myPos.x, 0.21, myPos.z);
+      shipperArrow.position.set(myPos.x, 0.042, myPos.z);
       // Mũi tên vẽ hướng +Y trong mặt phẳng Shape, sau rotation.x =
       // -PI/2 thì +Y thành -Z, nên cần rotation.z = atan2(-dx, -dz)
       // để đầu mũi tên chỉ đúng về (dx, dz) trên mặt đất.
@@ -1803,7 +1843,7 @@ function animate() {
   for (var fi = floatingTexts.length - 1; fi >= 0; fi--) {
     var ft = floatingTexts[fi];
     ft.life -= dt;
-    ft.sp.position.y += dt * 1.4;
+    ft.sp.position.y += dt * 0.32;
     ft.sp.material.opacity = Math.max(0, ft.life / ft.max);
     if (ft.life <= 0) {
       scene.remove(ft.sp);
@@ -1837,7 +1877,7 @@ if (RENDER_OK) animate();
 addEventListener('resize', function () {
   if (!RENDER_OK) return;
   camera.aspect = innerWidth / innerHeight;
-  camera.fov = innerWidth < innerHeight ? 70 : 55;
+  camera.fov = innerWidth < innerHeight ? 55 : 50;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
 });
@@ -1978,8 +2018,8 @@ function loadMap() {
     buildMinimapStatic();
     initHouseMarker();
     setMapState('success', 'Bản đồ đã sẵn sàng');
-    camera.position.set(myPos.x, 6.5, myPos.z + 10);
-    camera.lookAt(myPos.x, 1.6, myPos.z);
+    camera.position.set(myPos.x, 1.16, myPos.z + 2.25);
+    camera.lookAt(myPos.x, 0.56, myPos.z);
   }).catch(function (e) {
     setMapState('error', 'Không tải được bản đồ thật (' + (e.message || 'lỗi không rõ') + '). Vui lòng kiểm tra mạng rồi bấm Thử lại.');
     var retryBtn = document.getElementById('retryMapBtn');

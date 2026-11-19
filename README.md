@@ -5,13 +5,10 @@ Bản này dùng **bản đồ thật từ OpenStreetMap**, không còn lưới 
 Nhà 3D **chỉ trên nền đất vàng, không dựng ra đường**: nhà vẽ bằng đúng footprint
 thật của OSM, đã đẩy khỏi hành lang đường, nhà trong công viên và nhà nhỏ vẫn
 chồng đường sau khi đẩy đã bị bỏ hẳn, màu nhà trầm đồng tông nền vàng.
-Đường vẽ theo tỉ lệ ×0,25 (sàn 1,8, trần 5,0) — đủ rộng cho nhiều người đi cùng
-nhau (đường 8m rộng 2,0, đường 16m rộng 4,0), vẫn tỉ lệ; công thức này phải khớp
-đúng ở build_map.py và shared-core.js, nếu không bản lọc và đường vẽ sẽ không đồng ý
-với nhau về "cái gì là trên đường". Đánh đổi: đường càng rộng thì nhà còn lại
-càng ít (474/2552 với đường ×0,25) — nhà không vừa lô vàng thì bỏ, không vẽ
-lên đường. Va chạm: nhà chặn khi đi ngoài đường; khi đang ở trên đường/cầu
-thì nhà/kênh không chặn.
+**Tỷ lệ nhìn ở tầm phố:** mỗi mét bề ngang đường tương ứng 0,25 đơn vị. Cư dân
+đội nón cao 1,80 m trên cùng thước đo (0,45 đơn vị). Hẻm 3 m rộng 0,75,
+đường 8 m rộng 2,0 và đường 16 m rộng 4,0. Xem phần [Tỷ lệ bản đồ và cảnh 3D](#tỷ-lệ-bản-đồ-và-cảnh-3d)
+để phân biệt kích thước ở tầm người với khoảng cách giữa các địa danh.
 
 ## Kinh tế nhà ở v1 (2026-11-02 tối, giữ nguyên luật ở v1.1)
 - Tiền trong game (không phải tiền thật). Người mới bắt đầu với 100.000đ,
@@ -54,22 +51,20 @@ thì nhà/kênh không chặn.
   cộng phố lồng đèn Lương Nhữ Học và phố Đông y Hải Thượng Lãn Ông lấy theo
   điểm giữa đúng đường đó trên OSM.
 
-## Thỏa hiệp tỉ lệ — nói thẳng
+## Tỷ lệ bản đồ và cảnh 3D
 
-Vị trí, hình dạng và thứ tự các đường, nhà, kênh là thật. Bề rộng đường tỉ lệ
-với bề rộng thật: mỗi đoạn đường mang `width_m` từ OSM (tag width, không có
-thì số làn × 3,5m, không có nữa thì mặc định theo loại đường), và trong game
-bề rộng = `width_m × 0,25` (sàn 1,8 để nhân vật đi được, trần 5,0) — nên đường
-16m rộng gấp đôi đường 8m đúng như ngoài đời. Chiều cao nhà và kích thước
-nhân vật vẫn phóng đại để chơi được. Người chơi cũng không đi ra ngoài
-ranh Quận 5 được, và không đi xuyên qua nhà hay đi xuống kênh được —
-trừ một ngoại lệ có chủ đích để đường nhỏ đi được: khi đang ở trên đường
-(trong hành lang đường, tính theo bề rộng game), nhà/kênh không chặn nữa,
-vì footprint nhà trên OSM có khi sát tim hẻm chỉ 1–2m ngoài đời; ra khỏi
-đường thì va chạm nhà lại chặn như thường. Ngoài ra `build_map.py` còn
-đẩy nhà lùi khỏi tim đường gần nhất (tối đa 4 đơn vị) để đường vẽ phóng
-đại không bị nhà chồng lên quá nhiều — vị trí nhà trong game vì vậy lệch
-khỏi OSM một chút ở phố hẹp.
+Khoảng cách giữa hai địa danh và số mét trên bản đồ dùng hệ số
+`origin.scale_units_per_meter` của dữ liệu OSM (khoảng 0,07 đơn vị/m).
+Để người chơi đọc được không gian ở tầm phố, nhân vật và bề ngang mặt đường
+dùng một thước đo cục bộ lớn hơn. Công thức mặt đường là
+`clamp(width_m × 0,25; 0,5; 5,0)`. `width_m` đến từ bề rộng ghi trên OSM
+hoặc ước lượng theo số làn và loại đường. Chiều cao nhà và chi tiết mặt
+tiền được cách điệu. Đây là bản mô phỏng phục vụ chơi game.
+
+Script dựng bản đồ vẫn dành hành lang tối thiểu 1,8 đơn vị khi xếp nhà,
+kể cả khi lòng hẻm vẽ hẹp hơn. Dữ liệu nhà hiện có và vị trí mua bán được
+giữ nguyên. Va chạm dùng bề ngang đường đang vẽ và bán kính thân người
+0,08 đơn vị. Camera tự rút ngắn khoảng lùi khi có vật thể chắn tầm nhìn.
 
 ## Nâng cấp HUD + đồ họa v1.3 (2026-11-04) — Top Bar, shophouse, nhân vật, marker
 

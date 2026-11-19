@@ -92,7 +92,7 @@ async function main() {
     assert(home.status === 200, 'GET / phải 200, nhận ' + home.status);
     assert(home.text.includes('js/app.js'), 'trang chủ phải load js/app.js (client đã tách module)');
     assert(home.text.includes('css/style.css'), 'trang chủ phải load css/style.css');
-    for (const asset of ['/js/shared-core.js', '/js/render.js', '/js/map.js', '/js/net.js', '/js/app.js', '/css/style.css']) {
+    for (const asset of ['/js/shared-core.js', '/js/render.js', '/js/streetscape.js', '/js/map.js', '/js/net.js', '/js/app.js', '/css/style.css']) {
       const a = await get(asset);
       assert(a.status === 200, 'tài nguyên ' + asset + ' phải 200, nhận ' + a.status);
     }

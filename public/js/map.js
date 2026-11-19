@@ -46,7 +46,7 @@ function onRoad(x, z) {
     var list = ROAD_GRID[(cx + dx) + ',' + (cz + dz)] || [];
     for (var i = 0; i < list.length; i++) {
       var s = list[i];
-      if (distToSeg(x, z, s.x1, s.z1, s.x2, s.z2).d < s.w / 2 + 0.2) return true;
+      if (distToSeg(x, z, s.x1, s.z1, s.x2, s.z2).d < s.w / 2 + Quan5Shared.RESIDENT_RADIUS) return true;
     }
   }
   return false;
@@ -63,7 +63,7 @@ function addBoxToGrid(b) {
 function boxCollides(x, z, b) {
   var dx = x - b.x, dz = z - b.z, c = Math.cos(b.rot || 0), s = Math.sin(b.rot || 0);
   var lx = dx * c - dz * s, lz = dx * s + dz * c;
-  return Math.abs(lx) < b.hw + 0.35 && Math.abs(lz) < b.hd + 0.35;
+  return Math.abs(lx) < b.hw + Quan5Shared.RESIDENT_RADIUS && Math.abs(lz) < b.hd + Quan5Shared.RESIDENT_RADIUS;
 }
 function collides(x, z) {
   if (onRoad(x, z)) return false;
@@ -87,20 +87,42 @@ function shapeFromGamePts(pts) {
   });
   return sh;
 }
-function mergedQuads(segments, color, y) {
-  var pos = [], idx = [], base = 0;
+function mergedQuads(segments, color, y, texture, roundJoints) {
+  var pos = [], uv = [], idx = [], joints = new Map();
+  function vertex(x, z) {
+    pos.push(x, y, z);
+    uv.push(x / 1.2, -z / 1.2);
+  }
+  function joint(x, z, radius) {
+    var key = x + ':' + z;
+    if (!joints.has(key) || joints.get(key).r < radius) joints.set(key, { x: x, z: z, r: radius });
+  }
   segments.forEach(function (s) {
-    var dx = s.x2 - s.x1, dz = s.z2 - s.z1, len = Math.hypot(dx, dz) || 1, w = s.w / 2;
-    var px = -dz / len * w, pz = dx / len * w;
-    pos.push(s.x1 + px, y, s.z1 + pz, s.x1 - px, y, s.z1 - pz, s.x2 + px, y, s.z2 + pz, s.x2 - px, y, s.z2 - pz);
-    idx.push(base, base + 1, base + 2, base + 2, base + 1, base + 3);
-    base += 4;
+    var dx = s.x2 - s.x1, dz = s.z2 - s.z1, len = Math.hypot(dx, dz);
+    if (!len) return;
+    var w = s.w / 2, px = -dz / len * w, pz = dx / len * w, base = pos.length / 3;
+    vertex(s.x1 + px, s.z1 + pz);
+    vertex(s.x1 - px, s.z1 - pz);
+    vertex(s.x2 + px, s.z2 + pz);
+    vertex(s.x2 - px, s.z2 - pz);
+    idx.push(base, base + 2, base + 1, base + 2, base + 3, base + 1);
+    if (roundJoints) { joint(s.x1, s.z1, w); joint(s.x2, s.z2, w); }
+  });
+  joints.forEach(function (j) {
+    var base = pos.length / 3;
+    vertex(j.x, j.z);
+    for (var k = 0; k < 12; k++) {
+      var angle = -k * Math.PI / 6;
+      vertex(j.x + Math.cos(angle) * j.r, j.z + Math.sin(angle) * j.r);
+      idx.push(base, base + 1 + k, base + 1 + (k + 1) % 12);
+    }
   });
   var geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
   geo.setIndex(idx);
   geo.computeVertexNormals();
-  var m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: color, roughness: 0.9, side: THREE.DoubleSide }));
+  var m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: color, roughness: 0.94, map: texture || null }));
   m.receiveShadow = true;
   scene.add(m);
   return m;
@@ -133,21 +155,15 @@ function prismGeometry() {
   return geo;
 }
 function buildShophouseDetails(list) {
-  // Mái ngói: khối lớn (chợ, bệnh viện, khối công cộng) giữ mái bằng,
-  // nhà phố nhỏ có mái ngói dốc. Ban công: mỗi tầng từ 1,9 trở lên một
-  // tấm đua ra mặt tiền, tối đa 3 tấm mỗi nhà. Biển hiệu dọc: chỉ một
-  // phần ba nhà phố + nhà thương mại mới có, để phố không bị rối.
-  // Tất cả đều là InstancedMesh (mỗi loại 1 draw call), không phải
-  // mesh riêng từng nhà. Va chạm không đổi: mái/ban công/biển ở trên
-  // cao hoặc nhô rất ít, BOXES giữ nguyên như cũ.
-  var roofs = [], balconies = [], signs = [];
+  var roofs = [], signs = [], awnings = [];
   list.forEach(function (b) {
-    var isLarge = b.hw > 10 || b.hd > 10;
+    var isLarge = b.hw > 4 || b.hd > 4 || (b.name && b.name.startsWith('Chợ'));
     if (!isLarge && b.h >= 1.5) {
       roofs.push(b);
     }
-    for (var y = 1.9; y < b.h - 0.5 && balconies.filter(function (x) { return x.b === b; }).length < 3; y += 1.8) {
-      balconies.push({ b: b, y: y });
+    for (var side = 0; side < 4; side++) {
+      var width = 2 * (side % 2 ? b.hd : b.hw);
+      if (width >= 0.7) awnings.push({ b: b, side: side, width: width });
     }
     var h = hashStr(b.id || (b.x + ':' + b.z));
     if (b.type === 'commercial' || b.type === 'retail' || h % 3 === 0) {
@@ -161,7 +177,7 @@ function buildShophouseDetails(list) {
     var dummy = new THREE.Object3D(), col = new THREE.Color();
     var tilePal = [0x9c5a3c, 0x8a4a34, 0xb06a44];
     roofs.forEach(function (b, i) {
-      var roofH = Math.max(0.6, Math.min(1.4, Math.min(b.hw, b.hd) * 0.5));
+      var roofH = Math.max(0.13, Math.min(0.60, Math.min(b.hw, b.hd) * 0.32));
       dummy.position.set(b.x, b.h, b.z);
       dummy.rotation.set(0, b.rot || 0, 0);
       dummy.scale.set(b.hw * 2, roofH, b.hd * 2);
@@ -172,19 +188,27 @@ function buildShophouseDetails(list) {
     if (roofInst.instanceColor) roofInst.instanceColor.needsUpdate = true;
     scene.add(roofInst);
   }
-  if (balconies.length) {
-    var balcInst = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: 0xe8e0cc, roughness: 0.9 }), balconies.length);
-    var dummy2 = new THREE.Object3D();
-    balconies.forEach(function (item, i) {
-      var b = item.b, rot = b.rot || 0;
-      var fx = Math.sin(rot), fz = Math.cos(rot);
-      dummy2.position.set(b.x + fx * (b.hd + 0.3), item.y, b.z + fz * (b.hd + 0.3));
-      dummy2.rotation.set(0, rot, 0);
-      dummy2.scale.set(b.hw * 2 * 0.8, 0.15, 0.6);
-      dummy2.updateMatrix();
-      balcInst.setMatrixAt(i, dummy2.matrix);
+  if (awnings.length) {
+    var stripe = streetTexture(64, 32, function (ctx) {
+      ctx.fillStyle = '#fff4d7';
+      ctx.fillRect(0, 0, 64, 32);
+      ctx.fillStyle = '#b0a59a';
+      for (var x = 0; x < 64; x += 16) ctx.fillRect(x, 0, 8, 32);
     });
-    scene.add(balcInst);
+    var awningMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ map: stripe, roughness: 0.9 }), awnings.length);
+    var canopy = new THREE.Object3D();
+    awnings.forEach(function (item, i) {
+      var b = item.b, angle = b.rot + item.side * Math.PI / 2;
+      var offset = (item.side % 2 ? b.hw : b.hd) + 0.08;
+      canopy.position.set(b.x + Math.sin(angle) * offset, 0.73, b.z + Math.cos(angle) * offset);
+      canopy.rotation.set(0.23, angle, 0, 'YXZ');
+      canopy.scale.set(item.width * 0.96, 0.028, 0.19);
+      canopy.updateMatrix();
+      awningMesh.setMatrixAt(i, canopy.matrix);
+      awningMesh.setColorAt(i, new THREE.Color([0xe4a284, 0xb0cfc3, 0xf0d69d, 0xc98772][hashStr(b.id)%4]));
+    });
+    awningMesh.castShadow = true;
+    scene.add(awningMesh);
   }
   if (signs.length) {
     signMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffaa33, emissiveIntensity: 0.05, roughness: 0.7 });
@@ -194,9 +218,9 @@ function buildShophouseDetails(list) {
     signs.forEach(function (b, i) {
       var rot = b.rot || 0;
       var fx = Math.sin(rot), fz = Math.cos(rot), sx = Math.cos(rot), sz = -Math.sin(rot);
-      dummy3.position.set(b.x + fx * (b.hd + 0.18) + sx * b.hw * 0.7, 2.6, b.z + fz * (b.hd + 0.18) + sz * b.hw * 0.7);
+      dummy3.position.set(b.x + fx * (b.hd + 0.18) + sx * b.hw * 0.7, 1.2, b.z + fz * (b.hd + 0.18) + sz * b.hw * 0.7);
       dummy3.rotation.set(0, rot, 0);
-      dummy3.scale.set(0.5, 2.2, 0.12);
+      dummy3.scale.set(0.18, 0.65, 0.06);
       dummy3.updateMatrix();
       signInst.setMatrixAt(i, dummy3.matrix);
       signInst.setColorAt(i, col3.setHex(signPal[hashStr(b.id || '') % signPal.length]));
@@ -311,9 +335,9 @@ function buildStreetProps() {
   });
   if (treePts.length) {
     var trunkInst = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.12, 0.18, 1.4, 6), new THREE.MeshStandardMaterial({ color: 0x6b4a2a, roughness: 0.95 }), treePts.length);
-    var canopyInst = new THREE.InstancedMesh(new THREE.SphereGeometry(1.0, 8, 6), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 }), treePts.length);
+    var canopyInst = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, flatShading: true }), treePts.length * 3);
     var dummy = new THREE.Object3D(), col = new THREE.Color();
-    var greenPal = [0x5a8f3c, 0x6aa84f, 0x4a7a33];
+    var greenPal = [0x53845e, 0x739757, 0x59895d];
     treePts.forEach(function (p, i) {
       dummy.position.set(p.x, 0.7, p.z);
       dummy.rotation.set(0, 0, 0);
@@ -321,11 +345,15 @@ function buildStreetProps() {
       dummy.updateMatrix();
       trunkInst.setMatrixAt(i, dummy.matrix);
       var sc = 0.8 + (hashStr(Math.round(p.x) + ':' + Math.round(p.z)) % 3) * 0.2;
-      dummy.position.set(p.x, 2.1, p.z);
-      dummy.scale.set(sc, sc, sc);
-      dummy.updateMatrix();
-      canopyInst.setMatrixAt(i, dummy.matrix);
-      canopyInst.setColorAt(i, col.setHex(greenPal[hashStr(Math.round(p.x) + ':' + Math.round(p.z)) % greenPal.length]));
+      for (var crown = 0; crown < 3; crown++) {
+        var angle = i + crown * 2.1;
+        dummy.position.set(p.x + Math.cos(angle)*0.35, 1.75 + crown*0.24, p.z + Math.sin(angle)*0.35);
+        dummy.rotation.y = angle;
+        dummy.scale.set(sc*(0.68+crown*0.06), sc*0.72, sc*0.79);
+        dummy.updateMatrix();
+        canopyInst.setMatrixAt(3*i+crown, dummy.matrix);
+        canopyInst.setColorAt(3*i+crown, col.setHex(greenPal[(i+crown)%greenPal.length]));
+      }
     });
     if (canopyInst.instanceColor) canopyInst.instanceColor.needsUpdate = true;
     trunkInst.castShadow = true;
@@ -368,59 +396,53 @@ function buildStreetProps() {
   // đây là đạo cụ trang trí đặt cạnh landmark (chợ, phố lồng đèn),
   // không phải vị trí xe đẩy/quán thật ngoài đời đã kiểm chứng.
   var polePts = [], lanternPts = [], linePts = [];
-  function addLanternString(x1, z, x2) {
-    // Dây chỉ dựng khi cả hai đầu đều trong ranh, để cột không cắm
-    // ra ngoài đất ở chợ gần biên (như Bình Tây ở mép tây).
-    if (!pointInPoly(x1, z, BOUNDARY) || !pointInPoly(x2, z, BOUNDARY)) return false;
-    polePts.push({ x: x1, z: z });
-    polePts.push({ x: x2, z: z });
-    var pts = [];
-    for (var i = 0; i <= 4; i++) {
-      var t = i / 4;
-      pts.push([x1 + (x2 - x1) * t, 4.2 - 0.6 * Math.sin(Math.PI * t), z]);
+  function lanternArch(x, z, dx, dz, halfSpan) {
+    var left = { x: x - dz*halfSpan, z: z + dx*halfSpan };
+    var right = { x: x + dz*halfSpan, z: z - dx*halfSpan };
+    if (!pointInPoly(left.x, left.z, BOUNDARY) || !pointInPoly(right.x, right.z, BOUNDARY)) return;
+    polePts.push(left, right);
+    var last = null;
+    for (var k = 0; k <= 8; k++) {
+      var t = k / 8;
+      var p = { x: left.x + (right.x-left.x)*t, y: 1.52 - 0.19*Math.sin(t*Math.PI), z: left.z + (right.z-left.z)*t };
+      if (last) linePts.push(last.x, last.y, last.z, p.x, p.y, p.z);
+      if (k % 2 === 1) lanternPts.push({ x: p.x, z: p.z, y: p.y-0.095 });
+      last = p;
     }
-    for (var j = 0; j + 1 < pts.length; j++) {
-      linePts.push(pts[j][0], pts[j][1], pts[j][2], pts[j + 1][0], pts[j + 1][1], pts[j + 1][2]);
-    }
-    [0.2, 0.4, 0.6, 0.8].forEach(function (t) {
-      lanternPts.push({ x: x1 + (x2 - x1) * t, y: 4.2 - 0.6 * Math.sin(Math.PI * t) - 0.25, z: z });
-    });
-    return true;
-  }
-  function addLanternStringZ(x, z1, z2) {
-    if (!pointInPoly(x, z1, BOUNDARY) || !pointInPoly(x, z2, BOUNDARY)) return false;
-    polePts.push({ x: x, z: z1 });
-    polePts.push({ x: x, z: z2 });
-    var pts = [];
-    for (var i = 0; i <= 4; i++) {
-      var t = i / 4;
-      pts.push([x, 4.2 - 0.6 * Math.sin(Math.PI * t), z1 + (z2 - z1) * t]);
-    }
-    for (var j = 0; j + 1 < pts.length; j++) {
-      linePts.push(pts[j][0], pts[j][1], pts[j][2], pts[j + 1][0], pts[j + 1][1], pts[j + 1][2]);
-    }
-    [0.2, 0.4, 0.6, 0.8].forEach(function (t) {
-      lanternPts.push({ x: x, y: 4.2 - 0.6 * Math.sin(Math.PI * t) - 0.25, z: z1 + (z2 - z1) * t });
-    });
-    return true;
   }
   LANDMARKS.forEach(function (L) {
-    var isMarket = L.name && L.name.indexOf('Chợ') !== -1;
-    var isLanternStreet = L.name && L.name.indexOf('lồng đèn') !== -1;
-    if (isLanternStreet) {
-      addLanternString(L.x - 9, L.z, L.x - 3);
-      addLanternString(L.x - 3, L.z, L.x + 3);
-      addLanternString(L.x + 3, L.z, L.x + 9);
-    } else if (isMarket) {
-      // Chợ gần biên thì dây ngang có thể chui ra ngoài ranh, khi đó
-      // thử dây dọc thay thế, nếu cả hai đều ngoài ranh thì bỏ dây.
-      if (!addLanternString(L.x - 6, L.z, L.x + 6)) addLanternStringZ(L.x, L.z - 6, L.z + 6);
+    var isMarket = L.name && L.name.startsWith('Chợ');
+    if (isMarket || L.name.includes('lồng đèn')) {
+      var nearest = null, closest = null;
+      ROAD_SEGMENTS.forEach(function (s) {
+        if (!s.name || s.w < 1.25) return;
+        var point = distToSeg(L.x, L.z, s.x1, s.z1, s.x2, s.z2);
+        if (!closest || point.d < closest.d) { nearest = s; closest = point; }
+      });
+      if (nearest && closest.d < 8) {
+        var dx = nearest.x2-nearest.x1, dz = nearest.z2-nearest.z1, len = Math.hypot(dx, dz);
+        lanternArch(closest.x, closest.z, dx/len, dz/len, nearest.w/2+0.28);
+      }
     }
     if (isMarket) {
       var pl = new THREE.PointLight(0xffcc66, 0, 20, 2);
       pl.position.set(L.x, 4, L.z);
       scene.add(pl);
       plazaLights.push(pl);
+    }
+  });
+  MAP.buildings.forEach(function (b) {
+    if (!b.name || !b.name.startsWith('Chợ ')) return;
+    for (var side = 0; side < 4; side++) {
+      var angle = b.rot + side*Math.PI/2;
+      var halfWidth = side%2 ? b.hd : b.hw;
+      var depth = (side%2 ? b.hw : b.hd) + 0.17;
+      var lamps = Math.max(2, Math.floor(halfWidth*2 / 0.85));
+      for (var i = 0; i < lamps; i++) {
+        var t = (2*(i+0.5)/lamps - 1)*halfWidth;
+        lanternPts.push({ x: b.x + Math.sin(angle)*depth + Math.cos(angle)*t,
+          z: b.z + Math.cos(angle)*depth - Math.sin(angle)*t, y: 0.58 });
+      }
     }
   });
   if (polePts.length) {
@@ -431,10 +453,10 @@ function buildStreetProps() {
       var k = Math.round(p.x * 10) + ':' + Math.round(p.z * 10);
       if (!seenPole[k]) { seenPole[k] = true; uniqPoles.push(p); }
     });
-    var poleInst = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.07, 0.07, 4.2, 6), new THREE.MeshStandardMaterial({ color: 0x4a3a28, roughness: 0.9 }), uniqPoles.length);
+    var poleInst = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.019, 0.025, 1.52, 8), new THREE.MeshStandardMaterial({ color: 0x4a3a28, roughness: 0.9 }), uniqPoles.length);
     var dummyP = new THREE.Object3D();
     uniqPoles.forEach(function (p, i) {
-      dummyP.position.set(p.x, 2.1, p.z);
+      dummyP.position.set(p.x, 0.76, p.z);
       dummyP.rotation.set(0, 0, 0);
       dummyP.scale.set(1, 1, 1);
       dummyP.updateMatrix();
@@ -443,7 +465,8 @@ function buildStreetProps() {
     scene.add(poleInst);
   }
   if (lanternPts.length) {
-    var lantInst = new THREE.InstancedMesh(new THREE.SphereGeometry(0.22, 10, 8), lanternMat, lanternPts.length);
+    var lantInst = new THREE.InstancedMesh(new THREE.SphereGeometry(0.089, 16, 10), lanternMat, lanternPts.length);
+    var tassels = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.012, 0.009, 0.074, 6), mat(0xe4b05b), lanternPts.length);
     var dummyL = new THREE.Object3D();
     lanternPts.forEach(function (p, i) {
       dummyL.position.set(p.x, p.y, p.z);
@@ -451,8 +474,11 @@ function buildStreetProps() {
       dummyL.scale.set(1, 1.15, 1);
       dummyL.updateMatrix();
       lantInst.setMatrixAt(i, dummyL.matrix);
+      dummyL.position.y -= 0.13;
+      dummyL.updateMatrix();
+      tassels.setMatrixAt(i, dummyL.matrix);
     });
-    scene.add(lantInst);
+    scene.add(lantInst, tassels);
   }
   if (linePts.length) {
     var lineGeo = new THREE.BufferGeometry();
@@ -491,6 +517,7 @@ function buildStreetProps() {
         cart.add(wheel);
       });
       cart.position.set(cartX, 0, cartZ);
+      cart.scale.setScalar(0.36);
       cart.rotation.y = (hashStr(L.name) % 4) * Math.PI / 2;
       scene.add(cart);
       }
@@ -508,6 +535,7 @@ function buildStreetProps() {
         stool.position.set(o[0], 0.2, o[1]);
         cafe.add(stool);
       });
+      cafe.scale.setScalar(0.30);
       cafe.position.set(L.x - 5, 0, L.z - 4);
       scene.add(cafe);
     }
@@ -538,17 +566,17 @@ function buildStreetProps() {
       var rr = distToSeg(L.x, L.z, s.x1, s.z1, s.x2, s.z2);
       if (rr.d < bestD) { bestD = rr.d; bestX = rr.x; bestZ = rr.z; }
     });
-    var ringScale = 5.5, ringX = L.x, ringZ = L.z;
-    if (bestD < 12) { ringScale = 4; ringX = bestX; ringZ = bestZ; }
+    var ringScale = 0.85, ringX = L.x, ringZ = L.z;
+    if (bestD < 12) { ringScale = 0.70; ringX = bestX; ringZ = bestZ; }
     // Vòng landmark màu ĐỎ (khớp ghim đỏ), khác hẳn vòng nhà (cam =
     // chưa có chủ, xanh lá = nhà mình, xám = nhà người khác). Trước đây
     // vòng landmark cũng cam nên browser check 1.4/1.5 đã nhìn nhầm vòng
     // landmark thành vòng nhà và kết luận popup nhà không hiện, trong
     // khi người chơi đứng gần spawn còn cách nhà gần nhất 5,39 đơn vị
     // (ngoài tầm 4) nên popup landmark là đúng.
-    var ring = new THREE.Mesh(new THREE.RingGeometry(0.85, 1.0, 32), new THREE.MeshBasicMaterial({ color: 0xe53935, transparent: true, opacity: 0.8, side: THREE.DoubleSide }));
+    var ring = new THREE.Mesh(new THREE.RingGeometry(0.95, 1.0, 48), new THREE.MeshBasicMaterial({ color: 0xe53935, transparent: true, opacity: 0.55, side: THREE.DoubleSide }));
     ring.rotation.x = -Math.PI / 2;
-    ring.position.set(ringX, 0.20, ringZ);
+    ring.position.set(ringX, 0.04, ringZ);
     ring.scale.set(ringScale, ringScale, ringScale);
     scene.add(ring);
     landmarkPins.push({ pin: pin, ring: ring, ringBase: ringScale, phase: idx * 0.7 });
@@ -565,7 +593,7 @@ function buildMap() {
   LANDMARKS = MAP.landmarks;
   (MAP.roads || []).forEach(function (r) { if (r.major && r.name) MAJOR_NAMES[r.name] = true; });
   var groundGeo = new THREE.ShapeGeometry(shapeFromGamePts(BOUNDARY));
-  var ground = new THREE.Mesh(groundGeo, mat(0xe8d49a));
+  var ground = new THREE.Mesh(groundGeo, mat(0xdeceb0));
   ground.rotation.x = -Math.PI / 2;
   ground.position.y = 0;
   ground.receiveShadow = true;
@@ -573,9 +601,9 @@ function buildMap() {
   (MAP.parks || []).forEach(function (p) {
     if (p.pts.length < 3) return;
     var g = new THREE.ShapeGeometry(shapeFromGamePts(p.pts));
-    var m = new THREE.Mesh(g, mat(0x7ab648));
+    var m = new THREE.Mesh(g, mat(0x92af7f));
     m.rotation.x = -Math.PI / 2;
-    m.position.y = 0.03;
+    m.position.y = 0.006;
     m.receiveShadow = true;
     scene.add(m);
   });
@@ -584,44 +612,37 @@ function buildMap() {
     for (var i = 0; i + 1 < w.pts.length; i++) waterSegs.push({ x1: w.pts[i][0], z1: w.pts[i][1], x2: w.pts[i + 1][0], z2: w.pts[i + 1][1], w: 6 });
   });
   WATER_SEGMENTS = waterSegs;
-  if (waterSegs.length) mergedQuads(waterSegs, 0x3f8fa8, 0.04);
-  var roadSegs = [], dashSegs = [], sidewalkSegs = [];
+  if (waterSegs.length) mergedQuads(waterSegs, 0x559596, 0.009);
+  var roadSegs = [], footways = [], dashSegs = [], sidewalkSegs = [];
+  var asphalt = pavementTexture(false), paving = pavementTexture(true);
   (MAP.roads || []).forEach(function (r) {
-    var w = roadWidthFromMeters(r.width_m);
+    var w = roadWidthFromMeters(r.width_m), distance = 0;
     for (var i = 0; i + 1 < r.pts.length; i++) {
-      var s = { x1: r.pts[i][0], z1: r.pts[i][1], x2: r.pts[i + 1][0], z2: r.pts[i + 1][1], w: w, name: r.name };
-      roadSegs.push(s);
+      var s = { x1: r.pts[i][0], z1: r.pts[i][1], x2: r.pts[i+1][0], z2: r.pts[i+1][1], w: w, name: r.name };
+      var dx = s.x2 - s.x1, dz = s.z2 - s.z1, len = Math.hypot(dx, dz);
+      if (len === 0) continue;
+      if (r.type === 'footway' || r.type === 'pedestrian' || r.type === 'steps') footways.push(s);
+      else roadSegs.push(s);
       ROAD_SEGMENTS.push(s);
-      // Vỉa hè lát gạch hai bên, chỉ cho đường đủ rộng (w >= 2,5, tức
-      // đường thật từ ~10m trở lên). Hẻm nhỏ không có vỉa hè, chỉ có
-      // lòng đường nhựa. Vỉa hè lệch khỏi tim đường một khoảng bằng
-      // nửa bề rộng đường + 0,35, rộng 0,7, nên không đè lên lòng đường.
-      if (w >= 2.5) {
-        var dx = s.x2 - s.x1, dz = s.z2 - s.z1, len = Math.hypot(dx, dz) || 1;
-        var px = -dz / len * (w / 2 + 0.35), pz = dx / len * (w / 2 + 0.35);
-        sidewalkSegs.push({ x1: s.x1 + px, z1: s.z1 + pz, x2: s.x2 + px, z2: s.z2 + pz, w: 0.7 });
-        sidewalkSegs.push({ x1: s.x1 - px, z1: s.z1 - pz, x2: s.x2 - px, z2: s.z2 - pz, w: 0.7 });
-      }
-      // Vạch kẻ đường: đường lớn vạch dày 0,35, đường nhỏ/hẻm vạch
-      // mỏng 0,22, cứ 6 đơn vị một vạch dài 1,2-1,5. Bản cũ chỉ kẻ vạch
-      // cho đường lớn, nên hẻm nhìn như dải nhựa trơn.
-      var segLen = Math.hypot(s.x2 - s.x1, s.z2 - s.z1);
-      if (segLen >= 4) {
-        var n = Math.floor(segLen / 6);
-        var dashW = r.major ? 0.35 : 0.22;
-        var dashLen = r.major ? 1.5 : 1.2;
-        for (var k = 0; k < n; k++) {
-          var t0 = k / n;
-          var ax = s.x1 + (s.x2 - s.x1) * t0, az = s.z1 + (s.z2 - s.z1) * t0;
-          var bx = s.x1 + (s.x2 - s.x1) * Math.min(1, t0 + dashLen / segLen), bz = s.z1 + (s.z2 - s.z1) * Math.min(1, t0 + dashLen / segLen);
-          dashSegs.push({ x1: ax, z1: az, x2: bx, z2: bz, w: dashW });
+      if (w >= 1.75) sidewalkSegs.push(Object.assign({}, s, { w: w + 0.50 }));
+      if (r.width_m >= 8 || (r.major && r.width_m >= 7)) {
+        // Đo dọc cả tuyến: vạch sơn vẫn liền nhịp khi OSM chia thành nhiều đoạn ngắn.
+        var period = 1.5, dash = 0.56;
+        for (var start = -(distance % period); start < len; start += period) {
+          var from = Math.max(0, start), to = Math.min(len, start + dash);
+          if (to <= from) continue;
+          dashSegs.push({ x1: s.x1 + dx*from/len, z1: s.z1 + dz*from/len,
+            x2: s.x1 + dx*to/len, z2: s.z1 + dz*to/len, w: 0.038 });
         }
       }
+      distance += len;
     }
   });
-  mergedQuads(roadSegs, 0x3a3f44, 0.06);
-  if (sidewalkSegs.length) mergedQuads(sidewalkSegs, 0xb8b0a0, 0.10);
-  if (dashSegs.length) mergedQuads(dashSegs, 0xf5f0dc, 0.12);
+  // Nền vỉa hè và sân chợ nằm dưới nhựa để không cắt ngang giao lộ.
+  if (sidewalkSegs.length) mergedQuads(sidewalkSegs, 0xfbede0, 0.018, paving, true);
+  if (footways.length) mergedQuads(footways, 0xe2d7c4, 0.016, paving, true);
+  mergedQuads(roadSegs, 0xffffff, 0.024, asphalt, true);
+  if (dashSegs.length) mergedQuads(dashSegs, 0xffe9ad, 0.030);
   // Quảng trường chợ: nền gạch nung dưới mỗi chợ, để chợ tách biệt
   // khỏi nền đất vàng chung. Dùng mergedQuads với một đoạn dài 18,
   // rộng 14 đặt tại tâm landmark chợ.
@@ -631,13 +652,9 @@ function buildMap() {
       plazaSegs.push({ x1: L.x - 9, z1: L.z, x2: L.x + 9, z2: L.z, w: 14 });
     }
   });
-  if (plazaSegs.length) mergedQuads(plazaSegs, 0xc98a5a, 0.08);
-  roadSegs.forEach(addRoadToGrid);
-  // Nhà trên nền vàng: chỉ những nhà đã qua lọc ở build_map — footprint
-  // thật, đã đẩy khỏi hành lang đường, nhà trong công viên và nhà nhỏ vẫn
-  // chồng đường đã bị bỏ hẳn. Bề rộng đường tỉ lệ với bề rộng thật:
-  // width_m × 0,25, sàn 1,8, trần 5,0 (công thức ở shared-core, phải khớp
-  // với build_map.py, nếu không bản lọc và đường vẽ sẽ lệch nhau).
+  if (plazaSegs.length) mergedQuads(plazaSegs, 0xe4b795, 0.012, paving);
+  ROAD_SEGMENTS.forEach(addRoadToGrid);
+  // Dùng footprint đã được xếp trong hành lang xây dựng ở build_map.py.
   var list = MAP.buildings || [];
   var inst = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ roughness: 0.9 }), list.length);
   var dummy = new THREE.Object3D(), col = new THREE.Color();
@@ -656,11 +673,16 @@ function buildMap() {
   inst.castShadow = true;
   inst.receiveShadow = true;
   scene.add(inst);
+  indexCameraObstacles([inst]);
+  buildStreetFacades(list);
+  addMarketSigns(list);
+  var propsStart = scene.children.length;
   buildShophouseDetails(list);
   buildStreetProps();
+  indexCameraObstacles(scene.children.slice(propsStart));
   LANDMARKS.forEach(function (L) {
-    var sp = textSprite(L.name, 10);
-    sp.position.set(L.x, 8, L.z);
+    var sp = textSprite(L.name, 2.8);
+    sp.position.set(L.x, 6, L.z);
     scene.add(sp);
   });
   var byName = {};
@@ -672,8 +694,8 @@ function buildMap() {
   });
   Object.keys(byName).forEach(function (n) {
     var pts = byName[n].pts, mid = pts[Math.floor(pts.length / 2)];
-    var sp = textSprite(n, 6);
-    sp.position.set(mid[0], 3, mid[1]);
+    var sp = textSprite(n, 1.7);
+    sp.position.set(mid[0], 1.35, mid[1]);
     scene.add(sp);
   });
 }
