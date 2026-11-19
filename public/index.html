@@ -2,56 +2,88 @@
 <html lang="vi">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Thành phố Quận 5 Online — Bản đồ thật</title>
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 <div id="scene"></div>
-<div class="overlay" id="joinOverlay">
-<div class="card">
-<h1>🏮 Thành phố Quận 5 Online</h1>
-<p id="gameVersion" class="note"></p>
-<div id="mapState">
-<div id="mapSkeleton" class="skeleton-wrap" aria-hidden="true"><div class="skeleton-block">🗺️</div><div class="skeleton-line" style="width:90%"></div><div class="skeleton-line" style="width:65%"></div></div>
-<p id="loadStatus">Đang tải bản đồ thật từ OpenStreetMap…</p>
-<button type="button" id="retryMapBtn">Thử tải lại bản đồ</button>
-</div>
-<p>Đi dạo Chợ Lớn cùng nhau, trên đúng lưới đường thật của Quận 5 cũ (ranh OSM relation 3820432): nhà 3D chỉ trên nền đất vàng, không dựng ra đường — đường cong, chéo và giao nhau đúng như ngoài đời, kể cả hẻm và lối đi không tên. Không có chat tự do — chỉ chào hỏi, ăn uống, mua sắm và check-in có sẵn. <b>Mới: kinh doanh shophouse</b> — mua nhà rồi chọn biển hiệu (Vịt Quay, Chè, Tiệm Vàng, Thuốc Bắc), khách ghé quán ăn/mua sắm thì bạn nhận 2.000đ và khách được buff tốc độ, nhà đã có chủ thì mua lại được với +25% giá.</p>
-<input id="roomInput" placeholder="Mã phòng (để trống = thành phố chung QUAN5)" maxlength="12" style="text-transform:uppercase">
-<div class="row"><input id="nameInput" placeholder="Tên của bạn (để trống sẽ đặt tên Chợ Lớn)" maxlength="24"><button type="button" class="secondary" id="randomNameBtn">🎲 Tên hay</button></div>
-<div style="text-align:left;font-size:13px;margin:8px 0 2px;font-weight:700">Màu áo</div>
-<div class="row" id="robeSwatches" style="flex-wrap:wrap">
-<button type="button" class="sw sel" data-robe="#e0651f" style="background:#e0651f"></button>
-<button type="button" class="sw" data-robe="#2e7d32" style="background:#2e7d32"></button>
-<button type="button" class="sw" data-robe="#1565c0" style="background:#1565c0"></button>
-<button type="button" class="sw" data-robe="#c2185b" style="background:#c2185b"></button>
-<button type="button" class="sw" data-robe="#f9a825" style="background:#f9a825"></button>
-<button type="button" class="sw" data-robe="#7b1fa2" style="background:#7b1fa2"></button>
-</div>
-<button type="button" id="joinBtn" disabled>Vào thành phố</button>
-<p id="joinError"></p>
-<p class="note">Lưu ý thật: nhà 3D chỉ dựng trên nền đất vàng, không dựng ra đường. Vị trí, hình dạng và thứ tự các đường là từ OpenStreetMap, gồm cả đường không tên, hẻm và lối đi bộ; nhà cũng từ footprint thật của OpenStreetMap, nhưng đã đẩy khỏi hành lang đường, nhà trong công viên và nhà nhỏ vẫn chồng đường đã bị bỏ hẳn — và nhà vẽ bằng đúng footprint thật (bản cũ phóng đại tối thiểu 2x2 nên hộp vẽ rộng hơn hành lang đã dọn, nhìn như nhà tràn ra đường). Màu nhà trầm, đồng tông nền vàng, không còn cầu vồng pastel. Bề rộng đường tỉ lệ với bề rộng thật (lấy từ OSM: tag width, không có thì số làn × 3,5m, không có nữa thì mặc định theo loại đường; trong game = bề rộng thật × 0,25, tối thiểu 1,8, tối đa 5,0 — nên đường 16m rộng gấp đôi đường 8m đúng như ngoài đời, và đường đủ rộng cho nhiều người đi cùng nhau; nhà không vừa lô vàng thì bỏ, không vẽ lên đường). Nhân vật đi trên đường không bị nhà chặn; ra khỏi đường thì nhà vẫn chặn như thường, và chỉ bị chặn ở ranh Quận 5 và ở kênh (trừ khi đang ở trên cầu/đường). Dữ liệu © OpenStreetMap contributors, ODbL.</p>
-</div>
-</div>
+<main id="joinOverlay">
+  <header class="masthead">
+    <div class="brand"><span class="brand-mark" aria-hidden="true"><i></i></span>Quận 5 <span class="brand-online">Online</span></div>
+    <button type="button" class="help-link" data-help><span aria-hidden="true">?</span> Cách chơi</button>
+  </header>
+  <div class="lobby-layout">
+    <section class="postcard" aria-labelledby="cityTitle">
+      <img src="art/cho-lon.webp" alt="" fetchpriority="high">
+      <div class="postcard-copy">
+        <p class="place-label">QUẬN 5 <span> / </span> SÀI GÒN</p>
+        <h1 id="cityTitle">Một ngày ở<br><em>Chợ Lớn.</em></h1>
+        <p class="postcard-intro">Hẹn nhau ở chợ An Đông, dạo một vòng khu phố rồi ghé quán quen.</p>
+      </div>
+    </section>
+    <form id="joinForm">
+      <h2>Nhân vật của bạn</h2>
+      <p class="form-intro">Chọn tên và màu áo để bạn bè nhận ra bạn.</p>
+      <div class="form-field">
+        <label for="nameInput">Tên trong game</label>
+        <div class="name-field"><input id="nameInput" placeholder="Bạn tên gì?" maxlength="24" autocomplete="nickname">
+        <button type="button" id="randomNameBtn" title="Chọn tên ngẫu nhiên" aria-label="Chọn tên ngẫu nhiên"><span aria-hidden="true">⚄</span></button></div>
+      </div>
+      <fieldset class="form-field"><legend>Màu áo</legend>
+        <div id="robeSwatches">
+          <button type="button" class="sw" aria-pressed="true" aria-label="Cam đất" title="Cam đất" data-robe="#e0651f" style="--robe:#e0651f"></button>
+          <button type="button" class="sw" aria-pressed="false" aria-label="Xanh lá" title="Xanh lá" data-robe="#2e7d32" style="--robe:#2e7d32"></button>
+          <button type="button" class="sw" aria-pressed="false" aria-label="Xanh biển" title="Xanh biển" data-robe="#1565c0" style="--robe:#1565c0"></button>
+          <button type="button" class="sw" aria-pressed="false" aria-label="Hồng sen" title="Hồng sen" data-robe="#c2185b" style="--robe:#c2185b"></button>
+          <button type="button" class="sw" aria-pressed="false" aria-label="Vàng nghệ" title="Vàng nghệ" data-robe="#f9a825" style="--robe:#f9a825"></button>
+          <button type="button" class="sw" aria-pressed="false" aria-label="Tím nho" title="Tím nho" data-robe="#7b1fa2" style="--robe:#7b1fa2"></button>
+        </div><span id="robeName">Cam đất</span>
+      </fieldset>
+      <div class="form-field">
+        <label for="roomInput">Mã phòng</label>
+        <input id="roomInput" placeholder="QUAN5" maxlength="12" autocapitalize="characters" spellcheck="false" aria-describedby="roomHelp">
+        <small id="roomHelp">Để trống để vào phố chung, hoặc nhập mã của bạn bè.</small>
+      </div>
+      <p id="joinError" role="alert"></p>
+      <button type="submit" id="joinBtn" disabled>Vào thành phố <span aria-hidden="true">→</span></button>
+      <div id="mapState"><p id="loadStatus" role="status">Đang tải bản đồ…</p><button type="button" id="retryMapBtn">Thử tải lại</button></div>
+    </form>
+  </div>
+  <footer class="lobby-footer"><span id="gameVersion"></span><span>Bản đồ © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a></span></footer>
+</main>
+<dialog id="helpDialog" aria-labelledby="helpTitle">
+  <div class="dialog-heading"><h2 id="helpTitle">Cách chơi</h2><form method="dialog"><button class="close-btn" aria-label="Đóng hướng dẫn">×</button></form></div>
+  <dl class="guide">
+    <dt>Đi bộ và ngắm phố</dt><dd>Dùng WASD, phím mũi tên hoặc cần điều khiển trên màn hình cảm ứng. Kéo trên đường phố để xoay góc nhìn.</dd>
+    <dt>Hẹn bạn bè</dt><dd>Bấm Mời bạn để chia sẻ phòng. Mở bản đồ và chọn tên bạn hoặc địa danh để xem hướng đi.</dd>
+    <dt>Sinh hoạt trong phố</dt><dd>Mở Sinh hoạt để chào, ăn uống hay chụp ảnh. Đi gần địa danh để check-in, hoặc nhận đơn giao hàng để kiếm tiền mua nhà.</dd>
+    <dt>Trở về nhà</dt><dd>Tiền và nhà gắn với trình duyệt này. Hãy dùng lại cùng trình duyệt để tiếp tục chơi.</dd>
+  </dl>
+</dialog>
 <div id="hud">
 <div id="topBar">
-<button type="button" id="inviteBtn" aria-label="Mời bạn vào phòng">🔗 Mời bạn</button>
-<div class="top-stats">
-<span class="top-stat">💰 <strong id="tien">0</strong></span>
-<span class="top-stat">⭐ <strong id="diem">0</strong></span>
-<span class="top-stat">📸 <strong id="checkin">0</strong></span>
-<span class="top-stat">👥 <strong id="count">0</strong></span>
-<span class="top-stat">🌅 <strong id="buoiLabel">Sáng</strong></span>
-<span class="top-stat hide-mobile">🏠 <strong id="homeLabel">Chưa có</strong></span>
-<span class="top-stat" id="buffLabel" style="display:none">⚡ +15% tốc độ</span>
+<div class="hud-place"><span class="brand-mark" aria-hidden="true"><i></i></span><span><strong id="hudRoom">QUAN5</strong><small id="streetLabel">Quận 5</small></span></div>
+<div class="top-stats" role="region" aria-label="Thông tin cư dân" tabindex="0">
+<span class="top-stat"><small>Ví tiền</small><strong id="tien">0</strong></span>
+<span class="top-stat"><small>Điểm</small><strong id="diem">0</strong></span>
+<span class="top-stat"><small>Check-in</small><strong id="checkin">0</strong></span>
+<span class="top-stat"><small>Trong phòng</small><strong id="count">0</strong></span>
+<span class="top-stat"><small>Thời điểm</small><strong id="buoiLabel">Sáng</strong></span>
+<span class="top-stat"><small>Nhà chính</small><strong id="homeLabel">Chưa có</strong></span>
+<span class="top-stat" id="buffLabel" style="display:none">+15% tốc độ</span></div>
+<div class="hud-tools"><button type="button" id="inviteBtn">Mời bạn</button><button type="button" class="help-icon" data-help aria-label="Cách chơi">?</button></div>
 </div>
-</div>
-<div id="streetPill">📍 <span id="streetLabel">Quận 5</span></div>
-<div class="panel" id="leaderboard"><div class="leader-head"><b>🏆 Top Địa Chủ Quận 5</b><button type="button" id="leaderToggle" aria-expanded="true" aria-label="Thu gọn bảng xếp hạng">▾</button></div><div id="leaderBody"><div class="leader-empty">Đang tải bảng xếp hạng…</div></div></div>
+<div class="city-widgets">
 <div class="panel" id="shipperPanel" style="display:none"><div class="shipper-head"><b>📦 Đơn giao hàng</b><span id="shipperTimer">⏱ 60s</span></div><div id="shipperTarget" class="shipper-target"></div><div class="shipper-foot"><span id="shipperReward"></span><button type="button" id="shipperCancelBtn">Hủy đơn</button></div></div>
-<div class="panel" id="minimapWrap" role="button" tabindex="0" aria-label="Mở bản đồ lớn">🗺️ Bản đồ Quận 5<canvas id="minimap" width="140" height="75"></canvas><span class="minimap-hint">Chạm để phóng to</span></div>
-<div class="panel" id="feed"><div class="feed-head"><b>📣 Hoạt động</b><button type="button" id="feedToggle" aria-expanded="true" aria-label="Thu gọn hoạt động">▾</button></div><div id="feedBody"><div class="skeleton-line" style="width:95%"></div><div class="skeleton-line" style="width:80%"></div><div class="skeleton-line" style="width:88%"></div></div></div>
+<details id="community">
+<summary>Trong khu phố</summary><div class="community-tabs" role="group" aria-label="Thông tin khu phố">
+<button type="button" data-community="feed" aria-controls="feed" aria-pressed="true">Hoạt động</button>
+<button type="button" data-community="leaderboard" aria-controls="leaderboard" aria-pressed="false">Xếp hạng</button></div>
+<section id="feed" aria-label="Hoạt động"><div id="feedBody">Đang tải hoạt động…</div></section>
+<section id="leaderboard" aria-label="Xếp hạng địa chủ" hidden><div id="leaderBody">Đang tải xếp hạng…</div></section>
+</details></div>
+<div class="panel" id="minimapWrap" role="button" tabindex="0" aria-label="Mở bản đồ lớn">Bản đồ Quận 5 <span aria-hidden="true">↗</span><canvas id="minimap" width="140" height="75"></canvas><span id="mapHint" class="minimap-hint">Mở bản đồ</span></div>
 <div id="pollError"><span id="pollErrorText">Mất kết nối tới máy chủ — dữ liệu có thể đã cũ.</span><button type="button" id="pollRetryBtn">Thử lại ngay</button></div>
 <div id="ctxPopup">
 <div id="ctxLandmark" style="display:none">
@@ -87,16 +119,19 @@
 <button type="button" data-action="chup">📷 Chụp ảnh</button>
 <button type="button" class="buoi" id="buoiBtn">🌅 Đổi buổi</button>
 </div>
-<button type="button" id="quickToggle" aria-expanded="false" aria-label="Mở thao tác nhanh">⚡ Thao tác</button>
+<button type="button" id="quickToggle" aria-expanded="false" aria-controls="quickPanel">Sinh hoạt</button>
 <button type="button" id="shipperBtn">📦 Nhận đơn giao hàng</button>
-<button type="button" id="soHongBtn" style="display:none">📜 Xem Sổ Hồng / Khoe Nhà</button>
+<button type="button" id="soHongBtn" style="display:none">Sổ hồng</button>
 </div>
 <div id="joy"><div id="knob"></div></div>
 <div id="mapModal" role="dialog" aria-modal="true" aria-label="Bản đồ Quận 5 lớn">
 <div class="map-modal-panel">
-<div class="map-modal-head"><b>🗺️ Bản đồ Quận 5 (thật)</b><button type="button" id="mapModalClose" aria-label="Đóng bản đồ">✕</button></div>
+<div class="map-modal-head"><b>Bản đồ Quận 5</b><button type="button" id="mapModalClose" aria-label="Đóng bản đồ">✕</button></div>
+<label class="map-destination" for="mapDestination">Điểm đến
+<select id="mapDestination"><option value="">Bỏ chỉ hướng</option></select></label>
 <canvas id="bigMap" width="600" height="320"></canvas>
-<p class="map-modal-note">Chấm vàng là bạn, chấm xanh là người chơi khác, chấm đỏ là landmark, chấm vàng lớn là Đoàn Lân, chấm đỏ nhỏ là bao lì xì, đường đứt nét là hướng tới điểm giao hàng.</p>
+<p id="destinationDistance" class="map-modal-note" hidden></p>
+<p class="map-modal-note"><span class="map-key me">Bạn</span><span class="map-key friend">Bạn cùng phòng</span><span class="map-key place">Địa danh</span><span class="map-key target">Điểm đến</span><span class="map-key delivery">Hướng giao hàng</span></p>
 </div>
 </div>
 <div id="toast" role="status" aria-live="polite"></div>
@@ -116,6 +151,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>
 <script src="js/shared-core.js"></script>
 <script src="js/render.js"></script>
+<script src="js/streetscape.js"></script>
 <script src="js/map.js"></script>
 <script src="js/net.js"></script>
 <script src="js/app.js"></script>

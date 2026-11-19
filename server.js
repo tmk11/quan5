@@ -20,7 +20,7 @@ const handlers = require('./src/handlers.js');
 const { serveStatic } = require('./src/static.js');
 const Lion = require('./src/lion.js');
 
-let version = '1.9.0';
+let version = '1.10.0';
 try {
   const pkg = JSON.parse(fs.readFileSync(path.join(config.ROOT_DIR, 'package.json'), 'utf8'));
   if (pkg && typeof pkg.version === 'string') {
@@ -106,7 +106,7 @@ const server = http.createServer(async (req, res) => {
       await handlers.handleState(req, res, ctx, url.searchParams);
     } else if (req.method === 'GET' && (
       pathname === '/' || pathname === '/index.html' ||
-      pathname === '/quan5-map.json' ||
+      pathname === '/quan5-map.json' || pathname.startsWith('/art/') || pathname.startsWith('/fonts/') ||
       (pathname.startsWith('/js/') && pathname.endsWith('.js')) ||
       (pathname.startsWith('/css/') && pathname.endsWith('.css'))
     )) {

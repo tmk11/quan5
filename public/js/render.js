@@ -1,49 +1,47 @@
 // Render: khởi tạo Three.js, đèn, và các helper vẽ sprite.
 // File này phải load sau script Three.js CDN và trước map.js / app.js.
 // Nếu CDN Three.js fail, file này không crash: nó đặt cờ RENDER_OK=false
-// và ghi lỗi rõ ràng vào #loadStatus, để app.js không gọi buildMap hay
-// animate với scene chưa tồn tại.
+// và cung cấp thông báo để sảnh chơi hiển thị lý do và nút thử lại.
 'use strict';
 var RENDER_OK = typeof THREE !== 'undefined';
+var renderError = 'Không tải được thư viện 3D. Hãy kiểm tra kết nối rồi tải lại trang.';
 var scene = null, renderer = null, camera = null, hemi = null, sun = null;
 if (RENDER_OK) {
+  try {
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+  } catch (error) {
+    RENDER_OK = false;
+    renderError = 'Trình duyệt chưa bật được đồ họa 3D. Hãy bật tăng tốc đồ họa hoặc dùng trình duyệt hỗ trợ WebGL.';
+  }
+}
+if (RENDER_OK) {
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xd8edf7);
+  scene.background = new THREE.Color(0xc4e1df);
   // FogExp2 thay cho Fog tuyến tính: chiều sâu tăng dần theo khoảng
   // cách, phố xa mờ nhẹ chứ không bị cắt đột ngột ở 170 đơn vị.
-  scene.fog = new THREE.FogExp2(0xd8edf7, 0.0045);
-  renderer = new THREE.WebGLRenderer({ antialias: true });
+  scene.fog = new THREE.FogExp2(0xc4e1df, 0.018);
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.setSize(innerWidth, innerHeight);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   document.getElementById('scene').appendChild(renderer.domElement);
   renderer.domElement.style.touchAction = 'none';
-  camera = new THREE.PerspectiveCamera(innerWidth < innerHeight ? 70 : 55, innerWidth / innerHeight, 0.1, 400);
-  hemi = new THREE.HemisphereLight(0xcfe8ff, 0x8a7a5a, 0.85);
+  camera = new THREE.PerspectiveCamera(innerWidth < innerHeight ? 55 : 50, innerWidth / innerHeight, 0.035, 220);
+  hemi = new THREE.HemisphereLight(0xcfe8ff, 0xb6a58e, 0.85);
   scene.add(hemi);
-  scene.add(new THREE.AmbientLight(0xfff2e0, 0.35));
+  scene.add(new THREE.AmbientLight(0xfff3df, 0.56));
   sun = new THREE.DirectionalLight(0xffe2a8, 1.25);
   sun.position.set(40, 50, 30);
   sun.castShadow = true;
   sun.shadow.mapSize.set(1024, 1024);
-  sun.shadow.camera.left = -150;
-  sun.shadow.camera.right = 150;
-  sun.shadow.camera.top = 150;
-  sun.shadow.camera.bottom = -150;
+  sun.shadow.camera.left = -13;
+  sun.shadow.camera.right = 13;
+  sun.shadow.camera.top = 13;
+  sun.shadow.camera.bottom = -13;
   sun.shadow.camera.far = 300;
-  scene.add(sun);
-} else {
-  var loadEl = document.getElementById('loadStatus');
-  if (loadEl) {
-    loadEl.textContent = 'Không tải được thư viện 3D (Three.js từ CDN). Vui lòng kiểm tra mạng rồi bấm Thử lại để tải lại trang.';
-  }
-  var retryEl = document.getElementById('retryMapBtn');
-  if (retryEl) {
-    retryEl.style.display = 'block';
-    retryEl.textContent = 'Thử tải lại trang';
-    retryEl.onclick = function () { location.reload(); };
-  }
+  sun.shadow.bias = -0.0004;
+  sun.shadow.normalBias = 0.008;
+  scene.add(sun.target, sun);
 }
 function mat(c, o) {
   o = o || {};
@@ -158,18 +156,18 @@ function disposeObject(obj) {
 // typeof trước khi dùng, không được crash.
 var curBuoi = 'sang';
 var BUOI_TARGETS = {
-  'sang': { sky: 0xd8edf7, fog: 0xd8edf7, sun: 0xffe2a8, sunI: 1.25, sunPos: [40, 50, 30], hemiSky: 0xcfe8ff, hemiI: 0.85, night: 0 },
-  'hoang-hon': { sky: 0xffb98a, fog: 0xffc49a, sun: 0xff8a3d, sunI: 0.9, sunPos: [60, 20, 10], hemiSky: 0xffc49a, hemiI: 0.6, night: 0.45 },
+  'sang': { sky: 0xc4e1df, fog: 0xc4e1df, sun: 0xffe2a8, sunI: 1.85, sunPos: [40, 50, 30], hemiSky: 0xcfe8ff, hemiI: 1.35, night: 0 },
+  'hoang-hon': { sky: 0xffb98a, fog: 0xffc49a, sun: 0xff8a3d, sunI: 1.35, sunPos: [60, 20, 10], hemiSky: 0xffc49a, hemiI: 0.95, night: 0.45 },
   'dem': { sky: 0x141b3a, fog: 0x1a2347, sun: 0x8fa3ff, sunI: 0.3, sunPos: [-30, 40, -20], hemiSky: 0x3a4a7a, hemiI: 0.35, night: 1 }
 };
 var buoiTarget = BUOI_TARGETS['sang'];
 var buoiCurrent = null;
 if (RENDER_OK) {
   buoiCurrent = {
-    sky: new THREE.Color(0xd8edf7), fog: new THREE.Color(0xd8edf7),
-    sun: new THREE.Color(0xffe2a8), sunI: 1.25,
+    sky: new THREE.Color(0xc4e1df), fog: new THREE.Color(0xc4e1df),
+    sun: new THREE.Color(0xffe2a8), sunI: 1.85,
     sunPos: new THREE.Vector3(40, 50, 30),
-    hemiSky: new THREE.Color(0xcfe8ff), hemiI: 0.85, night: 0
+    hemiSky: new THREE.Color(0xcfe8ff), hemiI: 1.35, night: 0
   };
 }
 function applyBuoi(v) {
@@ -181,7 +179,7 @@ function applyBuoi(v) {
   if (!RENDER_OK) return;
   buoiTarget = BUOI_TARGETS[v] || BUOI_TARGETS['sang'];
 }
-function stepBuoiTransition(dt) {
+function stepBuoiTransition(dt, focus) {
   if (!RENDER_OK || !buoiCurrent || !buoiTarget) return;
   var k = 1 - Math.exp(-dt * 2.5);
   buoiCurrent.sky.lerp(new THREE.Color(buoiTarget.sky), k);
@@ -196,7 +194,8 @@ function stepBuoiTransition(dt) {
   scene.fog.color.copy(buoiCurrent.fog);
   sun.color.copy(buoiCurrent.sun);
   sun.intensity = buoiCurrent.sunI;
-  sun.position.copy(buoiCurrent.sunPos);
+  sun.target.position.set(focus.x, 0, focus.z);
+  sun.position.copy(buoiCurrent.sunPos).add(sun.target.position);
   hemi.color.copy(buoiCurrent.hemiSky);
   hemi.intensity = buoiCurrent.hemiI;
   // Đêm: lồng đèn + biển hiệu + đèn đường phát sáng dần, đèn quảng

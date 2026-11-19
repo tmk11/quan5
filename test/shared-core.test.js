@@ -3,12 +3,14 @@ const assert = require('node:assert/strict');
 const S = require('../public/js/shared-core.js');
 
 test('roadWidth: tỉ lệ đúng, sàn và trần đúng', () => {
+  assert.equal(S.roadWidthFromMeters(1), 0.5);
+  assert.equal(S.RESIDENT_HEIGHT / S.roadWidthFromMeters(8), 1.8 / 8);
   assert.equal(S.roadWidthFromMeters(16), 4.0);
   assert.equal(S.roadWidthFromMeters(8), 2.0);
-  assert.equal(S.roadWidthFromMeters(5), 1.8);
-  assert.equal(S.roadWidthFromMeters(3), 1.8);
+  assert.equal(S.roadWidthFromMeters(5), 1.25);
+  assert.equal(S.roadWidthFromMeters(3), 0.75);
   assert.equal(S.roadWidthFromMeters(30), 5.0);
-  assert.equal(S.roadWidthFromMeters(undefined), 1.8);
+  assert.equal(S.roadWidthFromMeters(undefined), 1.5);
 });
 
 test('housePrice: nhà nhỏ, nhà lớn, trần giá', () => {

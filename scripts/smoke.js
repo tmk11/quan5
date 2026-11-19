@@ -34,8 +34,9 @@ async function post(p, body, raw) {
   }
   return { status: res.status, json };
 }
-async function get(p) {
-  const res = await fetch(BASE + p);
+async function get(p, sessionId) {
+  const headers = sessionId ? { Authorization: 'Bearer ' + sessionId } : {};
+  const res = await fetch(BASE + p, { headers });
   // Đọc body một lần qua text rồi parse, không dùng clone().json() vì
   // clone để lại body gốc chưa đọc, làm bẩn connection keep-alive và gây
   // lỗi "other side closed" ở request sau.
@@ -85,15 +86,26 @@ async function main() {
     const health = await waitHealth();
     console.log('health ok, version=' + health.version + ', roads=' + health.map.roads);
     assert(health.map.roads === 1913, 'health phải báo 1913 đường, nhận ' + health.map.roads);
-    assert(health.map.buildings === 474, 'health phải báo 474 nhà, nhận ' + health.map.buildings);
+    assert([474, 1022].includes(health.map.buildings), 'số nhà phải khớp một bản đồ đã phát hành, nhận ' + health.map.buildings);
 
     const home = await get('/');
     assert(home.status === 200, 'GET / phải 200, nhận ' + home.status);
     assert(home.text.includes('js/app.js'), 'trang chủ phải load js/app.js (client đã tách module)');
     assert(home.text.includes('css/style.css'), 'trang chủ phải load css/style.css');
-    for (const asset of ['/js/shared-core.js', '/js/render.js', '/js/map.js', '/js/net.js', '/js/app.js', '/css/style.css']) {
+    for (const asset of ['/js/shared-core.js', '/js/render.js', '/js/streetscape.js', '/js/map.js', '/js/net.js', '/js/app.js', '/css/style.css']) {
       const a = await get(asset);
       assert(a.status === 200, 'tài nguyên ' + asset + ' phải 200, nhận ' + a.status);
+    }
+
+    for (const [asset, type] of [
+      ['/art/cho-lon.webp', 'image/webp'],
+      ['/fonts/work-sans.woff2', 'font/woff2'],
+      ['/fonts/spectral-italic.woff2', 'font/woff2']
+    ]) {
+      const response = await fetch(BASE + asset);
+      const data = await response.arrayBuffer();
+      assert(response.ok && response.headers.get('content-type') === type && data.byteLength > 0,
+        'Sảnh chơi cần tải được ' + asset + ' với kiểu ' + type);
     }
 
     const mapRes = await get('/quan5-map.json');
@@ -181,6 +193,17 @@ async function main() {
     // Ví thứ hai mua cùng nhà phải bị chặn.
     const join2 = await post('/api/join', { room: 'QUAN5', name: 'Khach', deviceId: 'test-smoke-002' });
     assert(join2.status === 200, 'join ví thứ hai phải 200');
+    const publicState = await get('/api/state?room=QUAN5');
+    assert(publicState.json.players.some(p => p.id === join.json.avatarId), 'phòng phải hiển thị nhân vật của chủ nhà');
+    assert(publicState.json.events.some(e => e.playerId === join.json.avatarId), 'sự kiện phải dùng mã nhân vật công khai');
+    for (const id of [playerId, deviceId, join2.json.playerId, join2.json.deviceId]) {
+      assert(!publicState.text.includes(id), 'trạng thái phòng phải giữ kín mã ví và mã phiên');
+    }
+    const ownerState = await get('/api/state?room=QUAN5', playerId);
+    const visitorState = await get('/api/state?room=QUAN5', join2.json.playerId);
+    assert(ownerState.json.houses[house.id].isMine === true, 'chủ nhà phải thấy nhà của mình');
+    assert(visitorState.json.houses[house.id].isMine === false, 'khách phải thấy nhà của người khác');
+    assert(publicState.json.houses[house.id].isMine === false, 'khách chưa vào phòng không sở hữu nhà');
     await post('/api/heartbeat', { room: 'QUAN5', playerId: join2.json.playerId, x: house.x, z: house.z, rot: 0 });
     await sleep(1100);
     const buy2 = await post('/api/house', { room: 'QUAN5', playerId: join2.json.playerId, action: 'buy', houseId: house.id });

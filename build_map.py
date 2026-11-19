@@ -156,27 +156,15 @@ def street_midpoint(name):
 # the nearest free yellow-land pocket (max 10 units), each OSM building
 # still appearing exactly once. Drawn footprint is then the FITTED size
 # (<= true OSM size), not the true size, for recovered houses.
-# Game road width (MUST match client roadWidthFromMeters exactly, otherwise
-# the build-time filter and the drawn road disagree about what is "on a road"):
-# width_m * 0.25, floor 1.8, cap 5.0. Still proportional (16 m road is twice
-# an 8 m road). History: 0.3/floor 1.8/cap 6.5 made roads so wide that most
-# houses in narrow blocks could never fit between two corridors (first
-# yellow-plot pass dropped 2552 -> 315); 0.15/floor 1.0/cap 3.5 fixed the fit
-# but left roads only 1.2 wide for an 8 m street — too narrow for many
-# players walking together. Boss 2026-11-02 evening: widen ALL roads for
-# future crowds, and start the buy/sell/live-in house economy. 0.25 gives
-# 8 m -> 2.0 (2-3 players side by side), 16 m -> 4.0, alley/footway -> 1.8
-# floor (2 players side by side). Houses that cannot fit between the wider
-# corridors are no longer dropped: since Boss 2026-11-04 evening they are
-# recovered by shrinking/relocating onto yellow land (see Recovery below),
-# never drawn on roads — that trade-off (fill priority over exact size
-# and position) replaces the old drop-them rule.
-def game_road_width(width_m):
+# Keep the original setback when fitting houses so existing lots keep their
+# coordinates and IDs. The street renderer uses the same 0.25 scale but can
+# draw a narrower carriageway inside this reserved corridor for small alleys.
+def reserved_road_width(width_m):
     return max(1.8, min(5.0, (width_m or 6) * 0.25))
 
 road_segs = []
 for r in roads:
-    w_game = game_road_width(r['width_m'])
+    w_game = reserved_road_width(r['width_m'])
     for i in range(len(r['pts']) - 1):
         road_segs.append((r['pts'][i][0], r['pts'][i][1],
                           r['pts'][i + 1][0], r['pts'][i + 1][1], w_game / 2.0))

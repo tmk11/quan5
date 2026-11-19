@@ -135,12 +135,12 @@ async function main() {
       'tới điểm lấy phải trả missionEvent pickedup, nhận ' + JSON.stringify(hbPickup.missionEvent));
 
     currentStep = 'shipper: tới điểm giao → cộng tiền';
-    const before = (await state()).players.find((p) => p.id === shipper1.playerId);
+    const before = (await state()).players.find((p) => p.id === shipper1.avatarId);
     const hbDelivery = await heartbeat(shipper1.playerId, m.delivery.x, m.delivery.z);
     assert(hbDelivery.missionEvent && hbDelivery.missionEvent.type === 'delivered',
       'tới điểm giao phải trả missionEvent delivered, nhận ' + JSON.stringify(hbDelivery.missionEvent));
     assert(hbDelivery.missionEvent.reward === m.reward, 'thưởng giao phải bằng thưởng lúc nhận đơn');
-    const after = (await state()).players.find((p) => p.id === shipper1.playerId);
+    const after = (await state()).players.find((p) => p.id === shipper1.avatarId);
     assert(after.tien === before.tien + m.reward, 'tiền sau giao phải tăng đúng thưởng: ' + before.tien + ' → ' + after.tien);
     assert(!after.mission, 'giao xong thì nhiệm vụ phải hết');
     const feed = (await state()).events;
@@ -179,11 +179,11 @@ async function main() {
       'envelope trong state chỉ được có id/x/z/expiresAt, không có giá trị tiền');
     const env = st.envelopes[0];
     const picker = await joinAs('Picker', 'event-device-picker');
-    const beforePick = (await state()).players.find((p) => p.id === picker.playerId);
+    const beforePick = (await state()).players.find((p) => p.id === picker.avatarId);
     const hbPick = await heartbeat(picker.playerId, env.x, env.z);
     assert(hbPick.lionPickup && hbPick.lionPickup.amount >= 3000 && hbPick.lionPickup.amount <= 10000,
       'nhặt lì xì phải trả lionPickup 3–10k, nhận ' + JSON.stringify(hbPick.lionPickup));
-    const afterPick = (await state()).players.find((p) => p.id === picker.playerId);
+    const afterPick = (await state()).players.find((p) => p.id === picker.avatarId);
     assert(afterPick.tien === beforePick.tien + hbPick.lionPickup.amount,
       'tiền sau nhặt phải tăng đúng số lì xì');
     const stAfter = await state();
