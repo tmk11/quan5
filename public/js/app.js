@@ -2017,9 +2017,14 @@ function loadMap() {
     buildMap();
     buildMinimapStatic();
     initHouseMarker();
-    setMapState('success', 'Bản đồ đã sẵn sàng');
-    camera.position.set(myPos.x, 1.16, myPos.z + 2.25);
-    camera.lookAt(myPos.x, 0.56, myPos.z);
+    setMapState('loading', 'Đang chuẩn bị cảnh 3D…');
+    followStreetCamera(myPos, camYaw);
+    return renderer.compileAsync(scene, camera).then(function () {
+      renderer.render(scene, camera);
+      // Hoàn tất lượt tải texture đầu tiên trước khi bắt đầu tính giờ phiên.
+      renderer.getContext().finish();
+      setMapState('success', 'Bản đồ đã sẵn sàng');
+    });
   }).catch(function (e) {
     setMapState('error', 'Không tải được bản đồ thật (' + (e.message || 'lỗi không rõ') + '). Vui lòng kiểm tra mạng rồi bấm Thử lại.');
     var retryBtn = document.getElementById('retryMapBtn');

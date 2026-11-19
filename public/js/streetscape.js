@@ -8,7 +8,6 @@ function streetTexture(width, height, paint) {
   var texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-  texture.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
   return texture;
 }
 

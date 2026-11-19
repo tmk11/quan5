@@ -87,15 +87,18 @@ function shapeFromGamePts(pts) {
   });
   return sh;
 }
-function mergedQuads(segments, color, y, texture, roundJoints) {
+function mergedQuads(segments, color, y, texture, joinBends) {
   var pos = [], uv = [], idx = [], joints = new Map();
   function vertex(x, z) {
     pos.push(x, y, z);
     uv.push(x / 1.2, -z / 1.2);
   }
-  function joint(x, z, radius) {
+  function joint(x, z, px, pz, edge) {
     var key = x + ':' + z;
-    if (!joints.has(key) || joints.get(key).r < radius) joints.set(key, { x: x, z: z, r: radius });
+    var ends = joints.get(key);
+    if (!ends) joints.set(key, ends = []);
+    ends.push({ angle: Math.atan2(pz, px), index: edge },
+              { angle: Math.atan2(-pz, -px), index: edge + 1 });
   }
   segments.forEach(function (s) {
     var dx = s.x2 - s.x1, dz = s.z2 - s.z1, len = Math.hypot(dx, dz);
@@ -106,15 +109,16 @@ function mergedQuads(segments, color, y, texture, roundJoints) {
     vertex(s.x2 + px, s.z2 + pz);
     vertex(s.x2 - px, s.z2 - pz);
     idx.push(base, base + 2, base + 1, base + 2, base + 3, base + 1);
-    if (roundJoints) { joint(s.x1, s.z1, w); joint(s.x2, s.z2, w); }
+    if (joinBends) {
+      joint(s.x1, s.z1, px, pz, base);
+      joint(s.x2, s.z2, px, pz, base + 2);
+    }
   });
-  joints.forEach(function (j) {
-    var base = pos.length / 3;
-    vertex(j.x, j.z);
-    for (var k = 0; k < 12; k++) {
-      var angle = -k * Math.PI / 6;
-      vertex(j.x + Math.cos(angle) * j.r, j.z + Math.sin(angle) * j.r);
-      idx.push(base, base + 1 + k, base + 1 + (k + 1) % 12);
+  // Nối góc cua bằng các đỉnh sẵn có ở mép đường.
+  joints.forEach(function (ends) {
+    ends.sort(function (a, b) { return b.angle - a.angle; });
+    for (var k = 1; k + 1 < ends.length; k++) {
+      idx.push(ends[0].index, ends[k].index, ends[k + 1].index);
     }
   });
   var geo = new THREE.BufferGeometry();
